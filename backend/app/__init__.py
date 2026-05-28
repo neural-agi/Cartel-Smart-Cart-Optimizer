@@ -1,0 +1,1 @@
+"""Cartel backend application package."""

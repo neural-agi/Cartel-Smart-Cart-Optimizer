@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Data artifacts
+data/raw/*
+data/normalized/*
+data/exports/*
+!data/raw/.gitkeep
+!data/normalized/.gitkeep
+!data/exports/.gitkeep
+!data/samples/.gitkeep
+
+# Logs
+*.log
+logs/
+
+# Node / Flutter
+frontend/.dart_tool/
+frontend/build/
+
+# Infra
+.terraform/
+*.tfstate
+*.tfstate.*
