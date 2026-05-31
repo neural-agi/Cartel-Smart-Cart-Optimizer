@@ -22,10 +22,18 @@ Thumbs.db
 data/raw/*
 data/normalized/*
 data/exports/*
+data/cleaned/*
+data/sessions/*
 !data/raw/.gitkeep
 !data/normalized/.gitkeep
 !data/exports/.gitkeep
+!data/cleaned/.gitkeep
+!data/cleaned/blinkit/
+!data/cleaned/blinkit/.gitkeep
 !data/samples/.gitkeep
+!data/sessions/.gitkeep
+!data/sessions/blinkit/
+!data/sessions/blinkit/.gitkeep
 
 # Logs
 *.log
