@@ -1,0 +1,273 @@
+{
+  "platform": "blinkit",
+  "query": "biscuits",
+  "source_path": "D:\\PARANJAY\\Projects\\Cartel-Smart-Cart-Optimizer\\data\\raw\\blinkit\\20260620T123654Z_biscuits.html",
+  "extracted_at": "2026-06-20T12:36:55.856478Z",
+  "product_count": 24,
+  "products": [
+    {
+      "source_index": 1,
+      "platform": "blinkit",
+      "product_name": "Right Shift Jaggery Atta Cookies",
+      "displayed_price": "₹90",
+      "mrp": "₹100",
+      "quantity": "120 g",
+      "stock_availability": "in_stock",
+      "offer_text": "10% OFF",
+      "raw_text": "10% OFF 8 mins Right Shift Jaggery Atta Cookies 120 g ₹90 ₹100 ADD"
+    },
+    {
+      "source_index": 2,
+      "platform": "blinkit",
+      "product_name": "Sunfeast Bourbon Dark Fantasy Biscuit",
+      "displayed_price": "₹15",
+      "mrp": "₹30",
+      "quantity": "108 g",
+      "stock_availability": "in_stock",
+      "offer_text": "50% OFF",
+      "raw_text": "50% OFF 8 mins Sunfeast Bourbon Dark Fantasy Biscuit 108 g ₹15 ₹30 ADD"
+    },
+    {
+      "source_index": 3,
+      "platform": "blinkit",
+      "product_name": "Hide & Seek Chocolate Chip Cookies",
+      "displayed_price": "₹42",
+      "mrp": "₹60",
+      "quantity": "200 g",
+      "stock_availability": "in_stock",
+      "offer_text": "30% OFF",
+      "raw_text": "30% OFF 8 mins Hide & Seek Chocolate Chip Cookies 200 g ₹42 ₹60 ADD"
+    },
+    {
+      "source_index": 4,
+      "platform": "blinkit",
+      "product_name": "McVitie's Digestive High Fibre Biscuit",
+      "displayed_price": "₹127",
+      "mrp": "₹199",
+      "quantity": "959.1 g",
+      "stock_availability": "in_stock",
+      "offer_text": "36% OFF",
+      "raw_text": "36% OFF 8 mins McVitie's Digestive High Fibre Biscuit 959.1 g ₹127 ₹199 ADD"
+    },
+    {
+      "source_index": 5,
+      "platform": "blinkit",
+      "product_name": "Britannia NutriChoice Digestive High-Fibre Biscuit",
+      "displayed_price": "₹25",
+      "mrp": null,
+      "quantity": "125 g",
+      "stock_availability": "in_stock",
+      "offer_text": null,
+      "raw_text": "8 mins Britannia NutriChoice Digestive High-Fibre Biscuit 125 g ₹25 ADD"
+    },
+    {
+      "source_index": 6,
+      "platform": "blinkit",
+      "product_name": "Hide & Seek Choco Chip Cookies",
+      "displayed_price": "₹28",
+      "mrp": "₹30",
+      "quantity": "100 g",
+      "stock_availability": "in_stock",
+      "offer_text": "6% OFF",
+      "raw_text": "6% OFF 8 mins Hide & Seek Choco Chip Cookies 100 g ₹28 ₹30 ADD"
+    },
+    {
+      "source_index": 7,
+      "platform": "blinkit",
+      "product_name": "Hide & Seek Choco Chip Cream Biscuits",
+      "displayed_price": "₹93",
+      "mrp": "₹180",
+      "quantity": "400 g",
+      "stock_availability": "in_stock",
+      "offer_text": "48% OFF",
+      "raw_text": "48% OFF 8 mins Hide & Seek Choco Chip Cream Biscuits 400 g ₹93 ₹180 ADD"
+    },
+    {
+      "source_index": 8,
+      "platform": "blinkit",
+      "product_name": "Parle Krackjack Crackers Sweet & Salty Biscuits",
+      "displayed_price": "₹35",
+      "mrp": null,
+      "quantity": "176.4 g",
+      "stock_availability": "in_stock",
+      "offer_text": null,
+      "raw_text": "8 mins Parle Krackjack Crackers Sweet & Salty Biscuits 176.4 g ₹35 ADD"
+    },
+    {
+      "source_index": 9,
+      "platform": "blinkit",
+      "product_name": "Britannia Marie Gold Marie Biscuits",
+      "displayed_price": "₹38",
+      "mrp": "₹40",
+      "quantity": "208 g",
+      "stock_availability": "in_stock",
+      "offer_text": "5% OFF",
+      "raw_text": "5% OFF 8 mins Britannia Marie Gold Marie Biscuits 208 g ₹38 ₹40 ADD"
+    },
+    {
+      "source_index": 10,
+      "platform": "blinkit",
+      "product_name": "Hide & Seek Black Bourbon Biscuits Choco Creme Sandwich",
+      "displayed_price": "₹82",
+      "mrp": "₹160",
+      "quantity": "270 g",
+      "stock_availability": "in_stock",
+      "offer_text": "48% OFF",
+      "raw_text": "48% OFF 8 mins Hide & Seek Black Bourbon Biscuits Choco Creme Sandwich 270 g ₹82 ₹160 ADD"
+    },
+    {
+      "source_index": 11,
+      "platform": "blinkit",
+      "product_name": "Britannia Nice Time Coconut Biscuit",
+      "displayed_price": "₹25",
+      "mrp": null,
+      "quantity": "152 g",
+      "stock_availability": "in_stock",
+      "offer_text": null,
+      "raw_text": "8 mins Britannia Nice Time Coconut Biscuit 152 g ₹25 ADD"
+    },
+    {
+      "source_index": 12,
+      "platform": "blinkit",
+      "product_name": "Britannia Treat Jim Jam Sandwich Crème Biscuits",
+      "displayed_price": "₹36",
+      "mrp": "₹40",
+      "quantity": "150 g",
+      "stock_availability": "in_stock",
+      "offer_text": "10% OFF",
+      "raw_text": "10% OFF 8 mins Britannia Treat Jim Jam Sandwich Crème Biscuits 150 g ₹36 ₹40 ADD"
+    },
+    {
+      "source_index": 13,
+      "platform": "blinkit",
+      "product_name": "Hide & Seek Milano Biscuit",
+      "displayed_price": "₹61",
+      "mrp": "₹75",
+      "quantity": "100 g",
+      "stock_availability": "in_stock",
+      "offer_text": "18% OFF",
+      "raw_text": "18% OFF 8 mins Hide & Seek Milano Biscuit 100 g ₹61 ₹75 ADD"
+    },
+    {
+      "source_index": 14,
+      "platform": "blinkit",
+      "product_name": "Britannia Little Hearts Classic Crunch Biscuit",
+      "displayed_price": "₹21",
+      "mrp": "₹30",
+      "quantity": "79 g",
+      "stock_availability": "in_stock",
+      "offer_text": "30% OFF",
+      "raw_text": "30% OFF 8 mins Britannia Little Hearts Classic Crunch Biscuit 79 g ₹21 ₹30 ADD"
+    },
+    {
+      "source_index": 15,
+      "platform": "blinkit",
+      "product_name": "Sunfeast Dark Fantasy Choco Fill Cookies",
+      "displayed_price": "₹38",
+      "mrp": "₹40",
+      "quantity": "69 g",
+      "stock_availability": "in_stock",
+      "offer_text": "5% OFF",
+      "raw_text": "5% OFF 8 mins Sunfeast Dark Fantasy Choco Fill Cookies 69 g ₹38 ₹40 ADD"
+    },
+    {
+      "source_index": 16,
+      "platform": "blinkit",
+      "product_name": "Parle-G Gold Glucose Biscuit 1 kg",
+      "displayed_price": "₹137",
+      "mrp": "₹160",
+      "quantity": "1 kg",
+      "stock_availability": "in_stock",
+      "offer_text": "14% OFF",
+      "raw_text": "14% OFF 8 mins Parle-G Gold Glucose Biscuit 1 kg 1 kg ₹137 ₹160 ADD"
+    },
+    {
+      "source_index": 17,
+      "platform": "blinkit",
+      "product_name": "Lotus Biscoff Caramelized Cookies",
+      "displayed_price": "₹30",
+      "mrp": null,
+      "quantity": "75 g",
+      "stock_availability": "in_stock",
+      "offer_text": null,
+      "raw_text": "8 mins Lotus Biscoff Caramelized Cookies 75 g ₹30 ADD"
+    },
+    {
+      "source_index": 18,
+      "platform": "blinkit",
+      "product_name": "Britannia Good Day Cashew Biscuit",
+      "displayed_price": "₹40",
+      "mrp": null,
+      "quantity": "200 g",
+      "stock_availability": "in_stock",
+      "offer_text": null,
+      "raw_text": "8 mins Britannia Good Day Cashew Biscuit 200 g ₹40 ADD"
+    },
+    {
+      "source_index": 19,
+      "platform": "blinkit",
+      "product_name": "Parle Monaco Cheeslings Classic Biscuit",
+      "displayed_price": "₹134",
+      "mrp": "₹160",
+      "quantity": "300 g",
+      "stock_availability": "in_stock",
+      "offer_text": "16% OFF",
+      "raw_text": "16% OFF 8 mins Parle Monaco Cheeslings Classic Biscuit 300 g ₹134 ₹160 ADD"
+    },
+    {
+      "source_index": 20,
+      "platform": "blinkit",
+      "product_name": "Britannia NutriChoice 5 Grain Digestive Biscuit",
+      "displayed_price": "₹54",
+      "mrp": "₹65",
+      "quantity": "200 g",
+      "stock_availability": "in_stock",
+      "offer_text": "16% OFF",
+      "raw_text": "16% OFF 8 mins Britannia NutriChoice 5 Grain Digestive Biscuit 200 g ₹54 ₹65 ADD"
+    },
+    {
+      "source_index": 21,
+      "platform": "blinkit",
+      "product_name": "Parle-G Original Gluco Biscuit",
+      "displayed_price": "₹87",
+      "mrp": "₹100",
+      "quantity": "800 g",
+      "stock_availability": "in_stock",
+      "offer_text": "13% OFF",
+      "raw_text": "13% OFF 8 mins Parle-G Original Gluco Biscuit 800 g ₹87 ₹100 ADD"
+    },
+    {
+      "source_index": 22,
+      "platform": "blinkit",
+      "product_name": "Parle 20-20 Nice Coconut Biscuit",
+      "displayed_price": "₹48",
+      "mrp": "₹90",
+      "quantity": "300 g",
+      "stock_availability": "in_stock",
+      "offer_text": "46% OFF",
+      "raw_text": "46% OFF 8 mins Parle 20-20 Nice Coconut Biscuit 300 g ₹48 ₹90 ADD"
+    },
+    {
+      "source_index": 23,
+      "platform": "blinkit",
+      "product_name": "Parle Marie Biscuits",
+      "displayed_price": "₹35",
+      "mrp": "₹36",
+      "quantity": "250 g",
+      "stock_availability": "in_stock",
+      "offer_text": null,
+      "raw_text": "8 mins Parle Marie Biscuits 250 g ₹35 ₹36 ADD"
+    },
+    {
+      "source_index": 24,
+      "platform": "blinkit",
+      "product_name": "Oreo Vanilla Flavour Sandwich Cream Biscuits",
+      "displayed_price": "₹38",
+      "mrp": "₹40",
+      "quantity": "125.25 g",
+      "stock_availability": "in_stock",
+      "offer_text": "5% OFF",
+      "raw_text": "5% OFF 8 mins Oreo Vanilla Flavour Sandwich Cream Biscuits 125.25 g ₹38 ₹40 ADD"
+    }
+  ]
+}

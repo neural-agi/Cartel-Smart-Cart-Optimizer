@@ -1,0 +1,273 @@
+{
+  "platform": "blinkit",
+  "query": "atta",
+  "source_path": "D:\\PARANJAY\\Projects\\Cartel-Smart-Cart-Optimizer\\data\\raw\\blinkit\\20260620T123645Z_atta.html",
+  "extracted_at": "2026-06-20T12:36:46.494873Z",
+  "product_count": 24,
+  "products": [
+    {
+      "source_index": 1,
+      "platform": "blinkit",
+      "product_name": "Fortune Fresh (100% Atta, 0% Maida) Chakki Atta",
+      "displayed_price": "₹422",
+      "mrp": "₹485",
+      "quantity": "10 kg",
+      "stock_availability": "in_stock",
+      "offer_text": "12% OFF",
+      "raw_text": "12% OFF 8 mins Fortune Fresh (100% Atta, 0% Maida) Chakki Atta 10 kg ₹422 ₹485 ADD"
+    },
+    {
+      "source_index": 2,
+      "platform": "blinkit",
+      "product_name": "Aashirvaad Shudh Chakki Atta (100% Atta, 0% Maida, 5 Kg)",
+      "displayed_price": "₹237",
+      "mrp": "₹262",
+      "quantity": "5 kg",
+      "stock_availability": "in_stock",
+      "offer_text": "9% OFF",
+      "raw_text": "9% OFF 8 mins Aashirvaad Shudh Chakki Atta (100% Atta, 0% Maida, 5 Kg) 5 kg ₹237 ₹262 ADD"
+    },
+    {
+      "source_index": 3,
+      "platform": "blinkit",
+      "product_name": "Aashirvaad Shudh Chakki Atta (100% Atta, 0% Maida)",
+      "displayed_price": "₹445",
+      "mrp": "₹489",
+      "quantity": "10 kg",
+      "stock_availability": "in_stock",
+      "offer_text": "8% OFF",
+      "raw_text": "8% OFF 8 mins Aashirvaad Shudh Chakki Atta (100% Atta, 0% Maida) 10 kg ₹445 ₹489 ADD"
+    },
+    {
+      "source_index": 4,
+      "platform": "blinkit",
+      "product_name": "Whole Farm Chakki Atta (100% Atta, 0% Maida)",
+      "displayed_price": "₹357",
+      "mrp": "₹606",
+      "quantity": "10 kg",
+      "stock_availability": "in_stock",
+      "offer_text": "41% OFF",
+      "raw_text": "41% OFF 8 mins Whole Farm Chakki Atta (100% Atta, 0% Maida) 10 kg ₹357 ₹606 ADD"
+    },
+    {
+      "source_index": 5,
+      "platform": "blinkit",
+      "product_name": "Two Brothers Khapli Multigrain Atta",
+      "displayed_price": "₹851",
+      "mrp": "₹895",
+      "quantity": "5 kg",
+      "stock_availability": "in_stock",
+      "offer_text": null,
+      "raw_text": "8 mins Two Brothers Khapli Multigrain Atta 5 kg ₹851 ₹895 ADD"
+    },
+    {
+      "source_index": 6,
+      "platform": "blinkit",
+      "product_name": "Aashirvaad Select 100% MP Sharbati Atta",
+      "displayed_price": "₹313",
+      "mrp": "₹375",
+      "quantity": "5 kg",
+      "stock_availability": "in_stock",
+      "offer_text": "16% OFF",
+      "raw_text": "16% OFF 8 mins Aashirvaad Select 100% MP Sharbati Atta 5 kg ₹313 ₹375 ADD"
+    },
+    {
+      "source_index": 7,
+      "platform": "blinkit",
+      "product_name": "Aashirvaad High Fibre Atta with Multigrains - 5 kg",
+      "displayed_price": "₹312",
+      "mrp": "₹376",
+      "quantity": "5 kg",
+      "stock_availability": "in_stock",
+      "offer_text": "17% OFF",
+      "raw_text": "17% OFF 8 mins Aashirvaad High Fibre Atta with Multigrains - 5 kg 5 kg ₹312 ₹376 ADD"
+    },
+    {
+      "source_index": 8,
+      "platform": "blinkit",
+      "product_name": "Organic Tattva Wheat Organic Atta - 1 kg",
+      "displayed_price": "₹67",
+      "mrp": "₹85",
+      "quantity": "1 kg",
+      "stock_availability": "in_stock",
+      "offer_text": "21% OFF",
+      "raw_text": "21% OFF 8 mins Organic Tattva Wheat Organic Atta - 1 kg 1 kg ₹67 ₹85 ADD"
+    },
+    {
+      "source_index": 9,
+      "platform": "blinkit",
+      "product_name": "Right Shift Multigrain Atta (High Protein, Low GI)",
+      "displayed_price": "₹289",
+      "mrp": "₹449",
+      "quantity": "5 kg",
+      "stock_availability": "in_stock",
+      "offer_text": "35% OFF",
+      "raw_text": "35% OFF 8 mins Right Shift Multigrain Atta (High Protein, Low GI) 5 kg ₹289 ₹449 ADD"
+    },
+    {
+      "source_index": 10,
+      "platform": "blinkit",
+      "product_name": "Two Brothers Khapli Wheat Atta, Stoneground",
+      "displayed_price": "₹359",
+      "mrp": "₹425",
+      "quantity": "2 kg",
+      "stock_availability": "in_stock",
+      "offer_text": "15% OFF",
+      "raw_text": "15% OFF 8 mins Two Brothers Khapli Wheat Atta, Stoneground 2 kg ₹359 ₹425 ADD"
+    },
+    {
+      "source_index": 11,
+      "platform": "blinkit",
+      "product_name": "Whole Farm Chakki Atta (100% Atta, 0% Maida)",
+      "displayed_price": "₹182",
+      "mrp": "₹290",
+      "quantity": "5 kg",
+      "stock_availability": "in_stock",
+      "offer_text": "37% OFF",
+      "raw_text": "37% OFF 8 mins Whole Farm Chakki Atta (100% Atta, 0% Maida) 5 kg ₹182 ₹290 ADD"
+    },
+    {
+      "source_index": 12,
+      "platform": "blinkit",
+      "product_name": "Fortune Fresh (100% Atta, 0% Maida) Chakki Atta",
+      "displayed_price": "₹216",
+      "mrp": "₹253",
+      "quantity": "5 kg",
+      "stock_availability": "in_stock",
+      "offer_text": "14% OFF",
+      "raw_text": "14% OFF 8 mins Fortune Fresh (100% Atta, 0% Maida) Chakki Atta 5 kg ₹216 ₹253 ADD"
+    },
+    {
+      "source_index": 13,
+      "platform": "blinkit",
+      "product_name": "Aashirvaad 0% Maida, 100 % MP Chakki Atta",
+      "displayed_price": "₹257",
+      "mrp": "₹304",
+      "quantity": "5 kg",
+      "stock_availability": "in_stock",
+      "offer_text": "15% OFF",
+      "raw_text": "15% OFF 8 mins Aashirvaad 0% Maida, 100 % MP Chakki Atta 5 kg ₹257 ₹304 ADD"
+    },
+    {
+      "source_index": 14,
+      "platform": "blinkit",
+      "product_name": "Aashirvaad Organic Atta",
+      "displayed_price": "₹70",
+      "mrp": "₹86",
+      "quantity": "1 kg",
+      "stock_availability": "in_stock",
+      "offer_text": "18% OFF",
+      "raw_text": "18% OFF 8 mins Aashirvaad Organic Atta 1 kg ₹70 ₹86 ADD"
+    },
+    {
+      "source_index": 15,
+      "platform": "blinkit",
+      "product_name": "Organic Tattva Wheat Organic Atta - 5 kg",
+      "displayed_price": "₹299",
+      "mrp": "₹399",
+      "quantity": "5 kg",
+      "stock_availability": "in_stock",
+      "offer_text": "25% OFF",
+      "raw_text": "25% OFF 8 mins Organic Tattva Wheat Organic Atta - 5 kg 5 kg ₹299 ₹399 ADD"
+    },
+    {
+      "source_index": 16,
+      "platform": "blinkit",
+      "product_name": "Pansari MP Sharbati Atta",
+      "displayed_price": "₹62",
+      "mrp": "₹81",
+      "quantity": "1 kg",
+      "stock_availability": "in_stock",
+      "offer_text": "23% OFF",
+      "raw_text": "23% OFF 8 mins Pansari MP Sharbati Atta 1 kg ₹62 ₹81 ADD"
+    },
+    {
+      "source_index": 17,
+      "platform": "blinkit",
+      "product_name": "Better Nutrition Wheat Chakki Atta – 2X Nutrition",
+      "displayed_price": "₹149",
+      "mrp": "₹200",
+      "quantity": "2 kg",
+      "stock_availability": "in_stock",
+      "offer_text": "25% OFF",
+      "raw_text": "25% OFF 8 mins Better Nutrition Wheat Chakki Atta – 2X Nutrition 2 kg ₹149 ₹200 ADD"
+    },
+    {
+      "source_index": 18,
+      "platform": "blinkit",
+      "product_name": "Two Brothers Khapli Multigrain Atta (8 grains)",
+      "displayed_price": "₹165",
+      "mrp": "₹195",
+      "quantity": "1 kg",
+      "stock_availability": "in_stock",
+      "offer_text": "15% OFF",
+      "raw_text": "15% OFF 8 mins Two Brothers Khapli Multigrain Atta (8 grains) 1 kg ₹165 ₹195 ADD"
+    },
+    {
+      "source_index": 19,
+      "platform": "blinkit",
+      "product_name": "Aashirvaad Organic Atta",
+      "displayed_price": "₹274",
+      "mrp": "₹414",
+      "quantity": "5 kg",
+      "stock_availability": "in_stock",
+      "offer_text": "33% OFF",
+      "raw_text": "33% OFF 8 mins Aashirvaad Organic Atta 5 kg ₹274 ₹414 ADD"
+    },
+    {
+      "source_index": 20,
+      "platform": "blinkit",
+      "product_name": "Aashirvaad High Protein Atta",
+      "displayed_price": "₹336",
+      "mrp": "₹386",
+      "quantity": "5 kg",
+      "stock_availability": "in_stock",
+      "offer_text": "12% OFF",
+      "raw_text": "12% OFF 8 mins Aashirvaad High Protein Atta 5 kg ₹336 ₹386 ADD"
+    },
+    {
+      "source_index": 21,
+      "platform": "blinkit",
+      "product_name": "Pansari MP Sharbati Atta",
+      "displayed_price": "₹270",
+      "mrp": "₹360",
+      "quantity": "5 kg",
+      "stock_availability": "in_stock",
+      "offer_text": "25% OFF",
+      "raw_text": "25% OFF 8 mins Pansari MP Sharbati Atta 5 kg ₹270 ₹360 ADD"
+    },
+    {
+      "source_index": 22,
+      "platform": "blinkit",
+      "product_name": "Aashirvaad High Fibre Atta with Multigrains - 10 kg",
+      "displayed_price": "₹611",
+      "mrp": "₹742",
+      "quantity": "10 kg",
+      "stock_availability": "in_stock",
+      "offer_text": "17% OFF",
+      "raw_text": "17% OFF 8 mins Aashirvaad High Fibre Atta with Multigrains - 10 kg 10 kg ₹611 ₹742 ADD"
+    },
+    {
+      "source_index": 23,
+      "platform": "blinkit",
+      "product_name": "Two Brothers Khapli Wheat Atta, Stoneground",
+      "displayed_price": "₹823",
+      "mrp": "₹995",
+      "quantity": "5 kg",
+      "stock_availability": "in_stock",
+      "offer_text": "17% OFF",
+      "raw_text": "17% OFF 8 mins Two Brothers Khapli Wheat Atta, Stoneground 5 kg ₹823 ₹995 ADD"
+    },
+    {
+      "source_index": 24,
+      "platform": "blinkit",
+      "product_name": "Whole Farm Chakki Atta (100% Atta, 0% Maida)",
+      "displayed_price": "₹75",
+      "mrp": "₹110",
+      "quantity": "2 kg",
+      "stock_availability": "in_stock",
+      "offer_text": "31% OFF",
+      "raw_text": "31% OFF 8 mins Whole Farm Chakki Atta (100% Atta, 0% Maida) 2 kg ₹75 ₹110 ADD"
+    }
+  ]
+}
