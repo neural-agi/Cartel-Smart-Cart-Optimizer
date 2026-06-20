@@ -1,0 +1,273 @@
+{
+  "platform": "blinkit",
+  "query": "rice",
+  "source_path": "D:\\PARANJAY\\Projects\\Cartel-Smart-Cart-Optimizer\\data\\raw\\blinkit\\20260620T123637Z_rice.html",
+  "extracted_at": "2026-06-20T12:36:37.999198Z",
+  "product_count": 24,
+  "products": [
+    {
+      "source_index": 1,
+      "platform": "blinkit",
+      "product_name": "Daawat Rozana Platinum Basmati Rice (Medium Grain)",
+      "displayed_price": "₹449",
+      "mrp": "₹665",
+      "quantity": "5 kg",
+      "stock_availability": "in_stock",
+      "offer_text": "32% OFF",
+      "raw_text": "32% OFF 8 mins Daawat Rozana Platinum Basmati Rice (Medium Grain) 5 kg ₹449 ₹665 ADD"
+    },
+    {
+      "source_index": 2,
+      "platform": "blinkit",
+      "product_name": "Daawat Rozana-Super Basmati Rice (Medium Grain)",
+      "displayed_price": "₹93",
+      "mrp": "₹100",
+      "quantity": "1 kg",
+      "stock_availability": "in_stock",
+      "offer_text": "7% OFF",
+      "raw_text": "7% OFF 8 mins Daawat Rozana-Super Basmati Rice (Medium Grain) 1 kg ₹93 ₹100 ADD"
+    },
+    {
+      "source_index": 3,
+      "platform": "blinkit",
+      "product_name": "Whole Farm Premium Parmal Rice",
+      "displayed_price": "₹61",
+      "mrp": "₹120",
+      "quantity": "1 kg",
+      "stock_availability": "in_stock",
+      "offer_text": "49% OFF",
+      "raw_text": "49% OFF 8 mins Whole Farm Premium Parmal Rice 1 kg ₹61 ₹120 ADD"
+    },
+    {
+      "source_index": 4,
+      "platform": "blinkit",
+      "product_name": "Daawat Rozana Gold Tibar Basmati Rice (Medium Grain)",
+      "displayed_price": "₹96",
+      "mrp": "₹110",
+      "quantity": "1 kg",
+      "stock_availability": "in_stock",
+      "offer_text": "12% OFF",
+      "raw_text": "12% OFF 8 mins Daawat Rozana Gold Tibar Basmati Rice (Medium Grain) 1 kg ₹96 ₹110 ADD"
+    },
+    {
+      "source_index": 5,
+      "platform": "blinkit",
+      "product_name": "Fortune Rozana-Gold Basmati Rice (Long Grain)",
+      "displayed_price": "₹87",
+      "mrp": "₹120",
+      "quantity": "1 kg",
+      "stock_availability": "in_stock",
+      "offer_text": "27% OFF",
+      "raw_text": "27% OFF 8 mins Fortune Rozana-Gold Basmati Rice (Long Grain) 1 kg ₹87 ₹120 ADD"
+    },
+    {
+      "source_index": 6,
+      "platform": "blinkit",
+      "product_name": "Daawat Rozana Super Basmati Rice (Medium Grain)",
+      "displayed_price": "₹386",
+      "mrp": "₹499",
+      "quantity": "5 kg",
+      "stock_availability": "in_stock",
+      "offer_text": "22% OFF",
+      "raw_text": "22% OFF 8 mins Daawat Rozana Super Basmati Rice (Medium Grain) 5 kg ₹386 ₹499 ADD"
+    },
+    {
+      "source_index": 7,
+      "platform": "blinkit",
+      "product_name": "Daawat Rozana Gold Basmati Rice Tibar (Medium Grain)",
+      "displayed_price": "₹449",
+      "mrp": "₹550",
+      "quantity": "5 kg",
+      "stock_availability": "in_stock",
+      "offer_text": "18% OFF",
+      "raw_text": "18% OFF 8 mins Daawat Rozana Gold Basmati Rice Tibar (Medium Grain) 5 kg ₹449 ₹550 ADD"
+    },
+    {
+      "source_index": 8,
+      "platform": "blinkit",
+      "product_name": "India Gate Dubar Basmati Rice (Long Grain)",
+      "displayed_price": "₹147",
+      "mrp": "₹167",
+      "quantity": "1 kg",
+      "stock_availability": "in_stock",
+      "offer_text": "11% OFF",
+      "raw_text": "11% OFF 8 mins India Gate Dubar Basmati Rice (Long Grain) 1 kg ₹147 ₹167 ADD"
+    },
+    {
+      "source_index": 9,
+      "platform": "blinkit",
+      "product_name": "Daawat Super Basmati Rice (Long Grain)",
+      "displayed_price": "₹175",
+      "mrp": "₹200",
+      "quantity": "1 kg",
+      "stock_availability": "in_stock",
+      "offer_text": "12% OFF",
+      "raw_text": "12% OFF 8 mins Daawat Super Basmati Rice (Long Grain) 1 kg ₹175 ₹200 ADD"
+    },
+    {
+      "source_index": 10,
+      "platform": "blinkit",
+      "product_name": "India Gate Everyday Basmati Rice (Medium Grain)",
+      "displayed_price": "₹366",
+      "mrp": "₹515",
+      "quantity": "5 kg",
+      "stock_availability": "in_stock",
+      "offer_text": "28% OFF",
+      "raw_text": "28% OFF 8 mins India Gate Everyday Basmati Rice (Medium Grain) 5 kg ₹366 ₹515 ADD"
+    },
+    {
+      "source_index": 11,
+      "platform": "blinkit",
+      "product_name": "Daawat Biryani Rice (Extra Long Grain)",
+      "displayed_price": "₹239",
+      "mrp": "₹250",
+      "quantity": "1 kg",
+      "stock_availability": "in_stock",
+      "offer_text": null,
+      "raw_text": "8 mins Daawat Biryani Rice (Extra Long Grain) 1 kg ₹239 ₹250 ADD"
+    },
+    {
+      "source_index": 12,
+      "platform": "blinkit",
+      "product_name": "India Gate Super Basmati Rice (Extra Long Grain)",
+      "displayed_price": "₹788",
+      "mrp": "₹1,082",
+      "quantity": "5 kg",
+      "stock_availability": "in_stock",
+      "offer_text": "27% OFF",
+      "raw_text": "27% OFF 8 mins India Gate Super Basmati Rice (Extra Long Grain) 5 kg ₹788 ₹1,082 ADD"
+    },
+    {
+      "source_index": 13,
+      "platform": "blinkit",
+      "product_name": "India Gate Rozzana Lite Basmati Rice (Medium Grain)",
+      "displayed_price": "₹393",
+      "mrp": "₹550",
+      "quantity": "5 kg",
+      "stock_availability": "in_stock",
+      "offer_text": "28% OFF",
+      "raw_text": "28% OFF 8 mins India Gate Rozzana Lite Basmati Rice (Medium Grain) 5 kg ₹393 ₹550 ADD"
+    },
+    {
+      "source_index": 14,
+      "platform": "blinkit",
+      "product_name": "India Gate Super Basmati Rice (1 kg + 500 g) (Extra Long Grain)",
+      "displayed_price": "₹244",
+      "mrp": "₹280",
+      "quantity": "1.5 kg",
+      "stock_availability": "in_stock",
+      "offer_text": "12% OFF",
+      "raw_text": "12% OFF 8 mins India Gate Super Basmati Rice (1 kg + 500 g) (Extra Long Grain) 1.5 kg ₹244 ₹280 ADD"
+    },
+    {
+      "source_index": 15,
+      "platform": "blinkit",
+      "product_name": "India Gate Feast Rozana Basmati Rice (Medium Grain)",
+      "displayed_price": "₹112",
+      "mrp": "₹125",
+      "quantity": "1 kg",
+      "stock_availability": "in_stock",
+      "offer_text": "10% OFF",
+      "raw_text": "10% OFF 8 mins India Gate Feast Rozana Basmati Rice (Medium Grain) 1 kg ₹112 ₹125 ADD"
+    },
+    {
+      "source_index": 16,
+      "platform": "blinkit",
+      "product_name": "India Gate Everyday Basmati Rice (Medium Grain)",
+      "displayed_price": "₹91",
+      "mrp": "₹104",
+      "quantity": "1 kg",
+      "stock_availability": "in_stock",
+      "offer_text": "12% OFF",
+      "raw_text": "12% OFF 8 mins India Gate Everyday Basmati Rice (Medium Grain) 1 kg ₹91 ₹104 ADD"
+    },
+    {
+      "source_index": 17,
+      "platform": "blinkit",
+      "product_name": "Daawat Pulav Basmati Rice (Long Grain)",
+      "displayed_price": "₹149",
+      "mrp": "₹177",
+      "quantity": "1 kg",
+      "stock_availability": "in_stock",
+      "offer_text": "15% OFF",
+      "raw_text": "15% OFF 8 mins Daawat Pulav Basmati Rice (Long Grain) 1 kg ₹149 ₹177 ADD"
+    },
+    {
+      "source_index": 18,
+      "platform": "blinkit",
+      "product_name": "India Gate Daily Premium Basmati Rice (Long Grain)",
+      "displayed_price": "₹527",
+      "mrp": "₹680",
+      "quantity": "5 kg",
+      "stock_availability": "in_stock",
+      "offer_text": "22% OFF",
+      "raw_text": "22% OFF 8 mins India Gate Daily Premium Basmati Rice (Long Grain) 5 kg ₹527 ₹680 ADD"
+    },
+    {
+      "source_index": 19,
+      "platform": "blinkit",
+      "product_name": "India Gate Mogra Basmati Rice 5 Kg (Short Grain)",
+      "displayed_price": "₹379",
+      "mrp": "₹490",
+      "quantity": "5 kg",
+      "stock_availability": "in_stock",
+      "offer_text": "22% OFF",
+      "raw_text": "22% OFF 8 mins India Gate Mogra Basmati Rice 5 Kg (Short Grain) 5 kg ₹379 ₹490 ADD"
+    },
+    {
+      "source_index": 20,
+      "platform": "blinkit",
+      "product_name": "India Gate Feast Rozana Basmati Rice (Medium Grain)",
+      "displayed_price": "₹465",
+      "mrp": "₹620",
+      "quantity": "5 kg",
+      "stock_availability": "in_stock",
+      "offer_text": "25% OFF",
+      "raw_text": "25% OFF 8 mins India Gate Feast Rozana Basmati Rice (Medium Grain) 5 kg ₹465 ₹620 ADD"
+    },
+    {
+      "source_index": 21,
+      "platform": "blinkit",
+      "product_name": "Whole Farm Grocery Raw Broken Rice",
+      "displayed_price": "₹50",
+      "mrp": "₹77",
+      "quantity": "1 kg",
+      "stock_availability": "in_stock",
+      "offer_text": "35% OFF",
+      "raw_text": "35% OFF 8 mins Whole Farm Grocery Raw Broken Rice 1 kg ₹50 ₹77 ADD"
+    },
+    {
+      "source_index": 22,
+      "platform": "blinkit",
+      "product_name": "India Gate Mini Mogra Basmati Rice (Short Grain)",
+      "displayed_price": "₹623",
+      "mrp": "₹735",
+      "quantity": "10 kg",
+      "stock_availability": "in_stock",
+      "offer_text": "15% OFF",
+      "raw_text": "15% OFF 8 mins India Gate Mini Mogra Basmati Rice (Short Grain) 10 kg ₹623 ₹735 ADD"
+    },
+    {
+      "source_index": 23,
+      "platform": "blinkit",
+      "product_name": "India Gate Classic Gold Standard Basmati Rice (Extra Long Grain)",
+      "displayed_price": "₹239",
+      "mrp": "₹260",
+      "quantity": "1 kg",
+      "stock_availability": "in_stock",
+      "offer_text": "8% OFF",
+      "raw_text": "8% OFF 8 mins India Gate Classic Gold Standard Basmati Rice (Extra Long Grain) 1 kg ₹239 ₹260 ADD"
+    },
+    {
+      "source_index": 24,
+      "platform": "blinkit",
+      "product_name": "Whole Farm Grocery Broken Mogra Basmati Rice (Short Grain)",
+      "displayed_price": "₹240",
+      "mrp": "₹600",
+      "quantity": "5 kg",
+      "stock_availability": "in_stock",
+      "offer_text": "60% OFF",
+      "raw_text": "60% OFF 8 mins Whole Farm Grocery Broken Mogra Basmati Rice (Short Grain) 5 kg ₹240 ₹600 ADD"
+    }
+  ]
+}

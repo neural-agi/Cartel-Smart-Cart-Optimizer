@@ -1,0 +1,273 @@
+{
+  "platform": "blinkit",
+  "query": "shampoo",
+  "source_path": "D:\\PARANJAY\\Projects\\Cartel-Smart-Cart-Optimizer\\data\\raw\\blinkit\\20260620T123727Z_shampoo.html",
+  "extracted_at": "2026-06-20T12:37:28.426370Z",
+  "product_count": 24,
+  "products": [
+    {
+      "source_index": 1,
+      "platform": "blinkit",
+      "product_name": "L'Oréal Professionnel Absolut Repair Damage Shampoo",
+      "displayed_price": "₹756",
+      "mrp": "₹795",
+      "quantity": "300 ml",
+      "stock_availability": "in_stock",
+      "offer_text": null,
+      "raw_text": "8 mins L'Oréal Professionnel Absolut Repair Damage Shampoo 300 ml ₹756 ₹795 ADD"
+    },
+    {
+      "source_index": 2,
+      "platform": "blinkit",
+      "product_name": "Tresemme Keratin Smooth Shampoo",
+      "displayed_price": "₹189",
+      "mrp": null,
+      "quantity": "180 ml",
+      "stock_availability": "in_stock",
+      "offer_text": null,
+      "raw_text": "8 mins Tresemme Keratin Smooth Shampoo 180 ml ₹189 ADD"
+    },
+    {
+      "source_index": 3,
+      "platform": "blinkit",
+      "product_name": "L'Oreal Paris Hyaluron Pure 72H Purifying Shampoo",
+      "displayed_price": "₹198",
+      "mrp": "₹230",
+      "quantity": "200 ml",
+      "stock_availability": "in_stock",
+      "offer_text": "13% OFF",
+      "raw_text": "13% OFF 8 mins L'Oreal Paris Hyaluron Pure 72H Purifying Shampoo 200 ml ₹198 ₹230 ADD"
+    },
+    {
+      "source_index": 4,
+      "platform": "blinkit",
+      "product_name": "Bare Anatomy Anti-Dandruff Shampoo",
+      "displayed_price": "₹470",
+      "mrp": "₹484",
+      "quantity": "250 ml",
+      "stock_availability": "in_stock",
+      "offer_text": null,
+      "raw_text": "8 mins Bare Anatomy Anti-Dandruff Shampoo 250 ml ₹470 ₹484 ADD"
+    },
+    {
+      "source_index": 5,
+      "platform": "blinkit",
+      "product_name": "Dove Intense Repair Shampoo",
+      "displayed_price": "₹189",
+      "mrp": null,
+      "quantity": "180 ml",
+      "stock_availability": "in_stock",
+      "offer_text": null,
+      "raw_text": "8 mins Dove Intense Repair Shampoo 180 ml ₹189 ADD"
+    },
+    {
+      "source_index": 6,
+      "platform": "blinkit",
+      "product_name": "Clinic Plus Strong & Long Shampoo with Milk Proteins",
+      "displayed_price": "₹153",
+      "mrp": null,
+      "quantity": "175 ml",
+      "stock_availability": "in_stock",
+      "offer_text": null,
+      "raw_text": "8 mins Clinic Plus Strong & Long Shampoo with Milk Proteins 175 ml ₹153 ADD"
+    },
+    {
+      "source_index": 7,
+      "platform": "blinkit",
+      "product_name": "L'Oréal Professionnel Xtenso Care Anti-Frizz Shampoo",
+      "displayed_price": "₹665",
+      "mrp": null,
+      "quantity": "250 ml",
+      "stock_availability": "in_stock",
+      "offer_text": null,
+      "raw_text": "8 mins L'Oréal Professionnel Xtenso Care Anti-Frizz Shampoo 250 ml ₹665 ADD"
+    },
+    {
+      "source_index": 8,
+      "platform": "blinkit",
+      "product_name": "L'Oreal Paris Glycolic Gloss Shampoo",
+      "displayed_price": "₹200",
+      "mrp": "₹210",
+      "quantity": "200 ml",
+      "stock_availability": "in_stock",
+      "offer_text": null,
+      "raw_text": "8 mins L'Oreal Paris Glycolic Gloss Shampoo 200 ml ₹200 ₹210 ADD"
+    },
+    {
+      "source_index": 9,
+      "platform": "blinkit",
+      "product_name": "Head & Shoulders Anti Dandruff Anti Hairfall Shampoo",
+      "displayed_price": "₹190",
+      "mrp": "₹218",
+      "quantity": "180 ml",
+      "stock_availability": "in_stock",
+      "offer_text": "12% OFF",
+      "raw_text": "12% OFF 8 mins Head & Shoulders Anti Dandruff Anti Hairfall Shampoo 180 ml ₹190 ₹218 ADD"
+    },
+    {
+      "source_index": 10,
+      "platform": "blinkit",
+      "product_name": "&Done Take Control Hydrating Shampoo",
+      "displayed_price": "₹399",
+      "mrp": null,
+      "quantity": "50 ml",
+      "stock_availability": "in_stock",
+      "offer_text": null,
+      "raw_text": "8 mins &Done Take Control Hydrating Shampoo 50 ml ₹399 ADD"
+    },
+    {
+      "source_index": 11,
+      "platform": "blinkit",
+      "product_name": "L'Oreal Paris Hyaluron Moisture Shampoo",
+      "displayed_price": "₹200",
+      "mrp": "₹210",
+      "quantity": "200 ml",
+      "stock_availability": "in_stock",
+      "offer_text": null,
+      "raw_text": "8 mins L'Oreal Paris Hyaluron Moisture Shampoo 200 ml ₹200 ₹210 ADD"
+    },
+    {
+      "source_index": 12,
+      "platform": "blinkit",
+      "product_name": "Ketomac 2% Shampoo",
+      "displayed_price": "₹225",
+      "mrp": null,
+      "quantity": "110 ml",
+      "stock_availability": "in_stock",
+      "offer_text": null,
+      "raw_text": "8 mins Ketomac 2% Shampoo 110 ml ₹225 ADD"
+    },
+    {
+      "source_index": 13,
+      "platform": "blinkit",
+      "product_name": "L'Oreal Paris Total Repair 5 Shampoo Refill Pouch",
+      "displayed_price": "₹404",
+      "mrp": "₹475",
+      "quantity": "500 ml",
+      "stock_availability": "in_stock",
+      "offer_text": "14% OFF",
+      "raw_text": "14% OFF 8 mins L'Oreal Paris Total Repair 5 Shampoo Refill Pouch 500 ml ₹404 ₹475 ADD"
+    },
+    {
+      "source_index": 14,
+      "platform": "blinkit",
+      "product_name": "Keraglo AD Bottle Of 75ml Shampoo",
+      "displayed_price": "₹339",
+      "mrp": "₹371",
+      "quantity": "75 ml",
+      "stock_availability": "in_stock",
+      "offer_text": "8% OFF",
+      "raw_text": "8% OFF 8 mins Keraglo AD Bottle Of 75ml Shampoo 75 ml ₹339 ₹371 ADD"
+    },
+    {
+      "source_index": 15,
+      "platform": "blinkit",
+      "product_name": "Scalpe Pro Daily Anti Dandruff Shampoo",
+      "displayed_price": "₹190",
+      "mrp": "₹199",
+      "quantity": "100 ml",
+      "stock_availability": "in_stock",
+      "offer_text": null,
+      "raw_text": "8 mins Scalpe Pro Daily Anti Dandruff Shampoo 100 ml ₹190 ₹199 ADD"
+    },
+    {
+      "source_index": 16,
+      "platform": "blinkit",
+      "product_name": "Nat Habit Hibiscus Shampoo for Strength & Shine",
+      "displayed_price": "₹354",
+      "mrp": "₹380",
+      "quantity": "250 ml",
+      "stock_availability": "in_stock",
+      "offer_text": "6% OFF",
+      "raw_text": "6% OFF 8 mins Nat Habit Hibiscus Shampoo for Strength & Shine 250 ml ₹354 ₹380 ADD"
+    },
+    {
+      "source_index": 17,
+      "platform": "blinkit",
+      "product_name": "Mediker Anti Lice Treatment Shampoo",
+      "displayed_price": "₹56",
+      "mrp": null,
+      "quantity": "50 ml",
+      "stock_availability": "in_stock",
+      "offer_text": null,
+      "raw_text": "8 mins Mediker Anti Lice Treatment Shampoo 50 ml ₹56 ADD"
+    },
+    {
+      "source_index": 18,
+      "platform": "blinkit",
+      "product_name": "Scalpe Plus Expert Anti Dandruff Shampoo Bottle of 75ml",
+      "displayed_price": "₹315",
+      "mrp": "₹344",
+      "quantity": "75 ml",
+      "stock_availability": "in_stock",
+      "offer_text": "8% OFF",
+      "raw_text": "8% OFF 8 mins Scalpe Plus Expert Anti Dandruff Shampoo Bottle of 75ml 75 ml ₹315 ₹344 ADD"
+    },
+    {
+      "source_index": 19,
+      "platform": "blinkit",
+      "product_name": "Mamaearth Rosemary Anti-Hair Fall Shampoo",
+      "displayed_price": "₹303",
+      "mrp": "₹349",
+      "quantity": "250 ml",
+      "stock_availability": "in_stock",
+      "offer_text": "13% OFF",
+      "raw_text": "13% OFF 8 mins Mamaearth Rosemary Anti-Hair Fall Shampoo 250 ml ₹303 ₹349 ADD"
+    },
+    {
+      "source_index": 20,
+      "platform": "blinkit",
+      "product_name": "Sunsilk Stunning Black Shine Shampoo",
+      "displayed_price": "₹173",
+      "mrp": null,
+      "quantity": "180 ml",
+      "stock_availability": "in_stock",
+      "offer_text": null,
+      "raw_text": "8 mins Sunsilk Stunning Black Shine Shampoo 180 ml ₹173 ADD"
+    },
+    {
+      "source_index": 21,
+      "platform": "blinkit",
+      "product_name": "Bare Anatomy Junior Hypoallergenic Gentle Kids Shampoo",
+      "displayed_price": "₹338",
+      "mrp": "₹355",
+      "quantity": "250 ml",
+      "stock_availability": "in_stock",
+      "offer_text": null,
+      "raw_text": "8 mins Bare Anatomy Junior Hypoallergenic Gentle Kids Shampoo 250 ml ₹338 ₹355 ADD"
+    },
+    {
+      "source_index": 22,
+      "platform": "blinkit",
+      "product_name": "Dabur Vatika Anti-Hairfall Shampoo",
+      "displayed_price": "₹174",
+      "mrp": "₹220",
+      "quantity": "210 ml",
+      "stock_availability": "in_stock",
+      "offer_text": "20% OFF",
+      "raw_text": "20% OFF 8 mins Dabur Vatika Anti-Hairfall Shampoo 210 ml ₹174 ₹220 ADD"
+    },
+    {
+      "source_index": 23,
+      "platform": "blinkit",
+      "product_name": "Dove Hair Fall Rescue Shampoo",
+      "displayed_price": "₹189",
+      "mrp": null,
+      "quantity": "180 ml",
+      "stock_availability": "in_stock",
+      "offer_text": null,
+      "raw_text": "8 mins Dove Hair Fall Rescue Shampoo 180 ml ₹189 ADD"
+    },
+    {
+      "source_index": 24,
+      "platform": "blinkit",
+      "product_name": "8x Bottle of 120ml Shampoo",
+      "displayed_price": "₹461",
+      "mrp": "₹505",
+      "quantity": "120 ml",
+      "stock_availability": "in_stock",
+      "offer_text": "8% OFF",
+      "raw_text": "8% OFF 9 mins 8x Bottle of 120ml Shampoo 120 ml ₹461 ₹505 ADD"
+    }
+  ]
+}

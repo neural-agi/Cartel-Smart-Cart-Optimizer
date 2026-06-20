@@ -1,0 +1,273 @@
+{
+  "platform": "blinkit",
+  "query": "soft drinks",
+  "source_path": "D:\\PARANJAY\\Projects\\Cartel-Smart-Cart-Optimizer\\data\\raw\\blinkit\\20260620T123716Z_soft-drinks.html",
+  "extracted_at": "2026-06-20T12:37:17.998968Z",
+  "product_count": 24,
+  "products": [
+    {
+      "source_index": 1,
+      "platform": "blinkit",
+      "product_name": "Coca-Cola Soft Drink (750 ml) - Pack of 2",
+      "displayed_price": "₹73",
+      "mrp": "₹80",
+      "quantity": "2 x 750 ml",
+      "stock_availability": "in_stock",
+      "offer_text": "8% OFF",
+      "raw_text": "8% OFF 8 mins Coca-Cola Soft Drink (750 ml) - Pack of 2 2 x 750 ml ₹73 ₹80 ADD"
+    },
+    {
+      "source_index": 2,
+      "platform": "blinkit",
+      "product_name": "7UP Nimbooz with Lemon Juice",
+      "displayed_price": "₹20",
+      "mrp": null,
+      "quantity": "350 ml",
+      "stock_availability": "in_stock",
+      "offer_text": null,
+      "raw_text": "8 mins 7UP Nimbooz with Lemon Juice 350 ml ₹20 ADD"
+    },
+    {
+      "source_index": 3,
+      "platform": "blinkit",
+      "product_name": "Coca-Cola Diet Coke Diets & Lights",
+      "displayed_price": "₹50",
+      "mrp": null,
+      "quantity": "330 ml",
+      "stock_availability": "in_stock",
+      "offer_text": null,
+      "raw_text": "8 mins Coca-Cola Diet Coke Diets & Lights 330 ml ₹50 ADD"
+    },
+    {
+      "source_index": 4,
+      "platform": "blinkit",
+      "product_name": "Sprite Lime Flavored Soft Drink",
+      "displayed_price": "₹37",
+      "mrp": "₹40",
+      "quantity": "750 ml",
+      "stock_availability": "in_stock",
+      "offer_text": "7% OFF",
+      "raw_text": "7% OFF 8 mins Sprite Lime Flavored Soft Drink 750 ml ₹37 ₹40 ADD"
+    },
+    {
+      "source_index": 5,
+      "platform": "blinkit",
+      "product_name": "Coca-Cola Soft Drink",
+      "displayed_price": "₹40",
+      "mrp": null,
+      "quantity": "300 ml",
+      "stock_availability": "in_stock",
+      "offer_text": null,
+      "raw_text": "8 mins Coca-Cola Soft Drink 300 ml ₹40 ADD"
+    },
+    {
+      "source_index": 6,
+      "platform": "blinkit",
+      "product_name": "Thums Up Soft Drink",
+      "displayed_price": "₹37",
+      "mrp": "₹40",
+      "quantity": "750 ml",
+      "stock_availability": "in_stock",
+      "offer_text": "7% OFF",
+      "raw_text": "7% OFF 8 mins Thums Up Soft Drink 750 ml ₹37 ₹40 ADD"
+    },
+    {
+      "source_index": 7,
+      "platform": "blinkit",
+      "product_name": "Mountain Dew Grip Soft Drink",
+      "displayed_price": "₹37",
+      "mrp": "₹40",
+      "quantity": "750 ml",
+      "stock_availability": "in_stock",
+      "offer_text": "7% OFF",
+      "raw_text": "7% OFF 8 mins Mountain Dew Grip Soft Drink 750 ml ₹37 ₹40 ADD"
+    },
+    {
+      "source_index": 8,
+      "platform": "blinkit",
+      "product_name": "Limca Lemon 'N' Lime Soft Drink 750 ml",
+      "displayed_price": "₹38",
+      "mrp": "₹40",
+      "quantity": "750 ml",
+      "stock_availability": "in_stock",
+      "offer_text": "5% OFF",
+      "raw_text": "5% OFF 8 mins Limca Lemon 'N' Lime Soft Drink 750 ml 750 ml ₹38 ₹40 ADD"
+    },
+    {
+      "source_index": 9,
+      "platform": "blinkit",
+      "product_name": "B Natural Coco Nut Cola Soft Drink",
+      "displayed_price": "₹60",
+      "mrp": null,
+      "quantity": "250 ml",
+      "stock_availability": "in_stock",
+      "offer_text": null,
+      "raw_text": "8 mins B Natural Coco Nut Cola Soft Drink 250 ml ₹60 ADD"
+    },
+    {
+      "source_index": 10,
+      "platform": "blinkit",
+      "product_name": "Coca-Cola Zero Sugar Soft Drink",
+      "displayed_price": "₹40",
+      "mrp": null,
+      "quantity": "300 ml",
+      "stock_availability": "in_stock",
+      "offer_text": null,
+      "raw_text": "8 mins Coca-Cola Zero Sugar Soft Drink 300 ml ₹40 ADD"
+    },
+    {
+      "source_index": 11,
+      "platform": "blinkit",
+      "product_name": "Maaza Mango Drink 600 ml",
+      "displayed_price": "₹38",
+      "mrp": "₹40",
+      "quantity": "600 ml",
+      "stock_availability": "in_stock",
+      "offer_text": "5% OFF",
+      "raw_text": "5% OFF 8 mins Maaza Mango Drink 600 ml 600 ml ₹38 ₹40 ADD"
+    },
+    {
+      "source_index": 12,
+      "platform": "blinkit",
+      "product_name": "Coca-Cola Soft Drink",
+      "displayed_price": "₹81",
+      "mrp": "₹85",
+      "quantity": "2 ltr",
+      "stock_availability": "in_stock",
+      "offer_text": null,
+      "raw_text": "8 mins Coca-Cola Soft Drink 2 ltr ₹81 ₹85 ADD"
+    },
+    {
+      "source_index": 13,
+      "platform": "blinkit",
+      "product_name": "Cadbury Dairy Milk Limited Edition Milk Chocolate Bar",
+      "displayed_price": "₹113",
+      "mrp": "₹150",
+      "quantity": "123 g",
+      "stock_availability": "in_stock",
+      "offer_text": "24% OFF",
+      "raw_text": "24% OFF 8 mins Cadbury Dairy Milk Limited Edition Milk Chocolate Bar 123 g ₹113 ₹150 ADD"
+    },
+    {
+      "source_index": 14,
+      "platform": "blinkit",
+      "product_name": "Sprite Zero Soft Drink",
+      "displayed_price": "₹40",
+      "mrp": null,
+      "quantity": "300 ml",
+      "stock_availability": "in_stock",
+      "offer_text": null,
+      "raw_text": "8 mins Sprite Zero Soft Drink 300 ml ₹40 ADD"
+    },
+    {
+      "source_index": 15,
+      "platform": "blinkit",
+      "product_name": "Schweppes Ginger Ale",
+      "displayed_price": "₹51",
+      "mrp": "₹60",
+      "quantity": "300 ml",
+      "stock_availability": "in_stock",
+      "offer_text": "15% OFF",
+      "raw_text": "15% OFF 8 mins Schweppes Ginger Ale 300 ml ₹51 ₹60 ADD"
+    },
+    {
+      "source_index": 16,
+      "platform": "blinkit",
+      "product_name": "Coca-Cola Zero Sugar Soft Drink (300 ml) - Pack of 6",
+      "displayed_price": "₹240",
+      "mrp": null,
+      "quantity": "6 x 300 ml",
+      "stock_availability": "in_stock",
+      "offer_text": null,
+      "raw_text": "8 mins Coca-Cola Zero Sugar Soft Drink (300 ml) - Pack of 6 6 x 300 ml ₹240 ADD"
+    },
+    {
+      "source_index": 17,
+      "platform": "blinkit",
+      "product_name": "Fanta Orange Soft Drink",
+      "displayed_price": "₹40",
+      "mrp": null,
+      "quantity": "750 ml",
+      "stock_availability": "in_stock",
+      "offer_text": null,
+      "raw_text": "8 mins Fanta Orange Soft Drink 750 ml ₹40 ADD"
+    },
+    {
+      "source_index": 18,
+      "platform": "blinkit",
+      "product_name": "Thums Up X Force Zero Sugar Cola Soft Drink",
+      "displayed_price": "₹40",
+      "mrp": null,
+      "quantity": "300 ml",
+      "stock_availability": "in_stock",
+      "offer_text": null,
+      "raw_text": "8 mins Thums Up X Force Zero Sugar Cola Soft Drink 300 ml ₹40 ADD"
+    },
+    {
+      "source_index": 19,
+      "platform": "blinkit",
+      "product_name": "Sprite Lime Soft Drink (2 l)",
+      "displayed_price": "₹81",
+      "mrp": "₹85",
+      "quantity": "2 ltr",
+      "stock_availability": "in_stock",
+      "offer_text": null,
+      "raw_text": "8 mins Sprite Lime Soft Drink (2 l) 2 ltr ₹81 ₹85 ADD"
+    },
+    {
+      "source_index": 20,
+      "platform": "blinkit",
+      "product_name": "Frooti Mango Drink",
+      "displayed_price": "₹34",
+      "mrp": "₹35",
+      "quantity": "600 ml",
+      "stock_availability": "in_stock",
+      "offer_text": null,
+      "raw_text": "8 mins Frooti Mango Drink 600 ml ₹34 ₹35 ADD"
+    },
+    {
+      "source_index": 21,
+      "platform": "blinkit",
+      "product_name": "Pepsi Soft Drink",
+      "displayed_price": "₹40",
+      "mrp": null,
+      "quantity": "750 ml",
+      "stock_availability": "in_stock",
+      "offer_text": null,
+      "raw_text": "8 mins Pepsi Soft Drink 750 ml ₹40 ADD"
+    },
+    {
+      "source_index": 22,
+      "platform": "blinkit",
+      "product_name": "Sprite Lime Soft Drink",
+      "displayed_price": "₹160",
+      "mrp": null,
+      "quantity": "8 x 250 ml",
+      "stock_availability": "in_stock",
+      "offer_text": null,
+      "raw_text": "8 mins Sprite Lime Soft Drink 8 x 250 ml ₹160 ADD"
+    },
+    {
+      "source_index": 23,
+      "platform": "blinkit",
+      "product_name": "Fanta Orange Soft Drink",
+      "displayed_price": "₹40",
+      "mrp": null,
+      "quantity": "300 ml",
+      "stock_availability": "in_stock",
+      "offer_text": null,
+      "raw_text": "8 mins Fanta Orange Soft Drink 300 ml ₹40 ADD"
+    },
+    {
+      "source_index": 24,
+      "platform": "blinkit",
+      "product_name": "Paper Boat Aamras Mango Drink - Pack of 2",
+      "displayed_price": "₹77",
+      "mrp": "₹80",
+      "quantity": "2 x 215 ml",
+      "stock_availability": "in_stock",
+      "offer_text": null,
+      "raw_text": "8 mins Paper Boat Aamras Mango Drink - Pack of 2 2 x 215 ml ₹77 ₹80 ADD"
+    }
+  ]
+}

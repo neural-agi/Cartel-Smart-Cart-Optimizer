@@ -1,0 +1,273 @@
+{
+  "platform": "blinkit",
+  "query": "bread",
+  "source_path": "D:\\PARANJAY\\Projects\\Cartel-Smart-Cart-Optimizer\\data\\raw\\blinkit\\20260620T123628Z_bread.html",
+  "extracted_at": "2026-06-20T12:36:29.568673Z",
+  "product_count": 24,
+  "products": [
+    {
+      "source_index": 1,
+      "platform": "blinkit",
+      "product_name": "Britannia 100% Atta Bread (No Maida)",
+      "displayed_price": "₹59",
+      "mrp": "₹65",
+      "quantity": "450 g",
+      "stock_availability": "in_stock",
+      "offer_text": "9% OFF",
+      "raw_text": "9% OFF 8 mins Britannia 100% Atta Bread (No Maida) 450 g ₹59 ₹65 ADD"
+    },
+    {
+      "source_index": 2,
+      "platform": "blinkit",
+      "product_name": "Harvest Gold White Bread",
+      "displayed_price": "₹33",
+      "mrp": null,
+      "quantity": "350 g",
+      "stock_availability": "in_stock",
+      "offer_text": null,
+      "raw_text": "8 mins Harvest Gold White Bread 350 g ₹33 ADD"
+    },
+    {
+      "source_index": 3,
+      "platform": "blinkit",
+      "product_name": "Harvest Gold 100% Atta Whole Wheat Bread",
+      "displayed_price": "₹62",
+      "mrp": "₹65",
+      "quantity": "450 g",
+      "stock_availability": "in_stock",
+      "offer_text": null,
+      "raw_text": "8 mins Harvest Gold 100% Atta Whole Wheat Bread 450 g ₹62 ₹65 ADD"
+    },
+    {
+      "source_index": 4,
+      "platform": "blinkit",
+      "product_name": "Harvest Gold White Bread",
+      "displayed_price": "₹65",
+      "mrp": null,
+      "quantity": "700 g",
+      "stock_availability": "in_stock",
+      "offer_text": null,
+      "raw_text": "8 mins Harvest Gold White Bread 700 g ₹65 ADD"
+    },
+    {
+      "source_index": 5,
+      "platform": "blinkit",
+      "product_name": "English Oven Premium White Bread",
+      "displayed_price": "₹65",
+      "mrp": null,
+      "quantity": "700 g",
+      "stock_availability": "in_stock",
+      "offer_text": null,
+      "raw_text": "8 mins English Oven Premium White Bread 700 g ₹65 ADD"
+    },
+    {
+      "source_index": 6,
+      "platform": "blinkit",
+      "product_name": "English Oven Zero maida 100% Atta/ Wheat Bread",
+      "displayed_price": "₹60",
+      "mrp": null,
+      "quantity": "400 g",
+      "stock_availability": "in_stock",
+      "offer_text": null,
+      "raw_text": "8 mins English Oven Zero maida 100% Atta/ Wheat Bread 400 g ₹60 ADD"
+    },
+    {
+      "source_index": 7,
+      "platform": "blinkit",
+      "product_name": "English Oven Premium White Bread 350 g",
+      "displayed_price": "₹33",
+      "mrp": null,
+      "quantity": "350 g",
+      "stock_availability": "in_stock",
+      "offer_text": null,
+      "raw_text": "8 mins English Oven Premium White Bread 350 g 350 g ₹33 ADD"
+    },
+    {
+      "source_index": 8,
+      "platform": "blinkit",
+      "product_name": "English Oven Brown Bread",
+      "displayed_price": "₹60",
+      "mrp": null,
+      "quantity": "400 g",
+      "stock_availability": "in_stock",
+      "offer_text": null,
+      "raw_text": "8 mins English Oven Brown Bread 400 g ₹60 ADD"
+    },
+    {
+      "source_index": 9,
+      "platform": "blinkit",
+      "product_name": "Bonn Zero Maida 100% Atta Whole Wheat Bread",
+      "displayed_price": "₹58",
+      "mrp": "₹60",
+      "quantity": "400 g",
+      "stock_availability": "in_stock",
+      "offer_text": null,
+      "raw_text": "8 mins Bonn Zero Maida 100% Atta Whole Wheat Bread 400 g ₹58 ₹60 ADD"
+    },
+    {
+      "source_index": 10,
+      "platform": "blinkit",
+      "product_name": "The Health Factory Zero Maida Whole Wheat Bread",
+      "displayed_price": "₹65",
+      "mrp": null,
+      "quantity": "350 g",
+      "stock_availability": "in_stock",
+      "offer_text": null,
+      "raw_text": "8 mins The Health Factory Zero Maida Whole Wheat Bread 350 g ₹65 ADD"
+    },
+    {
+      "source_index": 11,
+      "platform": "blinkit",
+      "product_name": "English Oven Zero Maida Multigrain Bread",
+      "displayed_price": "₹70",
+      "mrp": null,
+      "quantity": "400 g",
+      "stock_availability": "in_stock",
+      "offer_text": null,
+      "raw_text": "8 mins English Oven Zero Maida Multigrain Bread 400 g ₹70 ADD"
+    },
+    {
+      "source_index": 12,
+      "platform": "blinkit",
+      "product_name": "Harvest Gold Hearty Brown Bread",
+      "displayed_price": "₹60",
+      "mrp": null,
+      "quantity": "400 g",
+      "stock_availability": "in_stock",
+      "offer_text": null,
+      "raw_text": "8 mins Harvest Gold Hearty Brown Bread 400 g ₹60 ADD"
+    },
+    {
+      "source_index": 13,
+      "platform": "blinkit",
+      "product_name": "Bonn High Fibre Brown Bread",
+      "displayed_price": "₹58",
+      "mrp": "₹60",
+      "quantity": "400 g",
+      "stock_availability": "in_stock",
+      "offer_text": null,
+      "raw_text": "8 mins Bonn High Fibre Brown Bread 400 g ₹58 ₹60 ADD"
+    },
+    {
+      "source_index": 14,
+      "platform": "blinkit",
+      "product_name": "English Oven Milk Bread",
+      "displayed_price": "₹50",
+      "mrp": null,
+      "quantity": "400 g",
+      "stock_availability": "in_stock",
+      "offer_text": null,
+      "raw_text": "8 mins English Oven Milk Bread 400 g ₹50 ADD"
+    },
+    {
+      "source_index": 15,
+      "platform": "blinkit",
+      "product_name": "Suchali's Artisan Bakehouse Buttercrust Milk Bread",
+      "displayed_price": "₹200",
+      "mrp": null,
+      "quantity": "470 g",
+      "stock_availability": "in_stock",
+      "offer_text": null,
+      "raw_text": "8 mins Suchali's Artisan Bakehouse Buttercrust Milk Bread 470 g ₹200 ADD"
+    },
+    {
+      "source_index": 16,
+      "platform": "blinkit",
+      "product_name": "Suchali's Artisan Bakehouse Country Sourdough",
+      "displayed_price": "₹150",
+      "mrp": null,
+      "quantity": "350 g",
+      "stock_availability": "in_stock",
+      "offer_text": null,
+      "raw_text": "8 mins Suchali's Artisan Bakehouse Country Sourdough 350 g ₹150 ADD"
+    },
+    {
+      "source_index": 17,
+      "platform": "blinkit",
+      "product_name": "Bonn White Bread",
+      "displayed_price": "₹62",
+      "mrp": "₹65",
+      "quantity": "700 g",
+      "stock_availability": "in_stock",
+      "offer_text": null,
+      "raw_text": "8 mins Bonn White Bread 700 g ₹62 ₹65 ADD"
+    },
+    {
+      "source_index": 18,
+      "platform": "blinkit",
+      "product_name": "Protein Chef Multigrain Double Protein Bread (64g Protein per Loaf)",
+      "displayed_price": "₹99",
+      "mrp": null,
+      "quantity": "270 g",
+      "stock_availability": "in_stock",
+      "offer_text": null,
+      "raw_text": "8 mins Protein Chef Multigrain Double Protein Bread (64g Protein per Loaf) 270 g ₹99 ADD"
+    },
+    {
+      "source_index": 19,
+      "platform": "blinkit",
+      "product_name": "Suchali's Artisan Bakehouse Olive & Rosemary Sourdough",
+      "displayed_price": "₹220",
+      "mrp": null,
+      "quantity": "420 g",
+      "stock_availability": "in_stock",
+      "offer_text": null,
+      "raw_text": "8 mins Suchali's Artisan Bakehouse Olive & Rosemary Sourdough 420 g ₹220 ADD"
+    },
+    {
+      "source_index": 20,
+      "platform": "blinkit",
+      "product_name": "The Health Factory Zero Maida Multigrain Bread",
+      "displayed_price": "₹80",
+      "mrp": null,
+      "quantity": "375 g",
+      "stock_availability": "in_stock",
+      "offer_text": null,
+      "raw_text": "8 mins The Health Factory Zero Maida Multigrain Bread 375 g ₹80 ADD"
+    },
+    {
+      "source_index": 21,
+      "platform": "blinkit",
+      "product_name": "Bonn Lehsuni Tadka Bread",
+      "displayed_price": "₹49",
+      "mrp": "₹50",
+      "quantity": "250 g",
+      "stock_availability": "in_stock",
+      "offer_text": null,
+      "raw_text": "8 mins Bonn Lehsuni Tadka Bread 250 g ₹49 ₹50 ADD"
+    },
+    {
+      "source_index": 22,
+      "platform": "blinkit",
+      "product_name": "English Oven Sandwich White Bread",
+      "displayed_price": "₹45",
+      "mrp": null,
+      "quantity": "400 g",
+      "stock_availability": "in_stock",
+      "offer_text": null,
+      "raw_text": "8 mins English Oven Sandwich White Bread 400 g ₹45 ADD"
+    },
+    {
+      "source_index": 23,
+      "platform": "blinkit",
+      "product_name": "Harvest Gold Multigrain Bread",
+      "displayed_price": "₹70",
+      "mrp": null,
+      "quantity": "450 g",
+      "stock_availability": "in_stock",
+      "offer_text": null,
+      "raw_text": "8 mins Harvest Gold Multigrain Bread 450 g ₹70 ADD"
+    },
+    {
+      "source_index": 24,
+      "platform": "blinkit",
+      "product_name": "Britannia 100% Whole Wheat Bread (No Maida)",
+      "displayed_price": "₹65",
+      "mrp": null,
+      "quantity": "400 g",
+      "stock_availability": "in_stock",
+      "offer_text": null,
+      "raw_text": "8 mins Britannia 100% Whole Wheat Bread (No Maida) 400 g ₹65 ADD"
+    }
+  ]
+}
