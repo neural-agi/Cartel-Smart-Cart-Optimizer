@@ -26,8 +26,6 @@ Unlike traditional price comparison tools, Cartel aims to account for:
 
 The goal is to calculate the actual effective cost of a purchase, not just the displayed product price.
 
----
-
 ## Key Research Findings
 
 Research across Blinkit, BB Now, Zepto, Instamart, JioMart, and other grocery platforms revealed several important insights:
@@ -42,8 +40,6 @@ Research across Blinkit, BB Now, Zepto, Instamart, JioMart, and other grocery pl
 
 These findings transformed Cartel from a simple price comparison project into a true cost grocery intelligence platform.
 
----
-
 ## Current Status
 
 ### Completed
@@ -54,13 +50,26 @@ These findings transformed Cartel from a simple price comparison project into a 
 * Blinkit browser automation
 * Location aware session handling
 * Session persistence
-* Product extraction pipeline
-* Structured JSON output
+* Raw extraction pipeline
+* Structured raw product output
+* Evidence corpus across multiple grocery categories
+* Canonical product schema design
+* Product intelligence domain models
+* Product intelligence pipeline
+* Product intelligence component architecture
+* Product matching architecture
+* Product intelligence package skeleton
 * Initial architecture and research phase
 
 ### In Progress
 
-* Canonical product catalog design
+* Product intelligence implementation
+* Evidence registry implementation
+* Candidate generation implementation
+* Product matching implementation
+* Variant matching implementation
+* Review workflow implementation
+* Canonical assertion updates
 * Cross platform product normalization
 * Offer and promotion rule modeling
 * Fee and surcharge modeling
@@ -72,12 +81,10 @@ These findings transformed Cartel from a simple price comparison project into a 
 * Zepto integration
 * BB Now integration
 * JioMart integration
-* Product matching engine
+* Instamart integration
 * Cart optimization engine
 * Multi platform comparison API
 * Frontend application
-
----
 
 ## Roadmap
 
@@ -85,16 +92,27 @@ These findings transformed Cartel from a simple price comparison project into a 
 
 * Blinkit integration
 * Session persistence
-* Product extraction
-* Structured JSON output
+* Raw extraction
+* Structured raw output
 
 ### Phase 2: Product Intelligence 🚧
 
 * Canonical product catalog
-* Product normalization
-* Cross platform product matching
+* Product intelligence domain models
+* Product intelligence pipeline
+* Product matching architecture
+* Product intelligence component skeleton
 
-### Phase 3: Cost Intelligence
+### Phase 3: Product Intelligence Implementation
+
+* Evidence registry
+* Candidate generation
+* Product matching
+* Variant matching
+* Review queue
+* Canonical assertion updates
+
+### Phase 4: Cost Intelligence
 
 * Offer engine
 * Fee engine
@@ -102,26 +120,24 @@ These findings transformed Cartel from a simple price comparison project into a 
 * Loyalty reward modeling
 * True cost calculation engine
 
-### Phase 4: Cart Optimization
+### Phase 5: Cart Optimization
 
 * Multi platform comparison
 * Cart splitting optimization
 * Cheapest cart recommendation engine
 
-### Phase 5: Platform Expansion
+### Phase 6: Platform Expansion
 
 * Zepto integration
 * BB Now integration
 * JioMart integration
 * Instamart integration
 
-### Phase 6: User Experience
+### Phase 7: User Experience
 
 * REST APIs
 * Dashboard
 * Frontend application
-
----
 
 ## Example Workflow
 
@@ -130,28 +146,39 @@ Raw HTML
     ↓
 Parser
     ↓
-Structured Product Data
+Structured Raw Product Data
     ↓
-Normalization
+Evidence Bundle
+    ↓
+Platform Listing
+    ↓
+Listing Observation
+    ↓
+Candidate Generation
     ↓
 Product Matching
+    ↓
+Variant Matching
+    ↓
+Canonical Assertion Update
     ↓
 Offer Engine
     ↓
 True Cost Engine
     ↓
 Cart Optimizer
+
 ```
 
 ---
 
 ## Current Milestone
 
-v0.1.0
+v0.2.0
 
 Successfully acquires, parses, and structures real world Blinkit grocery data while maintaining location aware sessions and persistent browser state.
 
-Research and architecture work for multi platform true cost grocery optimization has been completed.
+The project now includes research backed product intelligence architecture, domain models, pipeline design, component boundaries, matching architecture, and implementation skeletons.
 
 ---
 
