@@ -1,145 +1,67 @@
 # Cartel
 
-Consumer side grocery price intelligence and cart optimization platform.
+Consumer-side grocery price intelligence and cart optimization platform.
 
 ## Vision
 
-Cartel helps users discover the true cheapest way to purchase groceries across quick commerce and ecommerce platforms.
+Cartel helps consumers discover the true lowest-cost way to purchase groceries across quick-commerce and ecommerce platforms.
 
-Unlike traditional price comparison tools, Cartel aims to account for:
+Traditional price comparison systems compare displayed product prices.
 
-* product prices
-* delivery fees
-* handling charges
-* platform fees
-* cashback
-* loyalty rewards
-* coupons
-* bundle offers
-* cart level discounts
-* minimum order requirements
-* membership exclusive pricing
-* free item promotions
-* quantity based offers
-* location dependent pricing
-* platform specific offer stacking rules
+Cartel models the complete economics of a grocery purchase, including:
 
-The goal is to calculate the actual effective cost of a purchase, not just the displayed product price.
+* Product prices
+* Delivery fees
+* Handling charges
+* Platform fees
+* Cashback rewards
+* Loyalty benefits
+* Coupons and promo codes
+* Bundle offers
+* Cart-level discounts
+* Minimum order thresholds
+* Membership-exclusive pricing
+* Free-item promotions
+* Quantity-based offers
+* Location-dependent pricing
+* Platform-specific offer stacking rules
 
-## Key Research Findings
+The objective is to calculate the actual effective cost paid by a consumer rather than the advertised product price.
 
-Research across Blinkit, BB Now, Zepto, Instamart, JioMart, and other grocery platforms revealed several important insights:
+---
 
-* The cart, not the individual product, is the true unit of optimization.
-* Displayed product prices rarely represent the final amount paid.
-* Delivery fees, handling charges, platform fees, and loyalty rewards significantly affect effective cost.
-* Offers often have activation conditions, expiry windows, and stacking restrictions.
-* Identical products are frequently represented differently across platforms.
-* Grocery platforms use behavioral economics techniques such as anchoring, urgency, scarcity, and free delivery thresholds to influence purchasing decisions.
-* Effective grocery optimization requires product normalization, offer modeling, fee modeling, and cart level reasoning.
+## Why Cartel Exists
 
-These findings transformed Cartel from a simple price comparison project into a true cost grocery intelligence platform.
+Research across Blinkit, BB Now, Zepto, Instamart, JioMart, and other grocery platforms revealed several key realities:
 
-## Current Status
+* The cart, not the individual product, is the true optimization unit.
+* Displayed prices rarely represent the final amount paid.
+* Fees, rewards, and promotions materially affect effective cost.
+* Offer eligibility depends on activation conditions, thresholds, expiry windows, and stacking constraints.
+* Identical products are represented differently across platforms.
+* Platform-specific pricing and offer logic make direct comparisons unreliable.
+* Consumer decisions are heavily influenced by behavioral pricing mechanisms such as anchoring, urgency, scarcity, and free-delivery thresholds.
 
-### Completed
+These findings transformed Cartel from a simple price-comparison project into a grocery intelligence platform capable of reasoning about products, offers, fees, and complete shopping carts.
 
-* FastAPI backend foundation
-* Structured logging
-* Modular scraper architecture
-* Blinkit browser automation
-* Location aware session handling
-* Session persistence
-* Raw extraction pipeline
-* Structured raw product output
-* Evidence corpus across multiple grocery categories
-* Canonical product schema design
-* Product intelligence domain models
-* Product intelligence pipeline
-* Product intelligence component architecture
-* Product matching architecture
-* Product intelligence package skeleton
-* Initial architecture and research phase
+---
 
-### In Progress
+## Core Principles
 
-* Product intelligence implementation
-* Evidence registry implementation
-* Candidate generation implementation
-* Product matching implementation
-* Variant matching implementation
-* Review workflow implementation
-* Canonical assertion updates
-* Cross platform product normalization
-* Offer and promotion rule modeling
-* Fee and surcharge modeling
-* True cost calculation engine
-* Platform offer intelligence framework
+Cartel is built around several architectural principles:
 
-### Planned
+* Deterministic matching and decision-making
+* Replayable audit trails
+* Evidence-backed product intelligence
+* Explicit governance rules
+* Platform-independent canonical product modeling
+* Reproducible matching outcomes
+* Location-aware pricing intelligence
+* Cart-level optimization rather than product-level comparison
 
-* Zepto integration
-* BB Now integration
-* JioMart integration
-* Instamart integration
-* Cart optimization engine
-* Multi platform comparison API
-* Frontend application
+---
 
-## Roadmap
-
-### Phase 1: Data Acquisition ✅
-
-* Blinkit integration
-* Session persistence
-* Raw extraction
-* Structured raw output
-
-### Phase 2: Product Intelligence 🚧
-
-* Canonical product catalog
-* Product intelligence domain models
-* Product intelligence pipeline
-* Product matching architecture
-* Product intelligence component skeleton
-
-### Phase 3: Product Intelligence Implementation
-
-* Evidence registry
-* Candidate generation
-* Product matching
-* Variant matching
-* Review queue
-* Canonical assertion updates
-
-### Phase 4: Cost Intelligence
-
-* Offer engine
-* Fee engine
-* Cashback modeling
-* Loyalty reward modeling
-* True cost calculation engine
-
-### Phase 5: Cart Optimization
-
-* Multi platform comparison
-* Cart splitting optimization
-* Cheapest cart recommendation engine
-
-### Phase 6: Platform Expansion
-
-* Zepto integration
-* BB Now integration
-* JioMart integration
-* Instamart integration
-
-### Phase 7: User Experience
-
-* REST APIs
-* Dashboard
-* Frontend application
-
-## Example Workflow
+## Architecture Overview
 
 ```text
 Raw HTML
@@ -162,23 +84,177 @@ Variant Matching
     ↓
 Canonical Assertion Update
     ↓
-Offer Engine
+Offer Intelligence
     ↓
-True Cost Engine
+Cost Intelligence
     ↓
-Cart Optimizer
-
+Cart Optimization
 ```
+
+---
+
+## Current Status
+
+### Completed
+
+#### Data Acquisition
+
+* FastAPI backend foundation
+* Structured logging
+* Modular scraper architecture
+* Blinkit browser automation
+* Location-aware session handling
+* Persistent browser state
+* Raw extraction pipeline
+* Structured raw product output
+
+#### Product Intelligence Foundation
+
+* Evidence corpus across multiple grocery categories
+* Canonical product schema
+* Product intelligence domain models
+* Product intelligence pipeline architecture
+* Product matching architecture
+* Variant matching architecture
+* Governance contracts
+* Deterministic matching framework
+* Product intelligence package structure
+
+#### Research
+
+* Cross-platform grocery analysis
+* Offer system research
+* Fee structure research
+* Cart optimization research
+* Consumer pricing behavior research
+
+### In Progress
+
+#### Product Intelligence
+
+* Evidence registry
+* Candidate generation
+* Product matching implementation
+* Variant matching implementation
+* Review workflow
+* Canonical assertion updates
+
+#### Cost Intelligence
+
+* Offer modeling
+* Promotion-rule modeling
+* Fee modeling
+* Platform-pricing intelligence
+
+### Planned
+
+#### Platform Expansion
+
+* Zepto integration
+* BB Now integration
+* JioMart integration
+* Instamart integration
+
+#### Optimization
+
+* True-cost calculation engine
+* Cart optimization engine
+* Cart-splitting optimization
+* Multi-platform recommendation engine
+
+#### User Experience
+
+* Comparison APIs
+* Consumer dashboard
+* Frontend application
+
+---
+
+## Roadmap
+
+### Phase 1: Data Acquisition ✅
+
+* Blinkit integration
+* Session persistence
+* Raw extraction
+* Structured output generation
+
+### Phase 2: Product Intelligence Foundation ✅
+
+* Canonical product modeling
+* Product intelligence architecture
+* Product matching architecture
+* Variant matching architecture
+* Governance contracts
+* Domain models
+
+### Phase 3: Product Intelligence Implementation 🚧
+
+* Evidence registry
+* Candidate generation
+* Product matching
+* Variant matching
+* Review workflow
+* Canonical assertion updates
+
+### Phase 4: Cost Intelligence
+
+* Offer engine
+* Promotion engine
+* Fee engine
+* Cashback modeling
+* Loyalty reward modeling
+* Effective-cost calculation
+
+### Phase 5: Cart Optimization
+
+* Multi-platform comparison
+* Cart splitting
+* Cheapest-cart recommendation engine
+
+### Phase 6: Platform Expansion
+
+* Zepto
+* BB Now
+* JioMart
+* Instamart
+
+### Phase 7: Consumer Experience
+
+* Public APIs
+* Dashboard
+* Frontend application
 
 ---
 
 ## Current Milestone
 
-v0.2.0
+### v0.2.0
 
-Successfully acquires, parses, and structures real world Blinkit grocery data while maintaining location aware sessions and persistent browser state.
+Cartel can successfully acquire, parse, and structure real-world Blinkit grocery data while maintaining location-aware sessions and persistent browser state.
 
-The project now includes research backed product intelligence architecture, domain models, pipeline design, component boundaries, matching architecture, and implementation skeletons.
+The project now includes:
+
+* Product intelligence architecture
+* Canonical product models
+* Evidence-driven matching design
+* Deterministic matching governance
+* Product matching framework
+* Variant matching framework
+* Audit and replay foundations
+* Cost-intelligence research foundation
+
+Cartel is currently transitioning from architecture and governance design into implementation of the product-intelligence layer.
+
+---
+
+## Long-Term Goal
+
+Enable consumers to answer a simple question:
+
+> "What is the cheapest way to buy my entire grocery cart right now?"
+
+Across platforms, locations, offers, memberships, rewards, and delivery constraints.
 
 ---
 
