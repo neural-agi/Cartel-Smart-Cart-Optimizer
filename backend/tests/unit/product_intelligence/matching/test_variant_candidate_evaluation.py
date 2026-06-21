@@ -4,7 +4,10 @@ import asyncio
 from datetime import datetime, timezone
 from decimal import Decimal
 
-from app.product_intelligence.matching.interfaces import VariantGovernanceHooks
+from app.product_intelligence.matching.interfaces import (
+    VariantCandidateEvaluator,
+    VariantGovernanceHooks,
+)
 from app.product_intelligence.matching.types import (
     CandidateEvaluationResult,
     CoverageState,
@@ -184,6 +187,18 @@ class _StaticGovernanceHooks(VariantGovernanceHooks):
 
     async def collect(self, request: VariantMatchRequest) -> VariantGovernanceContext:
         return self._governance
+
+
+class _StaticCandidateEvaluator(VariantCandidateEvaluator):
+    def __init__(self, result: CandidateEvaluationResult) -> None:
+        self._result = result
+
+    async def evaluate(
+        self,
+        request: VariantMatchRequest,
+        governance: VariantGovernanceContext,
+    ) -> CandidateEvaluationResult:
+        return self._result
 
 
 def _request(
@@ -444,3 +459,39 @@ def test_variant_matcher_marks_multiple_exact_survivors_ambiguous() -> None:
 
     assert response.outcome == MatchOutcome.ambiguous
     assert response.selected_variant is None
+
+
+def test_variant_matcher_ignores_rationale_formatting_when_classifying() -> None:
+    product = _product()
+    variant_a = _variant(
+        "variant-a",
+        content_per_consumer_unit=_measurement("500", "ml", QuantityDimension.volume),
+        total_declared_content=_measurement("500", "ml", QuantityDimension.volume),
+    )
+    request = _request(product=product, variants=[variant_a])
+    governance = _governance(normalized_pack_evidence=_normalized_pack())
+    candidate_result = CandidateEvaluationResult(
+        candidate_ids_considered=["variant-a"],
+        viable_candidate_ids=["variant-a"],
+        eliminated_candidate_ids=[],
+        ambiguous_candidate_ids=[],
+        selected_variant_id="variant-a",
+        all_candidates_disproved=False,
+        rejection_rationale=[],
+        rationale=[
+            "garbled-rationale",
+            "exact_support_candidate_ids:variant-a",
+            "ambiguous_candidate_ids variant-a",
+            "selected_variant_id=not-for-classification",
+        ],
+    )
+    matcher = DeterministicVariantMatcher(
+        governance_hooks=_StaticGovernanceHooks(governance),
+        candidate_evaluator=_StaticCandidateEvaluator(candidate_result),
+    )
+
+    response = _run(matcher.match(request))
+
+    assert response.outcome == MatchOutcome.mapped
+    assert response.selected_variant is not None
+    assert response.selected_variant.canonical_variant_id == "variant-a"
