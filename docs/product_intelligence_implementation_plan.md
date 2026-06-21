@@ -23,6 +23,7 @@ Why first:
 
 - every downstream stage depends on durable evidence references
 - the architecture requires provenance to survive matching and review
+- the storage model is content-addressed and append-only at the record level, so identical registration payloads should reuse the same durable record instead of creating redundant duplicates
 
 Dependencies unlocked:
 
@@ -152,4 +153,3 @@ Outcome:
 ## Uncertainty Notes
 
 The approved documentation defines the architectural split clearly, but it does not prescribe exact class names, method names, or whether future concrete implementations will be synchronous or asynchronous internally. This plan therefore keeps the interfaces minimal and defers behavioral detail to later implementation phases.
-
