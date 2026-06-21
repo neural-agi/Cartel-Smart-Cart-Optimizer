@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from app.core.logging import get_logger
 from app.product_intelligence.matching.interfaces import (
     VariantCandidateEvaluator,
@@ -9,6 +11,8 @@ from app.product_intelligence.matching.interfaces import (
 from app.product_intelligence.matching.types import (
     CandidateEvaluationResult,
     CoverageState,
+    CoverageValidationState,
+    FreshnessState,
     MatchOutcome,
     VariantGovernanceContext,
     VariantMatchRequest,
@@ -19,6 +23,9 @@ from app.product_intelligence.matching.variant_audit import (
     DeterministicVariantAuditRecorder,
     VariantDecisionAuditRecord,
     VariantDecisionTrace,
+)
+from app.product_intelligence.matching.variant_candidate_evaluation import (
+    DeterministicVariantCandidateEvaluator,
 )
 from app.product_intelligence.matching.variant_governance import (
     DeterministicVariantGovernanceHooks,
@@ -35,20 +42,12 @@ from app.product_intelligence.models import ProductVariant
 logger = get_logger(__name__)
 
 
-class _NullVariantCandidateEvaluator(VariantCandidateEvaluator):
-    """Conservative default evaluator for the first executable slice."""
-
-    async def evaluate(
-        self,
-        request: VariantMatchRequest,
-        governance: VariantGovernanceContext,
-    ) -> CandidateEvaluationResult:
-        return CandidateEvaluationResult(
-            candidate_ids_considered=[
-                variant.canonical_variant_id for variant in request.variant_candidates
-            ],
-            rationale=["candidate_evaluation=not_provided"],
-        )
+@dataclass(frozen=True, slots=True)
+class _CandidateSupportSummary:
+    exact_support_candidate_ids: list[str]
+    partial_support_candidate_ids: list[str]
+    none_support_candidate_ids: list[str]
+    contradicted_candidate_ids: list[str]
 
 
 class DeterministicVariantMatcher(VariantMatcher):
@@ -65,7 +64,9 @@ class DeterministicVariantMatcher(VariantMatcher):
         matcher_version: str = "variant-matcher-slice-1",
     ) -> None:
         self.governance_hooks = governance_hooks or DeterministicVariantGovernanceHooks()
-        self.candidate_evaluator = candidate_evaluator or _NullVariantCandidateEvaluator()
+        self.candidate_evaluator = (
+            candidate_evaluator or DeterministicVariantCandidateEvaluator()
+        )
         self.validator = validator or DeterministicVariantRequestValidator()
         self.rationale_builder = rationale_builder or DeterministicVariantRationaleBuilder()
         self.audit_recorder = audit_recorder or DeterministicVariantAuditRecorder()
@@ -110,24 +111,37 @@ class DeterministicVariantMatcher(VariantMatcher):
         validation: VariantValidationResult,
         candidate_result: CandidateEvaluationResult,
     ) -> tuple[MatchOutcome, str | None]:
-        if len(candidate_result.ambiguous_candidate_ids) > 1 or (
-            len(candidate_result.viable_candidate_ids) > 1
-            and candidate_result.selected_variant_id is None
-        ):
-            return MatchOutcome.ambiguous, None
+        support_summary = self._support_summary(candidate_result)
+        coverage_validation_state = validation.governance.coverage_validation.validation_state
+        coverage_state = validation.governance.coverage_validation.declared_state
+        freshness_state = validation.governance.freshness.freshness_state
 
         if (
             candidate_result.selected_variant_id is not None
-            and len(candidate_result.viable_candidate_ids) == 1
-            and candidate_result.selected_variant_id
-            == candidate_result.viable_candidate_ids[0]
+            and len(support_summary.exact_support_candidate_ids) == 1
+            and coverage_validation_state == CoverageValidationState.valid
+            and coverage_state != CoverageState.invalid
+            and freshness_state in {FreshnessState.fresh, FreshnessState.stale_compatible}
         ):
             return MatchOutcome.mapped, candidate_result.selected_variant_id
+
+        if (
+            len(support_summary.exact_support_candidate_ids) > 1
+            and coverage_validation_state == CoverageValidationState.valid
+            and coverage_state != CoverageState.invalid
+            and freshness_state in {FreshnessState.fresh, FreshnessState.stale_compatible}
+        ):
+            return MatchOutcome.ambiguous, None
 
         if self._can_reject(validation=validation, candidate_result=candidate_result):
             return MatchOutcome.rejected, None
 
-        if len(candidate_result.viable_candidate_ids) > 1:
+        if (
+            len(candidate_result.viable_candidate_ids) > 1
+            and coverage_validation_state == CoverageValidationState.valid
+            and coverage_state == CoverageState.representative
+            and freshness_state in {FreshnessState.fresh, FreshnessState.stale_compatible}
+        ):
             return MatchOutcome.ambiguous, None
 
         return MatchOutcome.unresolved, None
@@ -140,10 +154,12 @@ class DeterministicVariantMatcher(VariantMatcher):
     ) -> bool:
         return (
             candidate_result.all_candidates_disproved
-            and validation.governance.coverage_validation.validation_state.value
-            == "valid"
+            and validation.governance.coverage_validation.validation_state
+            == CoverageValidationState.valid
             and validation.governance.coverage_validation.declared_state
             == CoverageState.representative
+            and validation.governance.freshness.freshness_state
+            in {FreshnessState.fresh, FreshnessState.stale_compatible}
         )
 
     def _empty_candidate_result(
@@ -156,6 +172,33 @@ class DeterministicVariantMatcher(VariantMatcher):
             ],
             rationale=["candidate_evaluation_skipped"],
         )
+
+    def _support_summary(self, candidate_result: CandidateEvaluationResult) -> _CandidateSupportSummary:
+        return _CandidateSupportSummary(
+            exact_support_candidate_ids=self._parse_rationale_list(
+                candidate_result.rationale, "exact_support_candidate_ids"
+            ),
+            partial_support_candidate_ids=self._parse_rationale_list(
+                candidate_result.rationale, "partial_support_candidate_ids"
+            ),
+            none_support_candidate_ids=self._parse_rationale_list(
+                candidate_result.rationale, "none_support_candidate_ids"
+            ),
+            contradicted_candidate_ids=self._parse_rationale_list(
+                candidate_result.rationale, "contradicted_candidate_ids"
+            ),
+        )
+
+    def _parse_rationale_list(self, rationale: list[str], key: str) -> list[str]:
+        prefix = f"{key}="
+        for line in rationale:
+            if not line.startswith(prefix):
+                continue
+            value = line[len(prefix) :]
+            if not value:
+                return []
+            return value.split(",")
+        return []
 
     def _finalize(
         self,
