@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime
+
 from pydantic import BaseModel, Field
 
 from app.product_intelligence.models import EvidenceReference
@@ -8,17 +10,21 @@ from app.product_intelligence.models import EvidenceReference
 class EvidenceBundle(BaseModel):
     """Durable evidence assembled for matching and review."""
 
+    platform: str
+    source_artifact_reference: str
+    capture_timestamp: datetime
     evidence_references: list[EvidenceReference] = Field(default_factory=list)
     parser_version: str | None = None
-    source_artifact_reference: str | None = None
     capture_context_reference: str | None = None
 
 
 class EvidenceRegistrationRequest(BaseModel):
     """Input for registering durable evidence references."""
 
+    platform: str
     source_artifact_reference: str
     parser_version: str
+    capture_timestamp: datetime
     capture_context_reference: str | None = None
 
 
@@ -26,4 +32,3 @@ class EvidenceRegistrationResponse(BaseModel):
     """Registered evidence references for downstream consumers."""
 
     evidence_bundle: EvidenceBundle
-
