@@ -2,180 +2,136 @@
 
 **Cartel calculates what you'll actually pay for groceries — not what the app shows you.**
 
-Effective-cost intelligence and cart optimization across quick-commerce platforms.
+True effective-cost intelligence and cart optimization across quick-commerce platforms.
 
 ![Version](https://img.shields.io/badge/version-0.2.0-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Status](https://img.shields.io/badge/status-active%20development-yellow)
+![Tests](https://img.shields.io/badge/tests-passing-brightgreen)
 
-> Compare effective cost, not sticker prices.
-
-<!-- Replace with screenshot/GIF once Cost Intelligence is implemented -->
+<!-- TODO: Add CI badge once GitHub Actions is set up -->
+<!-- TODO: Add terminal GIF of demo_product_matching.py once captured -->
 
 ---
 
 ## Why This Exists
 
-Every grocery price-comparison tool compares the same thing: the price printed on the product.
+Every grocery price-comparison tool compares the same thing: the price printed on the product. That number is mostly fiction.
 
-That number is often incomplete.
+What you actually pay depends on delivery fees, handling charges, platform fees, cashback, loyalty pricing, coupon stacking rules, minimum-order thresholds, membership pricing, and free-item promotions that activate or expire depending on what's already in your cart.
 
-What you actually pay depends on:
+Research across Blinkit, BB Now, Zepto, Instamart, and JioMart — India's quick-commerce delivery apps — confirmed the problem is structural, not incidental:
 
-* Delivery fees
-* Handling charges
-* Platform fees
-* Membership pricing
-* Cashback
-* Coupon stacking rules
-* Minimum-order thresholds
-* Free-item promotions
+- **The cart is the unit of optimization, not the product.** Comparing item prices in isolation misses fees and thresholds that only resolve at checkout.
+- **Identical products are represented differently across platforms**, so naive price-scraping silently compares the wrong things.
+- **Offer eligibility is conditional** — activation rules, expiry windows, and stacking limits change what a price actually means.
+- **Pricing is engineered to be hard to compare.** Anchoring, urgency, and free-delivery thresholds are deliberate, not accidental.
 
-Research across Blinkit, BB Now, Zepto, Instamart, and JioMart confirmed a fundamental reality:
+Cartel exists to answer one question honestly: *what does this cart actually cost, right now, on each platform?*
 
-> The cart is the unit of optimization, not the product.
+## What Makes It Different
 
-Comparing products in isolation misses the fees, offers, and thresholds that only resolve at checkout.
+| | Typical Price Comparison Tools | Cartel |
+|---|---|---|
+| **Optimization unit** | Single product | Whole cart |
+| **What's compared** | Displayed price | Effective cost (price + fees − rewards) |
+| **Delivery / handling / platform fees** | Ignored | Modeled explicitly |
+| **Coupons, cashback, loyalty pricing** | Ignored | Modeled explicitly |
+| **Offer stacking & thresholds** | Ignored | Modeled explicitly |
+| **Location-aware pricing** | Rare | Built in |
+| **Product matching** | Manual / fuzzy | Deterministic, evidence-backed, replayable |
+| **Matching decisions** | Opaque | Full audit trail per decision |
 
-Cartel exists to answer a single question:
+## Key Features
 
-> **What does this cart actually cost right now on each platform?**
+> 🚧 Cartel is mid-build. The features below describe the system being constructed — see **Current Status** for the exact line between what runs today and what's in progress.
 
----
+- **True effective-cost modeling** — price, fees, and rewards collapsed into the number you actually pay.
+- **Cart-level optimization** — the whole basket, not item-by-item guesswork.
+- **Deterministic, evidence-backed product matching** — every match traces back to the raw source data that justified it, and re-running it produces the same result.
+- **Location-aware pricing** — the same product can cost differently a few kilometers away; Cartel models that instead of ignoring it.
+- **Replayable audit trails** — every matching and pricing decision can be reproduced and inspected, not just trusted.
+- **Offer stacking intelligence** — activation thresholds, expiry windows, and platform-specific stacking constraints modeled as first-class rules.
 
-## What Makes Cartel Different
+## Architecture Overview
 
-|                          | Typical Price Comparison Tools | Cartel                          |
-| ------------------------ | ------------------------------ | ------------------------------- |
-| Optimization unit        | Single product                 | Whole cart                      |
-| Compared value           | Displayed price                | Effective cost                  |
-| Delivery / handling fees | Ignored                        | Modeled                         |
-| Coupons & cashback       | Ignored                        | Modeled                         |
-| Offer stacking           | Ignored                        | Modeled                         |
-| Location-aware pricing   | Rare                           | Built in                        |
-| Product matching         | Heuristic                      | Deterministic & evidence-backed |
-| Auditability             | Limited                        | Replayable                      |
+```mermaid
+flowchart TD
+    A[Raw HTML] --> B[Parser]
+    B --> C[Structured Raw Product Data]
+    C -.->|in progress| D[Evidence Bundle]
+    D -.->|in progress| E[Platform Listing]
+    E -.->|in progress| F[Candidate Generation]
+    F -.->|in progress| G[Product / Variant Matching]
+    G -.->|in progress| H[Canonical Assertion Update]
+    H -.->|in progress| I[Offer & Cost Intelligence]
+    I -.->|planned| J[Cart Optimization]
+```
 
----
+*Solid = live today (Blinkit scraping → structured product data). Dashed = contracts and architecture exist, implementation actively underway. Dotted = designed, not yet started.*
+
+**Components:**
+- **Parser / Scraper** — Blinkit browser automation with location-aware persistent sessions.
+- **Evidence Bundle** — content-addressed, hash-keyed records of every raw source that informed a product match.
+- **Candidate Generation** — ranked candidate pool for each product query, with configurable strategies.
+- **Product / Variant Matching** — deterministic matching with governance contracts, audit records, and rationale chains.
+- **Canonical Assertions** — the authoritative cross-platform product record, updated from matched evidence.
+- **Offer & Cost Intelligence** — models fees, promotions, cashback, and stacking rules into effective cost. *(In progress)*
+- **Cart Optimization** — recommends the cheapest full cart, including cross-platform splits. *(Planned)*
 
 ## Current Status
 
-### ✅ Completed
+**✅ Completed**
+- Data Acquisition — FastAPI backend, modular scraper architecture, Blinkit browser automation, location-aware persistent sessions, raw extraction pipeline. *(BigBasket and Zepto scraper modules are scaffolded, not yet implemented.)*
+- Product Intelligence Foundation — canonical product schema, domain models, matching architecture, governance contracts, deterministic matching framework
+- Research — cross-platform pricing analysis, offer system research, fee structure research, cart optimization research, consumer pricing behavior research
 
-#### Data Acquisition
+**🚧 In Progress**
+- Product Intelligence Implementation — evidence registry, candidate generation, product matching, variant matching, review workflow, canonical assertion updates
+- Cost Intelligence — offer modeling, promotion-rule modeling, fee modeling, platform-pricing intelligence
 
-* FastAPI backend
-* Modular scraper architecture
-* Blinkit browser automation
-* Location-aware persistent sessions
-* Raw extraction pipeline
+**📋 Planned**
+- Platform expansion — Zepto, BB Now, JioMart, Instamart
+- Optimization engine — true-cost calculation, cart optimization, cart-splitting, multi-platform recommendations
+- Consumer experience — public APIs, dashboard, frontend application
 
-#### Product Intelligence Foundation
+## End-to-End Workflow
 
-* Canonical product schema
-* Product domain models
-* Matching architecture
-* Governance contracts
+*This is the target experience once Cost Intelligence and Cart Optimization ship. See Current Status above for what's running today.*
 
-#### Research
+1. You provide a grocery list.
+2. Cartel pulls live prices, fees, and active offers across every connected platform for your location.
+3. It runs each platform's offer stack against your specific cart — thresholds, coupons, cashback, loyalty pricing.
+4. You get the actual effective cost per platform, plus a split recommendation if buying across platforms is cheaper than buying from one.
 
-* Cross-platform pricing systems
-* Offer mechanics
-* Fee structures
-* Cart optimization approaches
-* Consumer pricing behavior
+## Who This Is For
 
----
+**As an end user** (once the consumer experience ships) — anyone who buys groceries across Blinkit, Zepto, Instamart, or BigBasket and wants to know the actual cheapest option before checking out.
 
-### 🚧 In Progress
+**As a developer or contributor** — engineers interested in deterministic matching systems, quick-commerce data infrastructure, offer modeling, or building out additional platform integrations.
 
-#### Product Intelligence
+**As a researcher or analyst** — anyone studying quick-commerce pricing behavior, platform fee structures, or behavioral pricing mechanisms in Indian e-commerce.
 
-* Evidence registry
-* Candidate generation
-* Product matching
-* Review workflows
-* Canonical assertion updates
-
-#### Cost Intelligence
-
-* Offer modeling
-* Promotion-rule modeling
-* Fee modeling
-* Platform-pricing intelligence
-
----
-
-### 📋 Planned
-
-* Zepto integration
-* BB Now integration
-* Instamart integration
-* JioMart integration
-* Effective-cost engine
-* Cart optimization
-* Cart splitting
-* Public APIs
-* Dashboard
-* Frontend application
-
----
-
-## Screenshots & Demo
-
-Cartel is currently focused on backend systems and product intelligence.
-
-Visual demos will be added as major milestones ship.
-
-Planned demonstrations:
-
-* Evidence registry output
-* Candidate generation output
-* Product matching decisions
-* Canonical assertion creation
-* Effective-cost comparisons
-* Cart optimization recommendations
-
----
-
-## Quick Start
-
-Clone the repository:
+## Installation
 
 ```bash
 git clone <repo-url>
 cd Cartel-Smart-Cart-Optimizer/backend
-```
-
-Create environment variables:
-
-```bash
 cp .env.example .env
-```
-
-Install dependencies:
-
-```bash
+# Edit .env — see docs/setup.md for required variables and what each one does
 pip install -r requirements/dev.txt
-```
-
-Run migrations:
-
-```bash
 alembic upgrade head
 ```
 
-Or start everything with Docker:
+Or use Docker:
 
 ```bash
 docker compose up
 ```
 
----
+## Quick Start
 
-## Run Existing Product Intelligence Demos
-
-The product-intelligence pipeline already runs against real Blinkit data.
+The product intelligence pipeline runs against real scraped Blinkit data today — no API or browser automation needed:
 
 ```bash
 python scripts/demo_evidence_registry.py
@@ -183,255 +139,95 @@ python scripts/demo_candidate_generation.py
 python scripts/demo_product_matching.py
 ```
 
----
+These run the evidence, candidate-generation, and matching layers directly against the data already in `data/`. Raw Blinkit HTML and structured JSON across 8 product categories (milk, bread, rice, atta, biscuits, chips, soft drinks, shampoo) are included in the repository.
 
-## Example Outputs
+To run the full test suite:
 
-The following stages are already executable today:
-
-### Evidence Registry
-
-```text
-✓ Raw product extracted
-✓ Evidence bundle created
-✓ Content hash generated
-✓ Bundle persisted
+```bash
+pytest backend/tests/ -v
 ```
-
-### Candidate Generation
-
-```text
-Input Product
-    ↓
-Candidate Discovery
-    ↓
-Ranked Candidate List
-```
-
-### Product Matching
-
-```text
-Candidate Evaluation
-    ↓
-Variant Analysis
-    ↓
-Match Decision
-    ↓
-Canonical Assertion
-```
-
----
-
-## Design Principles
-
-Cartel prioritizes:
-
-* Deterministic behavior over probabilistic guesses
-* Evidence before assertions
-* Reproducibility over convenience
-* Cart-level optimization over product-level comparison
-* Auditability over black-box decisions
-
-Every major system is designed to be explainable, replayable, and reviewable.
-
----
-
-## Architecture Overview
-
-```mermaid
-flowchart TD
-    A[Raw HTML] --> B[Parser]
-    B --> C[Structured Product Data]
-
-    C -.-> D[Evidence Registry]
-    D -.-> E[Platform Listing]
-    E -.-> F[Candidate Generation]
-    F -.-> G[Product Matching]
-    G -.-> H[Canonical Assertions]
-    H -.-> I[Cost Intelligence]
-    I -.-> J[Cart Optimization]
-```
-
-**Solid nodes** represent implemented systems.
-
-**Dashed nodes** represent systems under active development.
-
----
-
-## Example Workflow
-
-Target experience after Cost Intelligence and Cart Optimization ship:
-
-1. User submits a grocery cart.
-2. Cartel retrieves live platform pricing.
-3. Fees, promotions, rewards, and thresholds are evaluated.
-4. Effective cost is calculated for each platform.
-5. Cartel identifies the cheapest purchasing strategy.
-6. Cart splitting is recommended when beneficial.
-
----
-
-## Dataset
-
-Current repository data includes:
-
-### Blinkit
-
-* Raw HTML captures
-* Structured product records
-* Evidence bundles
-* Multiple grocery categories
-
-Data exists primarily to support development and validation of product-intelligence systems.
-
----
 
 ## Repository Structure
 
-```text
+```
 Cartel-Smart-Cart-Optimizer/
 ├── backend/
+│   ├── app/
+│   │   ├── main.py
+│   │   ├── api/                      # FastAPI routers — v1, health, dependencies
+│   │   ├── core/                     # config, logging, security
+│   │   ├── db/                       # SQLAlchemy base/session + models (Alembic-managed)
+│   │   ├── normalization/            # pricing / products / units normalization
+│   │   ├── product_intelligence/     # the core engine
+│   │   │   ├── evidence/             # evidence registry — interfaces, service, storage
+│   │   │   ├── candidate_generation/ # ranking, strategies, service
+│   │   │   ├── matching/             # most complete module — product + dedicated variant_* logic
+│   │   │   ├── assertions/           # canonical assertion interfaces and types
+│   │   │   └── review/               # contracts only — review workflow not yet implemented
+│   │   ├── scrapers/
+│   │   │   ├── blinkit/              # fully implemented — parser, scraper, session
+│   │   │   ├── bigbasket/, zepto/    # scaffolded stubs — not yet implemented
+│   │   │   └── base/, utils/
+│   │   └── schemas/, services/, workers/
+│   ├── tests/                        # unit tests — variant candidate evaluation
+│   └── requirements/, alembic.ini, Dockerfile, .env.example
 ├── data/
-├── docs/
-├── scripts/
-├── frontend/
-├── infra/
-├── ml/
-├── docker-compose.yml
-└── LICENSE
+│   ├── raw/blinkit/                  # scraped HTML + metadata, 8 product categories
+│   ├── cleaned/blinkit/              # structured JSON output
+│   └── product_intelligence/
+│       └── evidence/blinkit/         # content-addressed evidence bundles (hash-keyed)
+├── docs/                             # 40+ architecture and governance specifications
+├── scripts/                          # demo_evidence_registry.py, demo_candidate_generation.py,
+│                                     # demo_product_matching.py, extract_blinkit_raw.py,
+│                                     # run_blinkit_search.py
+├── frontend/, infra/, ml/            # long-horizon scaffolding — README placeholders only,
+│                                     # no implementation yet
+└── docker-compose.yml, LICENSE
 ```
-
-### Key Directories
-
-| Directory | Purpose                                    |
-| --------- | ------------------------------------------ |
-| backend/  | FastAPI backend and intelligence engine    |
-| data/     | Raw, normalized, and evidence data         |
-| docs/     | Architecture and governance specifications |
-| scripts/  | Demonstrations and utilities               |
-| frontend/ | Future frontend work                       |
-| infra/    | Infrastructure planning                    |
-| ml/       | Future experimentation                     |
-
----
 
 ## Documentation
 
-The repository contains extensive architecture and governance documentation covering:
+The `docs/` directory contains 40+ architecture and governance specifications written before implementation — covering canonical product modeling, evidence corpus analysis, matching architecture, variant matching contracts, production safety reviews, and pathological scenario analysis.
 
-* Product intelligence
-* Evidence registry design
-* Candidate generation
-* Product matching
-* Assertion governance
-* Cost intelligence planning
-* Platform integration strategy
-
-See the `docs/` directory for details.
-
----
-
-## Testing
-
-Run tests:
-
-```bash
-pytest
-```
-
-Current coverage focuses on:
-
-* Variant candidate evaluation
-* Product matching logic
-* Product-intelligence foundations
-
-Coverage will expand as additional systems become operational.
-
----
+Key starting points:
+- `docs/product_intelligence_design.md` — overall product intelligence design
+- `docs/product_intelligence_pipeline.md` — pipeline architecture
+- `docs/product_matching_architecture.md` — matching system design
+- `docs/variant_matching_architecture.md` — variant matching in depth
+- `docs/canonical_product_schema.md` — the cross-platform product model
+- `docs/research_analysis.md` — cross-platform pricing research findings
 
 ## Roadmap
 
-| Phase | Focus                               | Status |
-| ----- | ----------------------------------- | ------ |
-| 1     | Data Acquisition                    | ✅      |
-| 2     | Product Intelligence Foundation     | ✅      |
-| 3     | Product Intelligence Implementation | 🚧     |
-| 4     | Cost Intelligence                   | 🚧     |
-| 5     | Cart Optimization                   | 📋     |
-| 6     | Platform Expansion                  | 📋     |
-| 7     | Consumer Experience                 | 📋     |
-
----
-
-## Use Cases
-
-### Consumers
-
-* Compare actual grocery costs across platforms
-* Evaluate membership value
-* Understand fee and promotion impact
-
-### Researchers
-
-* Study pricing systems
-* Analyze promotion mechanics
-* Investigate platform behavior
-
-### Developers
-
-* Build pricing applications
-* Integrate effective-cost intelligence
-* Extend platform coverage
-
-### Future Integrators
-
-* Budgeting applications
-* Cashback platforms
-* Financial tools
-* Shopping assistants
-
----
-
-## Why Developers Star This Project
-
-Cartel focuses on problems that are usually ignored:
-
-* Effective-cost modeling instead of sticker-price comparison
-* Cart-level optimization instead of product-level comparison
-* Deterministic matching instead of opaque heuristics
-* Replayable audit trails instead of trust-based results
-* Evidence-backed assertions instead of undocumented decisions
-
-Additionally:
-
-* Real Blinkit acquisition is already implemented
-* Product-intelligence systems are executable today
-* Architecture emphasizes reproducibility and governance
-* Every major decision path is designed to be inspectable
-
----
+| Phase | Focus | Status |
+|---|---|---|
+| 1 | Data Acquisition — Blinkit scraper, session management, raw extraction | ✅ |
+| 2 | Product Intelligence Foundation — schemas, domain models, matching architecture, governance | ✅ |
+| 3 | Product Intelligence Implementation — evidence registry, candidate generation, matching | 🚧 |
+| 4 | Cost Intelligence — offer engine, fee modeling, effective-cost calculation | 🚧 |
+| 5 | Cart Optimization — multi-platform comparison, cart splitting, cheapest-cart recommendation | 📋 |
+| 6 | Platform Expansion — Zepto, BB Now, JioMart, Instamart | 📋 |
+| 7 | Consumer Experience — public APIs, dashboard, frontend | 📋 |
 
 ## Contributing
 
-Cartel is still early in development.
+Cartel is early — architecture decisions are still being made, and contributing now shapes the foundation, not just adds to it.
 
-Before opening large pull requests:
+- **Open an issue before a large PR** so design decisions stay consistent with existing governance contracts.
+- **Platform integrations** (Zepto, BB Now, JioMart, Instamart) are well-scoped and the most accessible way to contribute — scraper base contracts are already defined.
+- **Product Intelligence** is the active focus — evidence registry, candidate generation, and matching are all in progress.
 
-1. Open an issue first.
-2. Discuss architectural implications.
-3. Align with existing governance principles.
+A full `CONTRIBUTING.md` with development setup, environment variable documentation, architecture orientation, and extension guides is coming shortly. In the meantime, open an issue and ask.
 
-Areas currently most open to contribution:
+## Vision
 
-* Platform integrations
-* Product intelligence
-* Documentation
-* Testing
-* Cost intelligence
+Enable consumers to answer one question with confidence:
 
-Detailed contribution guidelines will be published in `CONTRIBUTING.md`.
+> "What is the cheapest way to buy my entire grocery cart right now?"
 
----
+Across platforms, locations, offers, memberships, rewards, and delivery constraints — not as an approximation, but as a number you can trust.
+
+Most price-intelligence tools optimize the easy thing: the sticker price. Cartel is being built to model the hard thing: the real economics of a grocery purchase, end to end, with every decision auditable and every result reproducible.
 
 ## License
 
