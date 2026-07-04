@@ -1,0 +1,110 @@
+from __future__ import annotations
+
+from datetime import datetime
+from pydantic import BaseModel, ConfigDict, Field
+
+from app.cost_intelligence.shared.money import Money
+from app.product_intelligence.models import EvidenceReference
+
+
+class CheckoutLineItemObservation(BaseModel):
+    """Observed checkout line item."""
+
+    model_config = ConfigDict(frozen=True)
+
+    label: str
+    quantity_text: str | None = None
+    displayed_price: Money | None = None
+    reference_price: Money | None = None
+    raw_text: str | None = None
+
+
+class CheckoutFeeObservation(BaseModel):
+    """Observed checkout fee line."""
+
+    model_config = ConfigDict(frozen=True)
+
+    label: str
+    amount: Money | None = None
+    raw_text: str | None = None
+
+
+class CheckoutOfferObservation(BaseModel):
+    """Observed promotion or offer text."""
+
+    model_config = ConfigDict(frozen=True)
+
+    label: str
+    amount: Money | None = None
+    raw_text: str | None = None
+
+
+class CheckoutMembershipObservation(BaseModel):
+    """Observed membership-state fact."""
+
+    model_config = ConfigDict(frozen=True)
+
+    label: str
+    raw_text: str | None = None
+
+
+class CheckoutPaymentObservation(BaseModel):
+    """Observed payment-method fact."""
+
+    model_config = ConfigDict(frozen=True)
+
+    label: str
+    raw_text: str | None = None
+
+
+class CheckoutThresholdObservation(BaseModel):
+    """Observed threshold condition."""
+
+    model_config = ConfigDict(frozen=True)
+
+    label: str
+    threshold_amount: Money | None = None
+    raw_text: str | None = None
+
+
+class CheckoutTotalObservation(BaseModel):
+    """Observed checkout total or subtotal surface."""
+
+    model_config = ConfigDict(frozen=True)
+
+    label: str
+    amount: Money | None = None
+    raw_text: str | None = None
+
+
+class CheckoutObservation(BaseModel):
+    """Immutable checkout capture composed from smaller observation surfaces."""
+
+    model_config = ConfigDict(frozen=True)
+
+    platform: str
+    source_artifact_reference: str
+    capture_timestamp: datetime
+    parser_version: str
+    capture_context_reference: str | None = None
+    evidence_references: tuple[EvidenceReference, ...] = Field(default_factory=tuple)
+    line_items: tuple[CheckoutLineItemObservation, ...] = Field(default_factory=tuple)
+    fees: tuple[CheckoutFeeObservation, ...] = Field(default_factory=tuple)
+    offers: tuple[CheckoutOfferObservation, ...] = Field(default_factory=tuple)
+    memberships: tuple[CheckoutMembershipObservation, ...] = Field(default_factory=tuple)
+    payment_methods: tuple[CheckoutPaymentObservation, ...] = Field(default_factory=tuple)
+    thresholds: tuple[CheckoutThresholdObservation, ...] = Field(default_factory=tuple)
+    totals: tuple[CheckoutTotalObservation, ...] = Field(default_factory=tuple)
+
+
+class CheckoutObservationRegistrationRequest(BaseModel):
+    """Input for registering a canonical checkout observation."""
+
+    observation: CheckoutObservation
+
+
+class CheckoutObservationRegistrationResponse(BaseModel):
+    """Deterministic result of registering a checkout observation."""
+
+    observation_id: str
+    observation: CheckoutObservation
