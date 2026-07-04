@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 
 from app.product_intelligence.matching.types import (
     CandidateEvaluationResult,
+    CandidateEliminationRecord,
     MatchOutcome,
     VariantMatchRequest,
     VariantValidationResult,
@@ -34,6 +35,7 @@ class VariantDecisionTrace(BaseModel):
     evidence_reference_list: list[str] = Field(default_factory=list)
     candidate_ids_considered: list[str] = Field(default_factory=list)
     candidate_ids_eliminated: list[str] = Field(default_factory=list)
+    elimination_records: list[CandidateEliminationRecord] = Field(default_factory=list)
     rule_references: list[str] = Field(default_factory=list)
     decision_path: list[str] = Field(default_factory=list)
     final_outcome: MatchOutcome
@@ -69,6 +71,7 @@ class VariantDecisionAuditRecord(BaseModel):
     evidence_reference_list: list[str] = Field(default_factory=list)
     candidate_ids_considered: list[str] = Field(default_factory=list)
     candidate_ids_eliminated: list[str] = Field(default_factory=list)
+    elimination_records: list[CandidateEliminationRecord] = Field(default_factory=list)
     selected_candidate_id: str | None = None
     coverage_declaration_id: str | None = None
     coverage_scope_id: str | None = None
@@ -150,6 +153,7 @@ class DeterministicVariantAuditRecorder(VariantAuditRecorder):
             evidence_reference_list=self._evidence_reference_list(request),
             candidate_ids_considered=candidate_result.candidate_ids_considered,
             candidate_ids_eliminated=candidate_result.eliminated_candidate_ids,
+            elimination_records=candidate_result.elimination_records,
             rule_references=self._rule_references(),
             decision_path=self._decision_path(validation, candidate_result, outcome),
             final_outcome=outcome,
@@ -199,6 +203,7 @@ class DeterministicVariantAuditRecorder(VariantAuditRecorder):
             evidence_reference_list=trace.evidence_reference_list,
             candidate_ids_considered=candidate_result.candidate_ids_considered,
             candidate_ids_eliminated=candidate_result.eliminated_candidate_ids,
+            elimination_records=trace.elimination_records,
             selected_candidate_id=selected_variant_id,
             coverage_declaration_id=validation.governance.coverage_validation.declaration_id,
             coverage_scope_id=validation.governance.coverage_validation.coverage_scope_id,

@@ -147,6 +147,17 @@ class UpstreamFailureSnapshot(BaseModel):
     rationale: list[str] = Field(default_factory=list)
 
 
+class CandidateEliminationRecord(BaseModel):
+    """Structured elimination artifact produced by candidate evaluation."""
+
+    candidate_id: str
+    rule_id: str
+    rule_name: str
+    evidence_reference: EvidenceReference
+    elimination_reason: str
+    timestamp: datetime
+
+
 class VariantGovernanceContext(BaseModel):
     """Governed inputs consumed by the matcher orchestration layer."""
 
@@ -164,6 +175,7 @@ class CandidateEvaluationResult(BaseModel):
     candidate_ids_considered: list[str] = Field(default_factory=list)
     viable_candidate_ids: list[str] = Field(default_factory=list)
     eliminated_candidate_ids: list[str] = Field(default_factory=list)
+    elimination_records: list[CandidateEliminationRecord] = Field(default_factory=list)
     ambiguous_candidate_ids: list[str] = Field(default_factory=list)
     selected_variant_id: str | None = None
     all_candidates_disproved: bool = False
