@@ -1,18 +1,21 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from decimal import Decimal
 
 from app.core.logging import get_logger
 from app.product_intelligence.matching.interfaces import VariantCandidateEvaluator
 from app.product_intelligence.matching.types import (
     CandidateEvaluationResult,
+    CandidateEliminationRecord,
     FreshnessState,
     NormalizedPackEvidenceSnapshot,
     VariantGovernanceContext,
     VariantMatchRequest,
 )
 from app.product_intelligence.models import (
+    EvidenceReference,
     Measurement,
     PackComponent,
     PackConfiguration,
@@ -50,6 +53,7 @@ class DeterministicVariantCandidateEvaluator(VariantCandidateEvaluator):
         request: VariantMatchRequest,
         governance: VariantGovernanceContext,
     ) -> CandidateEvaluationResult:
+        evaluation_timestamp = datetime.now(timezone.utc)
         considered_candidates = self._canonicalize_candidates(request.variant_candidates)
         assessments = [
             self._assess_candidate(
@@ -86,6 +90,16 @@ class DeterministicVariantCandidateEvaluator(VariantCandidateEvaluator):
         ]
         eliminated_ids = [
             assessment.candidate_id for assessment in assessments if assessment.eliminated
+        ]
+        elimination_records = [
+            self._elimination_record(
+                request=request,
+                governance=governance,
+                assessment=assessment,
+                timestamp=evaluation_timestamp,
+            )
+            for assessment in assessments
+            if assessment.eliminated
         ]
 
         selected_variant_id: str | None = None
@@ -132,6 +146,7 @@ class DeterministicVariantCandidateEvaluator(VariantCandidateEvaluator):
             ],
             viable_candidate_ids=viable_ids,
             eliminated_candidate_ids=eliminated_ids,
+            elimination_records=elimination_records,
             ambiguous_candidate_ids=ambiguous_ids,
             selected_variant_id=selected_variant_id,
             all_candidates_disproved=all_candidates_disproved,
@@ -168,11 +183,6 @@ class DeterministicVariantCandidateEvaluator(VariantCandidateEvaluator):
                 eliminated=True,
                 rule_id="CE-02",
                 rule_name="direct_contradiction_elimination",
-                evidence_reference=self._contradiction_evidence_reference(
-                    request=request,
-                    governance=governance,
-                    candidate=candidate,
-                ),
                 elimination_reason=self._contradiction_reason(
                     request=request,
                     governance=governance,
@@ -206,6 +216,28 @@ class DeterministicVariantCandidateEvaluator(VariantCandidateEvaluator):
             candidate_id=candidate.canonical_variant_id,
             support_state="none",
             eliminated=False,
+        )
+
+    def _elimination_record(
+        self,
+        *,
+        request: VariantMatchRequest,
+        governance: VariantGovernanceContext,
+        assessment: _CandidateAssessment,
+        timestamp: datetime,
+    ) -> CandidateEliminationRecord:
+        return CandidateEliminationRecord(
+            candidate_id=assessment.candidate_id,
+            rule_id=assessment.rule_id or "CE-02",
+            rule_name=assessment.rule_name or "direct_contradiction_elimination",
+            evidence_reference=self._candidate_evidence_reference(
+                request=request,
+                governance=governance,
+                assessment=assessment,
+            ),
+            elimination_reason=assessment.elimination_reason
+            or "candidate_directly_contradicted_by_governed_inputs",
+            timestamp=timestamp,
         )
 
     def _is_directly_contradicted(
@@ -499,23 +531,6 @@ class DeterministicVariantCandidateEvaluator(VariantCandidateEvaluator):
             return f"{normalized.to_integral()}"
         return format(normalized, "f").rstrip("0").rstrip(".")
 
-    def _contradiction_evidence_reference(
-        self,
-        *,
-        request: VariantMatchRequest,
-        governance: VariantGovernanceContext,
-        candidate,
-    ) -> str:
-        if request.product is not None and (
-            candidate.canonical_product_id != request.product.canonical_product_id
-        ):
-            return f"product_context:{request.product.canonical_product_id}"
-
-        normalized_pack = governance.normalized_pack_evidence
-        if normalized_pack is not None:
-            return self._pack_evidence_reference(normalized_pack)
-        return "governed_inputs:unknown"
-
     def _contradiction_reason(
         self,
         *,
@@ -532,6 +547,37 @@ class DeterministicVariantCandidateEvaluator(VariantCandidateEvaluator):
         if normalized_pack is not None:
             return "candidate_pack_configuration_conflicts_with_governed_pack_evidence"
         return "candidate_directly_contradicted_by_governed_inputs"
+
+    def _candidate_evidence_reference(
+        self,
+        *,
+        request: VariantMatchRequest,
+        governance: VariantGovernanceContext,
+        assessment: _CandidateAssessment,
+    ) -> EvidenceReference:
+        if request.product is not None and assessment.rule_id == "CE-02":
+            return EvidenceReference(
+                source_type="product_context",
+                source_id=request.product.canonical_product_id,
+                capture_timestamp=request.listing_observation.capture_timestamp,
+                note=assessment.elimination_reason,
+            )
+
+        normalized_pack = governance.normalized_pack_evidence
+        if normalized_pack is not None and normalized_pack.source_artifact_reference is not None:
+            return EvidenceReference(
+                source_type="normalized_pack_evidence",
+                source_id=normalized_pack.source_artifact_reference,
+                capture_timestamp=request.listing_observation.capture_timestamp,
+                note=assessment.elimination_reason,
+            )
+
+        return EvidenceReference(
+            source_type="governed_inputs",
+            source_id=request.platform_listing.platform_listing_id,
+            capture_timestamp=request.listing_observation.capture_timestamp,
+            note=assessment.elimination_reason,
+        )
 
     def _pack_evidence_reference(self, pack: NormalizedPackEvidenceSnapshot) -> str:
         parts = ["normalized_pack_evidence"]

@@ -10,6 +10,7 @@ from app.product_intelligence.matching.interfaces import (
 )
 from app.product_intelligence.matching.types import (
     CandidateEvaluationResult,
+    CandidateEliminationRecord,
     CoverageState,
     CoverageValidationSnapshot,
     CoverageValidationState,
@@ -31,6 +32,7 @@ from app.product_intelligence.models import (
     Measurement,
     PackConfiguration,
     PackKind,
+    EvidenceReference,
     PlatformListing,
     Product,
     ProductLifecycleStatus,
@@ -337,6 +339,15 @@ def test_direct_contradiction_eliminates_candidate() -> None:
         line.startswith("elimination_record|candidate_id=variant-bad")
         for line in result.rationale
     )
+    assert len(result.elimination_records) == 1
+    assert result.elimination_records[0].candidate_id == "variant-bad"
+    assert result.elimination_records[0].rule_id == "CE-02"
+    assert result.elimination_records[0].rule_name == "direct_contradiction_elimination"
+    assert result.elimination_records[0].elimination_reason == (
+        "candidate_product_id_conflicts_with_governed_product_context"
+    )
+    assert result.elimination_records[0].evidence_reference.source_type == "product_context"
+    assert result.elimination_records[0].timestamp.tzinfo is not None
 
 
 def test_duplicate_candidate_removal_preserves_first_occurrence() -> None:
@@ -495,3 +506,127 @@ def test_variant_matcher_ignores_rationale_formatting_when_classifying() -> None
     assert response.outcome == MatchOutcome.mapped
     assert response.selected_variant is not None
     assert response.selected_variant.canonical_variant_id == "variant-a"
+
+
+def test_elimination_records_survive_evaluator_to_audit_transport() -> None:
+    product = _product("product-1")
+    bad_variant = _variant("variant-bad", product_id="product-2")
+    request = _request(product=product, variants=[bad_variant])
+    governance = _governance(normalized_pack_evidence=None)
+    matcher = DeterministicVariantMatcher(
+        governance_hooks=_StaticGovernanceHooks(governance)
+    )
+
+    expected_result = _run(
+        DeterministicVariantCandidateEvaluator().evaluate(
+            request=request,
+            governance=governance,
+        )
+    )
+    matcher = DeterministicVariantMatcher(
+        governance_hooks=_StaticGovernanceHooks(governance),
+        candidate_evaluator=_StaticCandidateEvaluator(expected_result),
+    )
+    response = _run(matcher.match(request))
+
+    assert response.outcome == MatchOutcome.rejected
+    assert matcher.last_trace is not None
+    assert matcher.last_audit_record is not None
+    assert matcher.last_trace.elimination_records == expected_result.elimination_records
+    assert matcher.last_audit_record.elimination_records == expected_result.elimination_records
+    assert matcher.last_trace.elimination_records[0].evidence_reference.model_dump() == (
+        expected_result.elimination_records[0].evidence_reference.model_dump()
+    )
+
+
+def test_audit_serialization_uses_structured_elimination_records_only() -> None:
+    product = _product("product-1")
+    bad_variant = _variant("variant-bad", product_id="product-2")
+    request = _request(product=product, variants=[bad_variant])
+    governance = _governance(normalized_pack_evidence=None)
+    candidate_result = CandidateEvaluationResult(
+        candidate_ids_considered=["variant-bad"],
+        viable_candidate_ids=[],
+        eliminated_candidate_ids=["variant-bad"],
+        elimination_records=[
+            CandidateEliminationRecord(
+                candidate_id="variant-bad",
+                rule_id="CE-02",
+                rule_name="direct_contradiction_elimination",
+                evidence_reference=EvidenceReference(
+                    source_type="product_context",
+                    source_id="product-1",
+                    capture_timestamp=datetime(
+                        2026, 1, 1, 12, 0, 0, tzinfo=timezone.utc
+                    ),
+                    note="candidate_product_id_conflicts_with_governed_product_context",
+                ),
+                elimination_reason="candidate_product_id_conflicts_with_governed_product_context",
+                timestamp=datetime(2026, 1, 1, 12, 0, 0, tzinfo=timezone.utc),
+            )
+        ],
+        ambiguous_candidate_ids=[],
+        selected_variant_id=None,
+        all_candidates_disproved=True,
+        rejection_rationale=["all candidates disproved"],
+        rationale=["structured elimination records only"],
+    )
+    matcher = DeterministicVariantMatcher(
+        governance_hooks=_StaticGovernanceHooks(governance),
+        candidate_evaluator=_StaticCandidateEvaluator(candidate_result),
+    )
+
+    response = _run(matcher.match(request))
+
+    assert response.outcome == MatchOutcome.rejected
+    assert matcher.last_trace is not None
+    assert matcher.last_audit_record is not None
+    assert matcher.last_trace.elimination_records[0].candidate_id == "variant-bad"
+    assert matcher.last_trace.elimination_records[0].evidence_reference.source_type == "product_context"
+    assert isinstance(matcher.last_trace.elimination_records[0].evidence_reference, EvidenceReference)
+    assert matcher.last_audit_record.elimination_records[0].rule_id == "CE-02"
+
+
+def test_rationale_formatting_does_not_affect_elimination_record_serialization() -> None:
+    product = _product()
+    exact_variant = _variant(
+        "variant-exact",
+        content_per_consumer_unit=_measurement("500", "ml", QuantityDimension.volume),
+        total_declared_content=_measurement("500", "ml", QuantityDimension.volume),
+    )
+    bad_variant = _variant("variant-bad", product_id="product-2")
+    request = _request(product=product, variants=[exact_variant, bad_variant])
+    governance = _governance(normalized_pack_evidence=_normalized_pack())
+    expected_result = _run(
+        DeterministicVariantCandidateEvaluator().evaluate(
+            request=request,
+            governance=governance,
+        )
+    )
+    altered_candidate_result = CandidateEvaluationResult(
+        candidate_ids_considered=expected_result.candidate_ids_considered,
+        viable_candidate_ids=expected_result.viable_candidate_ids,
+        eliminated_candidate_ids=expected_result.eliminated_candidate_ids,
+        elimination_records=expected_result.elimination_records,
+        ambiguous_candidate_ids=expected_result.ambiguous_candidate_ids,
+        selected_variant_id=expected_result.selected_variant_id,
+        all_candidates_disproved=expected_result.all_candidates_disproved,
+        rejection_rationale=expected_result.rejection_rationale,
+        rationale=[
+            "garbled-rationale",
+            "candidate_ids_considered:variant-exact,variant-bad",
+            "elimination_record candidate-bad",
+        ],
+    )
+    matcher = DeterministicVariantMatcher(
+        governance_hooks=_StaticGovernanceHooks(governance),
+        candidate_evaluator=_StaticCandidateEvaluator(altered_candidate_result),
+    )
+
+    response = _run(matcher.match(request))
+
+    assert response.outcome == MatchOutcome.mapped
+    assert matcher.last_trace is not None
+    assert matcher.last_audit_record is not None
+    assert matcher.last_trace.elimination_records == expected_result.elimination_records
+    assert matcher.last_audit_record.elimination_records == expected_result.elimination_records
