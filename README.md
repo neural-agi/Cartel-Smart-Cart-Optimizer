@@ -60,6 +60,20 @@ Cartel exists to answer one question honestly:
 
 ---
 
+## 🏛 Core Principles
+
+Cartel is built around a few non-negotiable principles that experienced engineers will recognize immediately.
+
+- **Deterministic by design** — given identical governed inputs, the system produces identical outputs every time
+- **Replayable decisions** — every matching and pricing decision can be reproduced and inspected, not just trusted
+- **Evidence-backed reasoning** — every match traces back to the raw source data that justified it
+- **Fail-closed validation** — invalid inputs are rejected explicitly rather than silently degraded
+- **Immutable audit trails** — decision records are append-only and tamper-evident
+- **Explicit governance contracts** — matching rules are declared, versioned, and enforced, not implicit
+- **Explainable matching** — the system can always answer *why* it matched two products, not just *that* it did
+
+---
+
 ## 🎯 Target Experience
 
 > *This is the full intended workflow once Cost Intelligence and Cart Optimization ship. See [Current Status](#-current-status) for what runs today.*
@@ -83,23 +97,58 @@ You get actual effective cost per platform
 
 ---
 
+## 🔬 Product Intelligence Pipeline
+
+The complete product intelligence pipeline is Cartel's biggest technical achievement — and every step is deterministic.
+
+```
+Evidence Registry
+      │
+      ▼
+Candidate Generation
+      │
+      ▼
+Product Matching
+      │
+      ▼
+Variant Matching
+      │
+      ▼
+Review Queue
+      │
+      ▼
+Assertion Manager
+      │
+      ▼
+Pipeline Orchestrator
+      │
+      ▼
+Cost Intelligence  ← next
+```
+
+Given identical governed inputs, this pipeline produces identical candidate generation, matching, review, assertion, and audit results every time. That's an uncommonly rare property in data systems, and it's intentional.
+
+---
+
 ## 🏗 Architecture Overview
 
 ```mermaid
 flowchart TD
     A[Raw HTML] --> B[Parser]
     B --> C[Structured Raw Product Data]
-    C -.->|in progress| D[Evidence Bundle]
-    D -.->|in progress| E[Platform Listing]
-    E -.->|in progress| F[Candidate Generation]
-    F -.->|in progress| G[Product / Variant Matching]
-    G -.->|in progress| H[Canonical Assertion Update]
-    H -.->|in progress| I[Offer & Cost Intelligence]
-    I -.->|planned| J[Cart Optimization]
+    C --> D[Evidence Registry]
+    D --> E[Candidate Generation]
+    E --> F[Product Matching]
+    F --> G[Variant Matching]
+    G --> H[Review Queue]
+    H --> I[Assertion Manager]
+    I --> J[Pipeline Orchestrator]
+    J -.->|in progress| K[Cost Intelligence]
+    K -.->|planned| L[Cart Optimization]
 ```
 
-> **Solid lines** = live today (Blinkit scraping → structured product data).
-> **Dashed lines** = contracts and architecture exist, implementation actively underway.
+> **Solid lines** = built, integrated, and tested (Data Acquisition through complete Product Intelligence pipeline).
+> **Dashed lines** = contracts exist, implementation actively underway.
 > **Dotted** = designed, not yet started.
 
 **Component breakdown:**
@@ -107,11 +156,14 @@ flowchart TD
 | Component | Role | Status |
 |---|---|---|
 | **Parser / Scraper** | Blinkit browser automation with location-aware persistent sessions | ✅ |
-| **Evidence Bundle** | Content-addressed, hash-keyed records of every raw source that informed a product match | 🔜 |
-| **Candidate Generation** | Ranked candidate pool for each product query, configurable strategies | 🔜 |
-| **Product / Variant Matching** | Deterministic matching with governance contracts, audit records, rationale chains | 🔜 |
-| **Canonical Assertions** | Authoritative cross-platform product record, updated from matched evidence | 🔜 |
-| **Offer & Cost Intelligence** | Models fees, promotions, cashback, stacking rules into effective cost | 🔜 |
+| **Evidence Registry** | Content-addressed, hash-keyed records of every raw source that informed a product match | ✅ |
+| **Candidate Generation** | Deterministic ranked candidate pool for each product query, configurable strategies | ✅ |
+| **Product Matching** | Deterministic matching with governance contracts, audit records, rationale chains | ✅ |
+| **Variant Matching** | Deterministic variant-level matching with full audit trail | ✅ |
+| **Deterministic Review Queue** | Lifecycle-managed review pipeline for governed matching decisions | ✅ |
+| **Deterministic Assertion Manager** | Revision history, supersession, and canonical state management | ✅ |
+| **Pipeline Orchestrator** | Coordinates the complete deterministic product intelligence pipeline end-to-end | ✅ |
+| **Offer & Cost Intelligence** | Models fees, promotions, cashback, stacking rules into effective cost | 🚧 |
 | **Cart Optimization** | Recommends cheapest full cart including cross-platform splits | 📋 |
 
 ---
@@ -134,12 +186,23 @@ flowchart TD
 - Offer system, fee structure, and cart optimization research
 - Consumer pricing behavior research
 
-### 🚧 Product Intelligence Implementation — In Progress
-- Evidence registry, candidate generation, product matching, variant matching
-- Review workflow, canonical assertion updates
+### ✅ Product Intelligence — Complete
+- Evidence Registry
+- Deterministic Candidate Generation
+- Deterministic Product Matching
+- Deterministic Variant Matching
+- Deterministic Review Queue
+- Deterministic Assertion Manager
+- End-to-end Product Intelligence Orchestrator
+- Audit trails & replayable decision records
+- Canonical assertion pipeline
 
-### 🚧 Cost Intelligence — In Progress
-- Offer modeling, promotion-rule modeling, fee modeling, platform-pricing intelligence
+### 🚧 Cost Intelligence — Active Development
+- Checkout observation
+- Cost context
+- Offer modeling
+- Fee modeling
+- Platform pricing intelligence
 
 ### 📋 Planned
 - Platform expansion — Zepto, BB Now, JioMart, Instamart
@@ -218,8 +281,9 @@ Cartel-Smart-Cart-Optimizer/
 │   │   │   ├── evidence/             # evidence registry — interfaces, service, storage
 │   │   │   ├── candidate_generation/ # ranking, strategies, service
 │   │   │   ├── matching/             # product + variant matching logic
-│   │   │   ├── assertions/           # canonical assertion interfaces and types
-│   │   │   └── review/               # contracts only — workflow in progress
+│   │   │   ├── assertions/           # deterministic assertion manager — revision history, supersession, canonical state
+│   │   │   ├── review/               # deterministic review queue — lifecycle management
+│   │   │   └── orchestrator/         # end-to-end pipeline orchestration
 │   │   └── scrapers/
 │   │       ├── blinkit/              # fully implemented — parser, scraper, session
 │   │       ├── bigbasket/, zepto/    # scaffolded stubs — not yet implemented
@@ -238,6 +302,16 @@ Cartel-Smart-Cart-Optimizer/
 ├── frontend/, infra/, ml/            # long-horizon scaffolding — not yet implemented
 └── docker-compose.yml, LICENSE
 ```
+
+---
+
+## 📈 Project Metrics
+
+- **40+** architecture and governance specifications written before implementation
+- **Deterministic** end-to-end product intelligence pipeline
+- **Replayable** audit trail for every matching and assertion decision
+- **8 product categories** of real Blinkit production data included in the repository
+- **7-stage** product intelligence pipeline from evidence to canonical assertion
 
 ---
 
@@ -265,6 +339,23 @@ The `docs/` directory contains **40+ architecture and governance specifications*
 **Developers and contributors** — engineers interested in deterministic matching systems, quick-commerce data infrastructure, offer modeling, or building additional platform integrations.
 
 **Researchers and analysts** — anyone studying quick-commerce pricing behavior, platform fee structures, or behavioral pricing mechanisms in Indian e-commerce.
+
+---
+
+## 🎯 Current Focus
+
+Building **Cost Intelligence**.
+
+The completed Product Intelligence pipeline identifies and matches products deterministically across platforms. The next milestone is deterministic modeling of:
+
+- Checkout observations
+- Delivery and handling fees
+- Platform-specific offer rules
+- Membership and loyalty pricing
+- Cashback and reward stacking
+- Effective cost per cart
+
+This unlocks true cart optimization — the core promise of the project.
 
 ---
 
