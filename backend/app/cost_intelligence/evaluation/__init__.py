@@ -5,6 +5,7 @@ from app.cost_intelligence.evaluation.types import (
     FeeEvaluationResult,
     MembershipEvaluationResult,
     OfferEvaluationResult,
+    OfferType,
 )
 
 __all__ = [
@@ -12,4 +13,5 @@ __all__ = [
     "FeeEvaluationResult",
     "MembershipEvaluationResult",
     "OfferEvaluationResult",
+    "OfferType",
 ]
