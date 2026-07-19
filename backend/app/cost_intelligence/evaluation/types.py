@@ -2,10 +2,23 @@
 
 from __future__ import annotations
 
+from decimal import Decimal
+from enum import StrEnum
+
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.cost_intelligence.shared.money import Money
 from app.product_intelligence.models import EvidenceReference
+
+
+class OfferType(StrEnum):
+    """Supported deterministic offer interpretations."""
+
+    FIXED_DISCOUNT = "fixed_discount"
+    PERCENTAGE_DISCOUNT = "percentage_discount"
+    CASHBACK = "cashback"
+    WALLET_CREDIT = "wallet_credit"
+    UNKNOWN = "unknown"
 
 
 class OfferEvaluationResult(BaseModel):
@@ -15,8 +28,10 @@ class OfferEvaluationResult(BaseModel):
 
     evaluation_id: str
     offer_reference: str
+    offer_type: OfferType
     applicable: bool | None = None
     immediate_discount: Money | None = None
+    percentage_discount: Decimal | None = None
     deferred_value: Money | None = None
     evidence_references: tuple[EvidenceReference, ...] = Field(default_factory=tuple)
 

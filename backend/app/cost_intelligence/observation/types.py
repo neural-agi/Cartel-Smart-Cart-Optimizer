@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import hashlib
+import json
 from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field
+from pydantic import computed_field
 
 from app.cost_intelligence.shared.money import Money
 from app.product_intelligence.models import EvidenceReference
@@ -37,6 +40,17 @@ class CheckoutOfferObservation(BaseModel):
     label: str
     amount: Money | None = None
     raw_text: str | None = None
+
+    @computed_field
+    @property
+    def offer_id(self) -> str:
+        """Deterministic identity of this canonical observed offer."""
+        payload = json.dumps(
+            self.model_dump(mode="json", exclude={"offer_id"}),
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
 class CheckoutMembershipObservation(BaseModel):
