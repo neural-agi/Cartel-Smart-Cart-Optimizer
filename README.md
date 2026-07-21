@@ -13,7 +13,6 @@
 [![Version](https://img.shields.io/badge/version-0.2.0-blue?style=for-the-badge)](https://github.com/neural-agi/Cartel-Smart-Cart-Optimizer)
 [![License](https://img.shields.io/badge/license-MIT-green?style=for-the-badge)](LICENSE)
 [![Status](https://img.shields.io/badge/status-active%20development-yellow?style=for-the-badge)](https://github.com/neural-agi/Cartel-Smart-Cart-Optimizer)
-[![Tests](https://img.shields.io/badge/tests-passing-brightgreen?style=for-the-badge)](https://github.com/neural-agi/Cartel-Smart-Cart-Optimizer/tree/main/backend/tests)
 
 <!-- TODO: Add CI badge once GitHub Actions is set up -->
 <!-- TODO: Add terminal GIF of demo_product_matching.py once captured -->
@@ -74,6 +73,9 @@ Cartel is built around a few non-negotiable principles that experienced engineer
 
 ---
 
+
+Both **Product Intelligence** and **Cost Intelligence** are built as deterministic pipelines of immutable value objects. Every stage consumes governed inputs, emits immutable outputs, and can be replayed and audited without hidden state or side effects.
+
 ## 🎯 Target Experience
 
 > *This is the full intended workflow once Cost Intelligence and Cart Optimization ship. See [Current Status](#-current-status) for what runs today.*
@@ -99,7 +101,7 @@ You get actual effective cost per platform
 
 ## 🔬 Product Intelligence Pipeline
 
-The complete product intelligence pipeline is Cartel's biggest technical achievement — and every step is deterministic.
+The Product Intelligence pipeline is complete and deterministic. Its responsibility ends with producing canonical, replayable product intelligence for downstream systems.
 
 ```
 Evidence Registry
@@ -123,10 +125,60 @@ Assertion Manager
 Pipeline Orchestrator
       │
       ▼
-Cost Intelligence  ← next
+Canonical Product Intelligence
+
+Product Intelligence Output
+      │
+      ▼
+Checkout Observation
+      │
+      ▼
+Cost Context
+      │
+      ▼
+Offer Evaluation
+      │
+      ▼
+Fee Evaluation  ← next
+      │
+      ▼
+Effective Cost
+      │
+      ▼
+Cart Optimization
 ```
 
-Given identical governed inputs, this pipeline produces identical candidate generation, matching, review, assertion, and audit results every time. That's an uncommonly rare property in data systems, and it's intentional.
+Every stage consumes immutable governed inputs and produces deterministic, replayable outputs with a complete audit trail.
+
+---
+
+## 💰 Cost Intelligence Pipeline
+
+Cost Intelligence begins where Product Intelligence ends. It consumes canonical product intelligence and progressively evaluates what a cart will actually cost.
+
+```
+Checkout Observation
+        │
+        ▼
+Cost Context
+        │
+        ▼
+Offer Evaluation
+        │
+        ▼
+Fee Evaluation  ← active
+        │
+        ▼
+Membership Evaluation
+        │
+        ▼
+Effective Cost
+        │
+        ▼
+Cart Optimization
+```
+
+**Checkout Observation, Cost Context, and Offer Evaluation are complete.** Fee Evaluation is the current active development target, followed by Membership Evaluation and Effective Cost computation — the final piece needed before true cart optimization.
 
 ---
 
@@ -143,13 +195,16 @@ flowchart TD
     G --> H[Review Queue]
     H --> I[Assertion Manager]
     I --> J[Pipeline Orchestrator]
-    J -.->|in progress| K[Cost Intelligence]
-    K -.->|planned| L[Cart Optimization]
+    J --> K[Checkout Observation]
+    K --> L[Cost Context]
+    L --> M[Offer Evaluation]
+    M -.->|active| N[Fee Evaluation]
+    N -.->|planned| O[Effective Cost]
+    O -.->|planned| P[Cart Optimization]
 ```
 
-> **Solid lines** = built, integrated, and tested (Data Acquisition through complete Product Intelligence pipeline).
+> **Solid lines** = built, integrated, and tested.
 > **Dashed lines** = contracts exist, implementation actively underway.
-> **Dotted** = designed, not yet started.
 
 **Component breakdown:**
 
@@ -163,7 +218,11 @@ flowchart TD
 | **Deterministic Review Queue** | Lifecycle-managed review pipeline for governed matching decisions | ✅ |
 | **Deterministic Assertion Manager** | Revision history, supersession, and canonical state management | ✅ |
 | **Pipeline Orchestrator** | Coordinates the complete deterministic product intelligence pipeline end-to-end | ✅ |
-| **Offer & Cost Intelligence** | Models fees, promotions, cashback, stacking rules into effective cost | 🚧 |
+| **Checkout Observation** | Captures checkout-time state as the input surface for cost evaluation | ✅ |
+| **Cost Context** | Builds the contextual model a cart is evaluated against | ✅ |
+| **Offer Evaluation** | Deterministically evaluates offer eligibility against cost context | ✅ |
+| **Fee Evaluation** | Models delivery, handling, and platform fees into effective cost | 🚧 |
+| **Effective Cost** | Final per-cart cost computation combining price, fees, and offers | 📋 |
 | **Cart Optimization** | Recommends cheapest full cart including cross-platform splits | 📋 |
 
 ---
@@ -197,16 +256,21 @@ flowchart TD
 - Audit trails & replayable decision records
 - Canonical assertion pipeline
 
+### ✅ Cost Intelligence Foundation — Complete
+- Checkout Observation
+- Cost Context
+- Deterministic Offer Evaluation
+- Offer Evaluation Orchestrator
+
 ### 🚧 Cost Intelligence — Active Development
-- Checkout observation
-- Cost context
-- Offer modeling
-- Fee modeling
-- Platform pricing intelligence
+- Fee Evaluation
+- Membership Evaluation
+- Effective Cost Evaluation
 
 ### 📋 Planned
+- Cart Optimization
+- Multi-platform optimization
 - Platform expansion — Zepto, BB Now, JioMart, Instamart
-- Optimization engine — true-cost calculation, cart optimization, cart-splitting
 - Consumer experience — public APIs, dashboard, frontend
 
 ---
@@ -277,13 +341,19 @@ Cartel-Smart-Cart-Optimizer/
 │   │   ├── core/                     # config, logging, security
 │   │   ├── db/                       # SQLAlchemy base/session + models (Alembic-managed)
 │   │   ├── normalization/            # pricing / products / units normalization
-│   │   ├── product_intelligence/     # the core engine
+│   │   ├── product_intelligence/     # the core matching engine
 │   │   │   ├── evidence/             # evidence registry — interfaces, service, storage
 │   │   │   ├── candidate_generation/ # ranking, strategies, service
 │   │   │   ├── matching/             # product + variant matching logic
 │   │   │   ├── assertions/           # deterministic assertion manager — revision history, supersession, canonical state
 │   │   │   ├── review/               # deterministic review queue — lifecycle management
 │   │   │   └── orchestrator/         # end-to-end pipeline orchestration
+│   │   ├── cost_intelligence/        # the cost evaluation engine
+│   │   │   ├── observation/          # checkout observation — checkout-time state capture
+│   │   │   ├── context/              # cost context — contextual model for evaluation
+│   │   │   ├── evaluation/           # shared evaluation contracts and result models
+│   │   │   ├── offer/                # deterministic offer evaluation
+│   │   │   └── shared/               # shared contracts and utilities across cost intelligence
 │   │   └── scrapers/
 │   │       ├── blinkit/              # fully implemented — parser, scraper, session
 │   │       ├── bigbasket/, zepto/    # scaffolded stubs — not yet implemented
@@ -311,7 +381,9 @@ Cartel-Smart-Cart-Optimizer/
 - **Deterministic** end-to-end product intelligence pipeline
 - **Replayable** audit trail for every matching and assertion decision
 - **8 product categories** of real Blinkit production data included in the repository
-- **7-stage** product intelligence pipeline from evidence to canonical assertion
+- **Complete** deterministic Product Intelligence pipeline
+- **Executable Cost Intelligence foundation** — Checkout Observation through Offer Evaluation
+- **Immutable value-object pipelines** across Product and Cost Intelligence
 
 ---
 
@@ -344,18 +416,13 @@ The `docs/` directory contains **40+ architecture and governance specifications*
 
 ## 🎯 Current Focus
 
-Building **Cost Intelligence**.
+Completing deterministic **Cost Intelligence**:
 
-The completed Product Intelligence pipeline identifies and matches products deterministically across platforms. The next milestone is deterministic modeling of:
+- Fee Evaluation
+- Membership Evaluation
+- Effective Cost computation
 
-- Checkout observations
-- Delivery and handling fees
-- Platform-specific offer rules
-- Membership and loyalty pricing
-- Cashback and reward stacking
-- Effective cost per cart
-
-This unlocks true cart optimization — the core promise of the project.
+The foundation — Checkout Observation, Cost Context, Offer Evaluation, and Offer Evaluation Orchestration — is now complete. Finishing these three remaining pieces unlocks true cart optimization, the core promise of the project.
 
 ---
 
@@ -365,11 +432,12 @@ This unlocks true cart optimization — the core promise of the project.
 |---|---|---|
 | 1 | Data Acquisition — Blinkit scraper, session management, raw extraction | ✅ Complete |
 | 2 | Product Intelligence Foundation — schemas, domain models, matching architecture | ✅ Complete |
-| 3 | Product Intelligence Implementation — evidence registry, candidate generation, matching | 🚧 Active |
-| 4 | Cost Intelligence — offer engine, fee modeling, effective-cost calculation | 🚧 Active |
-| 5 | Cart Optimization — multi-platform comparison, cart splitting, cheapest-cart recommendation | 📋 Planned |
-| 6 | Platform Expansion — Zepto, BB Now, JioMart, Instamart | 📋 Planned |
-| 7 | Consumer Experience — public APIs, dashboard, frontend | 📋 Planned |
+| 3 | Product Intelligence — evidence registry, candidate generation, matching | ✅ Complete |
+| 4 | Cost Intelligence Foundation — checkout observation, cost context, offer evaluation | ✅ Complete |
+| 5 | Cost Intelligence Evaluation — fee evaluation, membership evaluation, effective cost | 🚧 Active |
+| 6 | Cart Optimization — multi-platform comparison, cart splitting, cheapest-cart recommendation | 📋 Planned |
+| 7 | Platform Expansion — Zepto, BB Now, JioMart, Instamart | 📋 Planned |
+| 8 | Consumer Experience — public APIs, dashboard, frontend | 📋 Planned |
 
 ---
 
@@ -387,9 +455,9 @@ Cartel is early — architecture decisions are still being made, and contributin
 | Area | Why It's Accessible |
 |---|---|
 | 🌐 **Platform scrapers** (Zepto, BB Now, JioMart, Instamart) | Base contracts are defined — well-scoped, clear interface |
+| 💰 **Cost Intelligence** | Fee Evaluation and Membership Evaluation are the active focus |
 | 🧪 **Test coverage** | Always welcome across all modules |
 | 📚 **Documentation** | `CONTRIBUTING.md` + `docs/setup.md` in progress — contributions welcome |
-| 🔍 **Product Intelligence** | Evidence registry, candidate generation, and matching are all active |
 
 A full `CONTRIBUTING.md` with development setup, environment variable documentation, architecture orientation, and extension guides is coming shortly. In the meantime, open an issue and ask.
 
