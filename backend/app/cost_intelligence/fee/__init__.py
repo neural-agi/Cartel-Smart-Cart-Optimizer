@@ -1,6 +1,5 @@
-"""Deterministic fee evaluation contracts and service."""
+"""Deterministic fee evaluation vocabulary."""
 
-from app.cost_intelligence.fee.service import FeeEvaluationService
 from app.cost_intelligence.fee.types import FeeType
 
-__all__ = ["FeeEvaluationService", "FeeType"]
+__all__ = ["FeeType"]
