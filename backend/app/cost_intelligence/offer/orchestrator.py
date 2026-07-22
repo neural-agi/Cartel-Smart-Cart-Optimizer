@@ -2,6 +2,13 @@
 
 from __future__ import annotations
 
+"""Deterministic orchestration for offer-by-offer evaluation.
+
+This orchestrator remains separate from the fee orchestrator on purpose.
+The pipeline favors explicit duplication over premature abstraction until
+multiple concrete orchestrators prove stable shared behavior.
+"""
+
 from app.cost_intelligence.context.types import CostContext
 from app.cost_intelligence.evaluation.types import OfferEvaluationResult
 from app.cost_intelligence.offer.service import OfferEvaluationService
