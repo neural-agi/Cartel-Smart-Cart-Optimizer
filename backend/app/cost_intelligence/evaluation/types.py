@@ -7,6 +7,7 @@ from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.cost_intelligence.fee.types import FeeType
 from app.cost_intelligence.shared.money import Money
 from app.product_intelligence.models import EvidenceReference
 
@@ -43,6 +44,7 @@ class FeeEvaluationResult(BaseModel):
 
     evaluation_id: str
     fee_reference: str
+    fee_type: FeeType
     applicable: bool | None = None
     fee_amount: Money | None = None
     evidence_references: tuple[EvidenceReference, ...] = Field(default_factory=tuple)

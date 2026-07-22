@@ -31,6 +31,17 @@ class CheckoutFeeObservation(BaseModel):
     amount: Money | None = None
     raw_text: str | None = None
 
+    @computed_field
+    @property
+    def fee_id(self) -> str:
+        """Deterministic identity of this canonical observed fee."""
+        payload = json.dumps(
+            self.model_dump(mode="json", exclude={"fee_id"}),
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
 
 class CheckoutOfferObservation(BaseModel):
     """Observed promotion or offer text."""
