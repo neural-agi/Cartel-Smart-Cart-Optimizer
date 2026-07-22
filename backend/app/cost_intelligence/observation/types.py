@@ -72,6 +72,17 @@ class CheckoutMembershipObservation(BaseModel):
     label: str
     raw_text: str | None = None
 
+    @computed_field
+    @property
+    def membership_id(self) -> str:
+        """Deterministic identity of this canonical observed membership fact."""
+        payload = json.dumps(
+            self.model_dump(mode="json", exclude={"membership_id"}),
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
 
 class CheckoutPaymentObservation(BaseModel):
     """Observed payment-method fact."""

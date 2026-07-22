@@ -17,3 +17,10 @@ Practical guidance:
 - Keep package roots small and stable.
 - If a package export introduces a cycle, remove the export rather than adding a shared abstraction.
 - Add common helpers only after multiple concrete implementations prove the shared behavior is stable.
+
+Cost Intelligence evaluator boundaries:
+
+- Offer Evaluation, Fee Evaluation, and Membership Evaluation are peer evaluators.
+- Peer evaluators must not depend on each other's outputs.
+- Effective Cost Evaluation is the first stage that combines evaluator results.
+- Keep evaluator orchestration explicit rather than hidden behind shared package-level helpers.
