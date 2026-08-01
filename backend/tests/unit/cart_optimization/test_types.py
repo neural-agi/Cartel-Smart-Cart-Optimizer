@@ -15,6 +15,7 @@ from app.cart_optimization import (
     OptimizationOutcome,
     PlanFeasibility,
 )
+from app.cart_optimization.types import EffectiveCostEvaluationReference
 from app.cost_intelligence.evaluation.types import EffectiveCostEvaluationResult
 from app.cost_intelligence.shared.money import Money
 
@@ -30,7 +31,15 @@ def _coverage() -> CandidatePlanCoverage:
 
 
 def _plan() -> CandidatePlan:
-    return CandidatePlan(plan_id="plan-1", feasibility=PlanFeasibility.FEASIBLE)
+    return CandidatePlan(
+        plan_id="plan-1",
+        inconvenience_penalty_units=0,
+        retailer_preference_priority=0,
+        effective_cost_evaluation_reference=EffectiveCostEvaluationReference(
+            effective_cost_evaluation_id="eval-1"
+        ),
+        feasibility=PlanFeasibility.FEASIBLE,
+    )
 
 
 def _request() -> CartOptimizationRequest:
@@ -99,6 +108,32 @@ def test_coverage_fails_closed_without_required_metadata_or_rationale() -> None:
         CandidatePlanCoverage(state=CoverageState.COMPLETE)
     with pytest.raises(ValidationError):
         CandidatePlanCoverage(state=CoverageState.UNKNOWN)
+
+
+def test_candidate_plan_requires_ranking_inputs_and_single_evaluation_reference() -> None:
+    with pytest.raises(ValidationError):
+        CandidatePlan(plan_id="plan-1", feasibility=PlanFeasibility.FEASIBLE)
+
+    plan = _plan()
+    assert plan.effective_cost_evaluation_reference.effective_cost_evaluation_id == "eval-1"
+
+
+def test_invalid_feasibility_is_distinct_structural_state() -> None:
+    plan = _plan().model_copy(update={"feasibility": PlanFeasibility.INVALID})
+    assert plan.feasibility is PlanFeasibility.INVALID
+
+
+def test_duplicate_effective_cost_evaluation_ids_fail_closed() -> None:
+    with pytest.raises(ValidationError):
+        CartOptimizationRequest(
+            request_id="request-1",
+            optimization_policy_version="policy-v1",
+            candidate_plan_coverage=_coverage(),
+            effective_cost_evaluations=(
+                EffectiveCostEvaluationResult(evaluation_id="eval-1", context_id="context-1"),
+                EffectiveCostEvaluationResult(evaluation_id="eval-1", context_id="context-2"),
+            ),
+        )
 
 
 def test_candidate_plan_and_constraints_are_immutable() -> None:
