@@ -283,12 +283,6 @@ def test_stable_evaluation_identity() -> None:
     second = service.evaluate(context.model_copy(deep=True), offers, fees, memberships)
 
     assert first.evaluation_id == second.evaluation_id
-    assert first.evaluation_id == service._evaluation_id(
-        context.context_id,
-        offers,
-        fees,
-        memberships,
-    )
 
 
 def test_canonical_ordering() -> None:
@@ -311,6 +305,19 @@ def test_evidence_preservation() -> None:
         fee_extra,
         membership_extra,
     )
+
+
+def test_evidence_identity_deduplicates_metadata_variants() -> None:
+    context, offers, fees, memberships, shared, *_ = _build_inputs()
+    metadata_variant = shared.model_copy(update={"note": "same source, newer note"})
+    context = context.model_copy(update={"evidence_references": (shared, metadata_variant)})
+
+    result = EffectiveCostEvaluationService().evaluate(context, offers, fees, memberships)
+
+    assert result.evidence_references[0] == shared
+    assert sum(
+        reference.source_id == shared.source_id for reference in result.evidence_references
+    ) == 1
 
 
 def test_result_is_immutable() -> None:

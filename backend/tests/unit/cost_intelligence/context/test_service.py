@@ -38,6 +38,25 @@ def test_identical_observations_produce_identical_contexts() -> None:
     assert first.context_id == second.context_id
 
 
+def test_reordered_observations_produce_identical_contexts() -> None:
+    first_observation = _observation().model_copy(
+        update={
+            "offers": (
+                CheckoutOfferObservation(label="20% off"),
+                CheckoutOfferObservation(label="10% off"),
+            )
+        }
+    )
+    second_observation = first_observation.model_copy(
+        update={"offers": tuple(reversed(first_observation.offers))}
+    )
+
+    first = DeterministicCostContextBuilder().build(first_observation)
+    second = DeterministicCostContextBuilder().build(second_observation)
+
+    assert first.context_id == second.context_id
+
+
 def test_context_preserves_observation_and_evidence() -> None:
     observation = _observation()
     context = DeterministicCostContextBuilder().build(observation)

@@ -19,6 +19,7 @@ from app.cart_optimization.types import (
 )
 from app.cost_intelligence.evaluation.types import EffectiveCostEvaluationResult
 from app.product_intelligence.models import EvidenceReference
+from app.cost_intelligence.shared.evidence import evidence_identity
 
 
 class CartOptimizationService:
@@ -277,10 +278,10 @@ class CartOptimizationService:
     def _dedupe_evidence(
         self, references: Iterable[EvidenceReference]
     ) -> tuple[EvidenceReference, ...]:
-        seen: set[str] = set()
+        seen: set[tuple[str, str]] = set()
         unique: list[EvidenceReference] = []
         for reference in references:
-            key = json.dumps(reference.model_dump(mode="json"), sort_keys=True)
+            key = evidence_identity(reference)
             if key not in seen:
                 seen.add(key)
                 unique.append(reference)

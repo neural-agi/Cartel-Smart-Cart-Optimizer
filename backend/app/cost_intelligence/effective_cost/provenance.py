@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-import json
-
 from app.cost_intelligence.evaluation.types import (
     FeeEvaluationResult,
     MembershipEvaluationResult,
     OfferEvaluationResult,
 )
 from app.product_intelligence.models import EvidenceReference
+from app.cost_intelligence.shared.evidence import evidence_identity
 
 
 class EvidenceMerger:
@@ -20,7 +19,7 @@ class EvidenceMerger:
         fee_results: tuple[FeeEvaluationResult, ...],
         membership_results: tuple[MembershipEvaluationResult, ...],
     ) -> tuple[EvidenceReference, ...]:
-        merged: dict[str, EvidenceReference] = {}
+        merged: dict[tuple[str, str], EvidenceReference] = {}
         for evidence_reference in context_references:
             self._record(merged, evidence_reference)
         for result in offer_results:
@@ -39,10 +38,6 @@ class EvidenceMerger:
         merged: dict[str, EvidenceReference],
         evidence_reference: EvidenceReference,
     ) -> None:
-        payload = json.dumps(
-            evidence_reference.model_dump(mode="json"),
-            sort_keys=True,
-            separators=(",", ":"),
-        )
-        if payload not in merged:
-            merged[payload] = evidence_reference
+        key = evidence_identity(evidence_reference)
+        if key not in merged:
+            merged[key] = evidence_reference

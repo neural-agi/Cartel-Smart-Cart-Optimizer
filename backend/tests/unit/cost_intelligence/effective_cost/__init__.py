@@ -1,0 +1,1 @@
+"""Effective Cost unit tests."""

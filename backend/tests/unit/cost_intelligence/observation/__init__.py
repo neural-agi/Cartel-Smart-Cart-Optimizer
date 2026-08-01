@@ -1,0 +1,1 @@
+"""Checkout Observation unit tests."""

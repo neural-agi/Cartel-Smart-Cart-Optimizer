@@ -10,6 +10,7 @@ from app.cost_intelligence.observation.types import (
     CheckoutOfferObservation,
 )
 from app.cost_intelligence.offer import OfferEvaluationService, OfferType
+from app.cost_intelligence.evaluation.types import OfferType as ResultOfferType
 from app.product_intelligence.models import EvidenceReference
 
 
@@ -73,6 +74,10 @@ def test_result_is_immutable() -> None:
 
     with pytest.raises((TypeError, ValueError)):
         result.offer_type = OfferType.UNKNOWN  # type: ignore[misc]
+
+
+def test_offer_type_is_shared_by_offer_and_result_contracts() -> None:
+    assert OfferType is ResultOfferType
 
 
 def test_multi_offer_checkout_is_evaluated_offer_by_offer() -> None:

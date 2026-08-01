@@ -72,17 +72,3 @@ class EffectiveCostEvaluationService:
                 membership_results,
             ),
         )
-
-    def _evaluation_id(
-        self,
-        context_id: str,
-        offer_results: tuple[OfferEvaluationResult, ...],
-        fee_results: tuple[FeeEvaluationResult, ...],
-        membership_results: tuple[MembershipEvaluationResult, ...],
-    ) -> str:
-        return self._identity_generator.evaluation_id(
-            context_id,
-            offer_results,
-            fee_results,
-            membership_results,
-        )
