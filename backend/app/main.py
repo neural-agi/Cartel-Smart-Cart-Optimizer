@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+from urllib.parse import urlsplit
 
 from fastapi import FastAPI
 
@@ -22,6 +23,18 @@ async def lifespan(app: FastAPI):
         settings.app_name,
         settings.app_env,
         settings.app_version,
+    )
+    logger.info(
+        "Runtime configuration: app=%s version=%s env=%s debug=%s api_prefix=%s "
+        "docs_enabled=%s postgres_host=%s redis_host=%s",
+        settings.app_name,
+        settings.app_version,
+        settings.app_env,
+        settings.app_debug,
+        settings.api_v1_prefix,
+        settings.docs_enabled,
+        settings.postgres_host,
+        urlsplit(settings.redis_url).hostname,
     )
     try:
         yield

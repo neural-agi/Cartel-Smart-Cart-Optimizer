@@ -1,9 +1,9 @@
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
+from urllib.parse import urlsplit
 
-from pydantic import Field
-from pydantic import field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -18,6 +18,7 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
+        populate_by_name=True,
     )
 
     app_name: str = Field(default="Cartel", alias="APP_NAME")
@@ -76,6 +77,109 @@ class Settings(BaseSettings):
     postgres_user: str = Field(default="cartel", alias="POSTGRES_USER")
     postgres_password: str = Field(default="cartel", alias="POSTGRES_PASSWORD")
     redis_url: str = Field(default="redis://localhost:6379/0", alias="REDIS_URL")
+
+    @field_validator(
+        "app_name",
+        "app_version",
+        "api_v1_prefix",
+        "log_level",
+        "scraper_user_agent",
+        "blinkit_delivery_location_name",
+        "postgres_host",
+        "postgres_db",
+        "postgres_user",
+        "postgres_password",
+        "redis_url",
+        mode="before",
+    )
+    @classmethod
+    def require_nonblank_text(cls, value: str) -> str:
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError("configuration value must not be blank")
+        return value.strip()
+
+    @field_validator("api_v1_prefix")
+    @classmethod
+    def validate_api_prefix(cls, value: str) -> str:
+        if not value.startswith("/") or value == "/":
+            raise ValueError("API_V1_PREFIX must be a non-root absolute path")
+        return value.rstrip("/")
+
+    @field_validator("log_level")
+    @classmethod
+    def validate_log_level(cls, value: str) -> str:
+        normalized = value.upper()
+        if normalized not in {"CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"}:
+            raise ValueError("LOG_LEVEL is unsupported")
+        return normalized
+
+    @field_validator("postgres_port")
+    @classmethod
+    def validate_postgres_port(cls, value: int) -> int:
+        if not 1 <= value <= 65535:
+            raise ValueError("POSTGRES_PORT must be between 1 and 65535")
+        return value
+
+    @field_validator("scraper_timeout_seconds", "scraper_retry_backoff_seconds")
+    @classmethod
+    def validate_positive_float(cls, value: float) -> float:
+        if value <= 0:
+            raise ValueError("scraper timing values must be positive")
+        return value
+
+    @field_validator("scraper_max_retries")
+    @classmethod
+    def validate_retries(cls, value: int) -> int:
+        if value < 0:
+            raise ValueError("SCRAPER_MAX_RETRIES must not be negative")
+        return value
+
+    @field_validator("blinkit_delivery_latitude")
+    @classmethod
+    def validate_latitude(cls, value: float) -> float:
+        if not -90 <= value <= 90:
+            raise ValueError("BLINKIT_DELIVERY_LATITUDE is invalid")
+        return value
+
+    @field_validator("blinkit_delivery_longitude")
+    @classmethod
+    def validate_longitude(cls, value: float) -> float:
+        if not -180 <= value <= 180:
+            raise ValueError("BLINKIT_DELIVERY_LONGITUDE is invalid")
+        return value
+
+    @field_validator("redis_url")
+    @classmethod
+    def validate_redis_url(cls, value: str) -> str:
+        parsed = urlsplit(value)
+        if parsed.scheme not in {"redis", "rediss"} or not parsed.hostname:
+            raise ValueError("REDIS_URL must be a valid redis:// or rediss:// URL")
+        if parsed.port is not None and not 1 <= parsed.port <= 65535:
+            raise ValueError("REDIS_URL port must be between 1 and 65535")
+        return value
+
+    @model_validator(mode="after")
+    def validate_runtime_configuration(self) -> "Settings":
+        if self.app_env == "production":
+            required_production_fields = {
+                "postgres_host",
+                "postgres_port",
+                "postgres_db",
+                "postgres_user",
+                "postgres_password",
+                "redis_url",
+            }
+            missing_fields = required_production_fields.difference(self.model_fields_set)
+            if missing_fields:
+                missing = ", ".join(sorted(missing_fields))
+                raise ValueError(f"production configuration is missing: {missing}")
+            if self.postgres_password == "cartel":
+                raise ValueError("POSTGRES_PASSWORD must be explicitly configured in production")
+            if self.app_debug:
+                raise ValueError("APP_DEBUG must be false in production")
+            if self.docs_enabled:
+                raise ValueError("DOCS_ENABLED must be false in production")
+        return self
 
     @property
     def is_production(self) -> bool:
