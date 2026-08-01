@@ -1,5 +1,6 @@
 """Shared cost-intelligence primitives."""
 
+from app.cost_intelligence.shared.evidence import evidence_identity
 from app.cost_intelligence.shared.money import Money
 
-__all__ = ["Money"]
+__all__ = ["Money", "evidence_identity"]

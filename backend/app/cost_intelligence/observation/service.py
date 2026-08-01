@@ -20,6 +20,7 @@ from app.cost_intelligence.observation.types import (
     CheckoutTotalObservation,
 )
 from app.cost_intelligence.shared.money import Money
+from app.cost_intelligence.shared.evidence import evidence_identity
 from app.product_intelligence.models import EvidenceReference
 
 
@@ -38,6 +39,18 @@ class DeterministicCheckoutObservationRegistry(CheckoutObservationRegistry):
 
     def __init__(self) -> None:
         self._records: dict[str, _CheckoutObservationRecord] = {}
+
+    def canonicalize(self, observation: CheckoutObservation) -> CheckoutObservation:
+        """Canonicalize and validate an observation before downstream evaluation."""
+        return self._canonicalize_observation(observation)
+
+    def canonicalize_for_identity(self, observation: CheckoutObservation) -> CheckoutObservation:
+        """Canonicalize identity inputs without changing downstream validation semantics."""
+        return self._canonicalize_observation(
+            observation,
+            validate=False,
+            canonicalize_children=False,
+        )
 
     async def register(
         self,
@@ -89,6 +102,9 @@ class DeterministicCheckoutObservationRegistry(CheckoutObservationRegistry):
     def _canonicalize_observation(
         self,
         observation: CheckoutObservation,
+        *,
+        validate: bool = True,
+        canonicalize_children: bool = True,
     ) -> CheckoutObservation:
         canonical = observation.model_copy(
             update={
@@ -110,19 +126,33 @@ class DeterministicCheckoutObservationRegistry(CheckoutObservationRegistry):
                 "evidence_references": self._canonicalize_evidence_references(
                     observation.evidence_references
                 ),
-                "line_items": self._canonicalize_sequence(observation.line_items),
-                "fees": self._canonicalize_sequence(observation.fees),
-                "offers": self._canonicalize_sequence(observation.offers),
-                "memberships": self._canonicalize_sequence(observation.memberships),
-                "payment_methods": self._canonicalize_sequence(
-                    observation.payment_methods
+                "line_items": self._canonicalize_sequence(
+                    observation.line_items, canonicalize_children=canonicalize_children
                 ),
-                "thresholds": self._canonicalize_sequence(observation.thresholds),
-                "totals": self._canonicalize_sequence(observation.totals),
+                "fees": self._canonicalize_sequence(
+                    observation.fees, canonicalize_children=canonicalize_children
+                ),
+                "offers": self._canonicalize_sequence(
+                    observation.offers, canonicalize_children=canonicalize_children
+                ),
+                "memberships": self._canonicalize_sequence(
+                    observation.memberships, canonicalize_children=canonicalize_children
+                ),
+                "payment_methods": self._canonicalize_sequence(
+                    observation.payment_methods,
+                    canonicalize_children=canonicalize_children,
+                ),
+                "thresholds": self._canonicalize_sequence(
+                    observation.thresholds, canonicalize_children=canonicalize_children
+                ),
+                "totals": self._canonicalize_sequence(
+                    observation.totals, canonicalize_children=canonicalize_children
+                ),
             },
             deep=True,
         )
-        self._validate_observation(canonical)
+        if validate:
+            self._validate_observation(canonical)
         return canonical
 
     def _validate_observation(self, observation: CheckoutObservation) -> None:
@@ -163,8 +193,10 @@ class DeterministicCheckoutObservationRegistry(CheckoutObservationRegistry):
             self._validate_label(child.label, "totals.label")
             self._validate_optional_text(child.raw_text, "totals.raw_text")
 
-    def _canonicalize_sequence(self, items):
-        canonical_items = [self._canonicalize_child(item) for item in items]
+    def _canonicalize_sequence(self, items, *, canonicalize_children: bool = True):
+        canonical_items = [
+            self._canonicalize_child(item) if canonicalize_children else item for item in items
+        ]
         ranked = [
             (
                 json.dumps(
@@ -250,7 +282,7 @@ class DeterministicCheckoutObservationRegistry(CheckoutObservationRegistry):
                 sort_keys=True,
                 separators=(",", ":"),
             )
-            key = (source_type, source_id)
+            key = evidence_identity(canonical_reference)
             existing = canonical.get(key)
             if existing is None or payload < existing[0]:
                 canonical[key] = (payload, canonical_reference)

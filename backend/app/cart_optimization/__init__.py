@@ -1,6 +1,8 @@
 """Immutable Cart Optimization contract models."""
 
 from app.cart_optimization.orchestrator import CartOptimizationOrchestrator
+from app.cart_optimization.request_builder import CartOptimizationRequestBuilder
+from app.cart_optimization.service import CartOptimizationService
 
 from app.cart_optimization.enums import (
     ConstraintHardness,
@@ -38,6 +40,8 @@ __all__ = [
     "CartOptimizationRequest",
     "CartOptimizationResult",
     "CartOptimizationOrchestrator",
+    "CartOptimizationRequestBuilder",
+    "CartOptimizationService",
     "CheckoutGroup",
     "ConstraintHardness",
     "CoverageState",
