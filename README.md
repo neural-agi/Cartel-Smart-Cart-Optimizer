@@ -4,22 +4,25 @@
 
 # 🛒 Cartel
 
-### Cartel calculates what you'll *actually* pay for groceries — not what the app shows you.
+### The real cost of groceries, deterministically computed.
 
-**True effective-cost intelligence and cart optimization across quick-commerce platforms.**
+**Product Intelligence · Cost Intelligence · Cart Optimization**
 
 <br/>
 
+[![Build](https://github.com/neural-agi/Cartel-Smart-Cart-Optimizer/actions/workflows/ci.yml/badge.svg)](https://github.com/neural-agi/Cartel-Smart-Cart-Optimizer/actions/workflows/ci.yml)
 [![Version](https://img.shields.io/badge/version-0.2.0-blue?style=for-the-badge)](https://github.com/neural-agi/Cartel-Smart-Cart-Optimizer)
+[![Python](https://img.shields.io/badge/python-3.12-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
 [![License](https://img.shields.io/badge/license-MIT-green?style=for-the-badge)](LICENSE)
+[![Tests](https://img.shields.io/badge/tests-164%20passing-brightgreen?style=for-the-badge)](https://github.com/neural-agi/Cartel-Smart-Cart-Optimizer/tree/main/backend/tests)
 [![Status](https://img.shields.io/badge/status-active%20development-yellow?style=for-the-badge)](https://github.com/neural-agi/Cartel-Smart-Cart-Optimizer)
 
-<!-- TODO: Add CI badge once GitHub Actions is set up -->
-<!-- TODO: Add terminal GIF of demo_product_matching.py once captured -->
+<!-- TODO: Add screenshot/GIF of demo pipeline -->
+<!-- TODO: Add Codecov badge once coverage reporting is wired -->
 
 <br/>
 
-**[🤔 Why This Exists](#-why-this-exists) · [✨ What Makes It Different](#-what-makes-it-different) · [🏗 Architecture](#-architecture-overview) · [🚀 Quick Start](#-quick-start) · [🗺 Roadmap](#-roadmap) · [🤝 Contributing](#-contributing)**
+**[🤔 Why This Exists](#-why-this-exists) · [✨ Architecture](#-layered-architecture) · [🏗 Real Data Ingestion](#-real-data-ingestion) · [🚀 Quick Start](#-quick-start) · [🗺 Roadmap](#-roadmap) · [🤝 Contributing](#-contributing)**
 
 </div>
 
@@ -48,20 +51,23 @@ Cartel exists to answer one question honestly:
 
 |  | Typical Price Comparison Tools | Cartel |
 |---|---|---|
-| **Optimization unit** | Single product | Whole cart |
-| **What's compared** | Displayed price | Effective cost (price + fees − rewards) |
-| **Delivery / handling / platform fees** | Ignored | Modeled explicitly |
-| **Coupons, cashback, loyalty pricing** | Ignored | Modeled explicitly |
-| **Offer stacking & thresholds** | Ignored | Modeled explicitly |
-| **Location-aware pricing** | Rare | Built in |
-| **Product matching** | Manual / fuzzy | Deterministic, evidence-backed, replayable |
-| **Matching decisions** | Opaque | Full audit trail per decision |
+| **Optimization unit** | Single product | Entire cart |
+| **Price model** | Displayed sticker price | Effective cost (price + fees − rewards) |
+| **Delivery & platform fees** | Ignored | Explicitly modeled |
+| **Offers, coupons, cashback** | Ignored | Explicitly modeled |
+| **Offer stacking rules** | Ignored | Deterministically enforced |
+| **Location-aware pricing** | Rare | Built in from the start |
+| **Product matching** | Manual or fuzzy | Deterministic, evidence-backed, auditable |
+| **Matching audit trail** | None | Full traceability for every match |
+| **Deterministic execution** | ❌ | ✅ Same inputs always produce identical outputs |
+| **Replayability** | ❌ | ✅ Every decision can be reproduced from stored artifacts |
+| **Full audit trail** | ❌ | ✅ Immutable records for all operations |
 
 ---
 
 ## 🏛 Core Principles
 
-Cartel is built around a few non-negotiable principles that experienced engineers will recognize immediately.
+Cartel is built around principles that mature engineering teams recognize immediately:
 
 - **Deterministic by design** — given identical governed inputs, the system produces identical outputs every time
 - **Replayable decisions** — every matching and pricing decision can be reproduced and inspected, not just trusted
@@ -69,39 +75,101 @@ Cartel is built around a few non-negotiable principles that experienced engineer
 - **Fail-closed validation** — invalid inputs are rejected explicitly rather than silently degraded
 - **Immutable audit trails** — decision records are append-only and tamper-evident
 - **Explicit governance contracts** — matching rules are declared, versioned, and enforced, not implicit
-- **Explainable matching** — the system can always answer *why* it matched two products, not just *that* it did
+- **Contract-first architecture** — every component defines its input/output contract before implementation
+- **Deterministic identities** — products, carts, and decisions have stable, reproducible identifiers
+- **Immutable value objects** — pipelines consume immutable inputs and produce immutable outputs
+- **Replay references** — every operation can be replayed given the same inputs and context
 
 ---
 
+## 🏗 Layered Architecture
 
-Both **Product Intelligence** and **Cost Intelligence** are built as deterministic pipelines of immutable value objects. Every stage consumes governed inputs, emits immutable outputs, and can be replayed and audited without hidden state or side effects.
-
-## 🎯 Target Experience
-
-> *This is the full intended workflow once Cost Intelligence and Cart Optimization ship. See [Current Status](#-current-status) for what runs today.*
+Cartel is built as four independent, composable layers:
 
 ```
-You provide a grocery list
-          │
-          ▼
-Cartel pulls live prices, fees & active offers
-across every connected platform for your location
-          │
-          ▼
-Runs each platform's offer stack against your cart
-(thresholds · coupons · cashback · loyalty pricing)
-          │
-          ▼
-You get actual effective cost per platform
-+ a split recommendation if buying across
-  platforms is cheaper than buying from one
+Layer 4: Cart Optimization
+    Recommends cheapest full cart, cross-platform splits
+         │
+         ▼
+Layer 3: Cost Intelligence
+    Models fees, offers, memberships into effective cost
+         │
+         ▼
+Layer 2: Product Intelligence
+    Matches products deterministically across platforms
+         │
+         ▼
+Layer 1: Real Data Ingestion
+    Scrapes, validates, persists raw data with replay capability
 ```
+
+Each layer follows an **architecture-first development process:** contracts and design are completed before implementation, enabling multiple implementation efforts to progress in parallel.
+
+---
+
+## 🔬 Engineering Highlights
+
+What makes Cartel fundamentally different from typical e-commerce projects:
+
+- **Deterministic architecture** — same inputs always produce same outputs, no hidden state
+- **Replayable operations** — every scrape, match, and cost computation can be replayed from stored artifacts
+- **Immutable contracts** — every layer defines its input/output contract as immutable value objects
+- **Audit-first design** — every operation is logged, checksummed, and reproducible
+- **Contract-first development** — architecture RFCs define contracts before implementation
+- **Evidence-backed decisions** — every product match links back to source data that justified it
+
+---
+
+## 🧭 Engineering Process
+
+Every major subsystem follows the same development lifecycle:
+
+Research → RFC → Contract Freeze → Implementation → Validation
+
+Architecture decisions are documented and reviewed before production code is written, allowing implementation to proceed against stable, deterministic contracts.
+
+---
+
+## 📥 Real Data Ingestion
+
+Raw data acquisition: scraped, validated, stored, and made deterministically replayable.
+
+```
+Scrape Jobs
+    │
+    ▼
+Capture Context
+    │
+    ▼
+Raw Artifacts
+    │
+    ▼
+Validation & Normalization
+    │
+    ▼
+Deterministic Storage
+    │
+    ▼
+Replay & Audit Trail
+```
+
+**Architecture & Contracts Complete ✅**
+- RFC: Data Ingestion Architecture
+- Lifecycle contracts: Job scheduling, context capture, artifact storage
+- Deterministic serialization contracts and identity builders
+- Storage architecture specified through RFCs; implementation in progress.
+- Replay system specified through RFCs; implementation in progress.
+
+**Implementation In Progress 🚧**
+- Lifecycle implementation
+- Storage implementation
+- Live scraper integration with Blinkit, BigBasket, Zepto
 
 ---
 
 ## 🔬 Product Intelligence Pipeline
 
-The Product Intelligence pipeline is complete and deterministic. Its responsibility ends with producing canonical, replayable product intelligence for downstream systems.
+Match products deterministically across platforms using evidence-backed reasoning.
 
 ```
 Evidence Registry
@@ -126,27 +194,9 @@ Pipeline Orchestrator
       │
       ▼
 Canonical Product Intelligence
-
-Product Intelligence Output
-      │
-      ▼
-Checkout Observation
-      │
-      ▼
-Cost Context
-      │
-      ▼
-Offer Evaluation
-      │
-      ▼
-Fee Evaluation  ← next
-      │
-      ▼
-Effective Cost
-      │
-      ▼
-Cart Optimization
 ```
+
+**Status: ✅ Complete**
 
 Every stage consumes immutable governed inputs and produces deterministic, replayable outputs with a complete audit trail.
 
@@ -154,7 +204,7 @@ Every stage consumes immutable governed inputs and produces deterministic, repla
 
 ## 💰 Cost Intelligence Pipeline
 
-Cost Intelligence begins where Product Intelligence ends. It consumes canonical product intelligence and progressively evaluates what a cart will actually cost.
+Evaluate what a cart will actually cost: price, fees, offers, memberships, rewards.
 
 ```
 Checkout Observation
@@ -166,159 +216,106 @@ Cost Context
 Offer Evaluation
         │
         ▼
-Fee Evaluation  ← active
+Fee Evaluation
         │
         ▼
 Membership Evaluation
         │
         ▼
-Effective Cost
+Effective Cost Computation
         │
         ▼
-Cart Optimization
+Cart Optimization Input
 ```
 
-**Checkout Observation, Cost Context, and Offer Evaluation are complete.** Fee Evaluation is the current active development target, followed by Membership Evaluation and Effective Cost computation — the final piece needed before true cart optimization.
-
----
-
-## 🏗 Architecture Overview
-
-```mermaid
-flowchart TD
-    A[Raw HTML] --> B[Parser]
-    B --> C[Structured Raw Product Data]
-    C --> D[Evidence Registry]
-    D --> E[Candidate Generation]
-    E --> F[Product Matching]
-    F --> G[Variant Matching]
-    G --> H[Review Queue]
-    H --> I[Assertion Manager]
-    I --> J[Pipeline Orchestrator]
-    J --> K[Checkout Observation]
-    K --> L[Cost Context]
-    L --> M[Offer Evaluation]
-    M -.->|active| N[Fee Evaluation]
-    N -.->|planned| O[Effective Cost]
-    O -.->|planned| P[Cart Optimization]
-```
-
-> **Solid lines** = built, integrated, and tested.
-> **Dashed lines** = contracts exist, implementation actively underway.
-
-**Component breakdown:**
-
-| Component | Role | Status |
-|---|---|---|
-| **Parser / Scraper** | Blinkit browser automation with location-aware persistent sessions | ✅ |
-| **Evidence Registry** | Content-addressed, hash-keyed records of every raw source that informed a product match | ✅ |
-| **Candidate Generation** | Deterministic ranked candidate pool for each product query, configurable strategies | ✅ |
-| **Product Matching** | Deterministic matching with governance contracts, audit records, rationale chains | ✅ |
-| **Variant Matching** | Deterministic variant-level matching with full audit trail | ✅ |
-| **Deterministic Review Queue** | Lifecycle-managed review pipeline for governed matching decisions | ✅ |
-| **Deterministic Assertion Manager** | Revision history, supersession, and canonical state management | ✅ |
-| **Pipeline Orchestrator** | Coordinates the complete deterministic product intelligence pipeline end-to-end | ✅ |
-| **Checkout Observation** | Captures checkout-time state as the input surface for cost evaluation | ✅ |
-| **Cost Context** | Builds the contextual model a cart is evaluated against | ✅ |
-| **Offer Evaluation** | Deterministically evaluates offer eligibility against cost context | ✅ |
-| **Fee Evaluation** | Models delivery, handling, and platform fees into effective cost | 🚧 |
-| **Effective Cost** | Final per-cart cost computation combining price, fees, and offers | 📋 |
-| **Cart Optimization** | Recommends cheapest full cart including cross-platform splits | 📋 |
-
----
-
-## 📊 Current Status
-
-### ✅ Data Acquisition — Complete
-- FastAPI backend, modular scraper architecture
-- Blinkit browser automation, location-aware persistent sessions
-- Raw extraction pipeline
-- *(BigBasket and Zepto scraper modules scaffolded, not yet implemented)*
-
-### ✅ Product Intelligence Foundation — Complete
-- Canonical product schema + domain models
-- Matching architecture + governance contracts
-- Deterministic matching framework
-
-### ✅ Research — Complete
-- Cross-platform pricing analysis
-- Offer system, fee structure, and cart optimization research
-- Consumer pricing behavior research
-
-### ✅ Product Intelligence — Complete
-- Evidence Registry
-- Deterministic Candidate Generation
-- Deterministic Product Matching
-- Deterministic Variant Matching
-- Deterministic Review Queue
-- Deterministic Assertion Manager
-- End-to-end Product Intelligence Orchestrator
-- Audit trails & replayable decision records
-- Canonical assertion pipeline
-
-### ✅ Cost Intelligence Foundation — Complete
-- Checkout Observation
-- Cost Context
-- Deterministic Offer Evaluation
+**Completed:**
+- Checkout Observation, Cost Context, Offer Evaluation
 - Offer Evaluation Orchestrator
+- Deterministic result models
 
-### 🚧 Cost Intelligence — Active Development
+**In Progress:**
 - Fee Evaluation
 - Membership Evaluation
-- Effective Cost Evaluation
+- Effective Cost Computation
 
-### 📋 Planned
-- Cart Optimization
-- Multi-platform optimization
-- Platform expansion — Zepto, BB Now, JioMart, Instamart
-- Consumer experience — public APIs, dashboard, frontend
+---
+
+## 🛍️ Cart Optimization Pipeline
+
+Recommend the cheapest full cart, including cross-platform splits.
+
+```
+Input: Grocery list + platform state
+         │
+         ▼
+Enumerate Options
+(single platform vs multi-platform splits)
+         │
+         ▼
+Rank by Effective Cost
+         │
+         ▼
+Apply Constraints
+(membership, loyalty, minimums)
+         │
+         ▼
+Generate Recommendation
+         │
+         ▼
+Audit Trail & Replay Reference
+```
+
+**Completed:**
+- RFC and architecture design
+- Immutable request and result contracts
+- Identity builders
+- Request builder
+- Service layer
+- Orchestrator
+
+**In Progress:**
+- Optimization engine
+- Multi-platform recommendation logic
 
 ---
 
 ## 🚀 Quick Start
 
-### Running Locally with Docker
+### Docker (Recommended)
 
-Prerequisites: Docker Desktop with Compose enabled.
+Prerequisites: Docker Desktop with Compose.
 
 ```bash
+git clone https://github.com/neural-agi/Cartel-Smart-Cart-Optimizer.git
+cd Cartel-Smart-Cart-Optimizer
 docker compose up --build
 ```
 
-The API is available at `http://localhost:8000`. Check container health at
-`http://localhost:8000/health`; interactive API documentation is available at
-`http://localhost:8000/docs`.
+API: `http://localhost:8000`
+Docs: `http://localhost:8000/docs`
+Health: `http://localhost:8000/health`
 
-Stop the development environment with:
+Stop with:
 
 ```bash
 docker compose down
 ```
 
-### Prerequisites
-- Python 3.10+
-- Docker (optional but recommended)
+### Local Setup
 
-### Install
+Prerequisites: Python 3.12+
 
 ```bash
-git clone https://github.com/neural-agi/Cartel-Smart-Cart-Optimizer.git
-cd Cartel-Smart-Cart-Optimizer/backend
-cp .env.example .env
-# Edit .env — see docs/setup.md for required variables
+cd backend
+python -m venv venv
+source venv/bin/activate
 pip install -r requirements/dev.txt
-alembic upgrade head
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-Or with Docker:
+### Demo Scripts
 
-```bash
-docker compose up
-```
-
-### Run the Pipeline Demos
-
-The product intelligence pipeline runs against **real scraped Blinkit data** — no API keys or browser automation needed:
+Run the product intelligence pipeline against real Blinkit data (no API keys needed):
 
 ```bash
 python scripts/demo_evidence_registry.py
@@ -326,9 +323,7 @@ python scripts/demo_candidate_generation.py
 python scripts/demo_product_matching.py
 ```
 
-> Raw Blinkit HTML and structured JSON across **8 product categories** (milk, bread, rice, atta, biscuits, chips, soft drinks, shampoo) are included in `data/`.
-
-### Run Tests
+### Tests
 
 ```bash
 pytest backend/tests/ -v
@@ -336,14 +331,32 @@ pytest backend/tests/ -v
 
 ---
 
-## 📡 API Endpoints
+## 📸 Demos & Screenshots
 
-| Method | Endpoint | Description |
+### Planned Demo Assets
+
+The following demonstrations will be added as implementation progresses:
+
+- Live data ingestion
+- Product matching
+- Effective-cost computation
+- Cart optimization
+- Consumer web interface
+
+---
+
+## 📡 API
+
+Currently implemented endpoints:
+
+| Method | Endpoint | Purpose |
 |---|---|---|
-| `GET` | `/health` | Health check |
-| `GET` | `/api/v1/...` | v1 routes (see `backend/app/api/v1/`) |
+| `GET` | `/health` | Basic health check |
+| `GET` | `/api/v1/health` | API health check |
 
-Full API docs available at `http://localhost:8000/docs` once the backend is running.
+Interactive API documentation (Swagger UI) will be available at `http://localhost:8000/docs` once the backend is running.
+
+Additional endpoints will be introduced as implementation progresses across Cost Intelligence and Cart Optimization.
 
 ---
 
@@ -354,40 +367,41 @@ Cartel-Smart-Cart-Optimizer/
 │
 ├── backend/
 │   ├── app/
-│   │   ├── main.py
-│   │   ├── api/                      # FastAPI routers — v1, health, dependencies
-│   │   ├── core/                     # config, logging, security
-│   │   ├── db/                       # SQLAlchemy base/session + models (Alembic-managed)
-│   │   ├── normalization/            # pricing / products / units normalization
-│   │   ├── product_intelligence/     # the core matching engine
-│   │   │   ├── evidence/             # evidence registry — interfaces, service, storage
-│   │   │   ├── candidate_generation/ # ranking, strategies, service
-│   │   │   ├── matching/             # product + variant matching logic
-│   │   │   ├── assertions/           # deterministic assertion manager — revision history, supersession, canonical state
-│   │   │   ├── review/               # deterministic review queue — lifecycle management
-│   │   │   └── orchestrator/         # end-to-end pipeline orchestration
-│   │   ├── cost_intelligence/        # the cost evaluation engine
-│   │   │   ├── observation/          # checkout observation — checkout-time state capture
-│   │   │   ├── context/              # cost context — contextual model for evaluation
-│   │   │   ├── evaluation/           # shared evaluation contracts and result models
-│   │   │   ├── offer/                # deterministic offer evaluation
-│   │   │   └── shared/               # shared contracts and utilities across cost intelligence
-│   │   └── scrapers/
-│   │       ├── blinkit/              # fully implemented — parser, scraper, session
-│   │       ├── bigbasket/, zepto/    # scaffolded stubs — not yet implemented
-│   │       └── base/, utils/
+│   │   ├── api/                    # FastAPI routers
+│   │   ├── core/                   # config, logging, security
+│   │   ├── db/                     # database models and session management
+│   │   ├── cart_optimization/      # optimization contracts, identity, orchestration and service
+│   │   ├── cost_intelligence/      # effective-cost evaluation pipeline
+│   │   │   ├── observation/
+│   │   │   ├── context/
+│   │   │   ├── evaluation/
+│   │   │   ├── offer/
+│   │   │   └── shared/
+│   │   ├── data_ingestion/         # immutable ingestion contracts, enums and identity builders (Slice 1)
+│   │   ├── product_intelligence/   # deterministic product matching pipeline
+│   │   │   ├── evidence/
+│   │   │   ├── candidate_generation/
+│   │   │   ├── matching/
+│   │   │   ├── assertions/
+│   │   │   ├── review/
+│   │   │   └── orchestrator/
+│   │   ├── normalization/          # pricing / products / units normalization
+│   │   ├── schemas/                # shared pydantic models
+│   │   ├── scrapers/               # Blinkit scraper infrastructure
+│   │   │   ├── blinkit/            # Blinkit scraper (not yet live-integrated)
+│   │   │   └── base/               # scraper base contracts
+│   │   ├── utils/
+│   │   └── main.py
 │   ├── tests/
-│   └── requirements/, alembic.ini, Dockerfile, .env.example
+│   └── requirements/, Dockerfile, .env.example
 │
-├── data/
-│   ├── raw/blinkit/                  # scraped HTML + metadata, 8 product categories
-│   ├── cleaned/blinkit/              # structured JSON output
+├── data/                           # real production data
+│   ├── raw/blinkit/
+│   ├── cleaned/
 │   └── product_intelligence/
-│       └── evidence/blinkit/         # content-addressed evidence bundles (hash-keyed)
 │
-├── docs/                             # 40+ architecture and governance specifications
-├── scripts/                          # demo scripts + data extraction utilities
-├── frontend/, infra/, ml/            # long-horizon scaffolding — not yet implemented
+├── docs/                           # architecture & governance specs
+├── scripts/                        # demo scripts
 └── docker-compose.yml, LICENSE
 ```
 
@@ -395,52 +409,74 @@ Cartel-Smart-Cart-Optimizer/
 
 ## 📈 Project Metrics
 
-- **40+** architecture and governance specifications written before implementation
-- **Deterministic** end-to-end product intelligence pipeline
-- **Replayable** audit trail for every matching and assertion decision
-- **8 product categories** of real Blinkit production data included in the repository
-- **Complete** deterministic Product Intelligence pipeline
-- **Executable Cost Intelligence foundation** — Checkout Observation through Offer Evaluation
-- **Immutable value-object pipelines** across Product and Cost Intelligence
+- **40+** architecture and governance specifications
+- **Product Intelligence** implementation complete
+- **Cost Intelligence** core implementation in progress
+- **Cart Optimization** contracts, identity builders, request builder, orchestrator and service implemented; optimization engine in progress
+- **Real Data Ingestion** immutable contract layer implemented (Slice 1)
+- **Deterministic identity system** across products, carts and operational entities
+- **Immutable value contracts** throughout implemented pipelines
+- **164 automated tests**
 
 ---
 
 ## 📚 Documentation
 
-The `docs/` directory contains **40+ architecture and governance specifications** written before implementation — covering canonical product modeling, evidence corpus analysis, matching architecture, variant matching contracts, production safety reviews, and pathological scenario analysis.
+The `docs/` directory contains **40+ architecture and governance specifications**. Key starting points:
 
-**Key starting points:**
+**Core Architecture & Design:**
+- `docs/product_intelligence_design.md` — Product Intelligence system design
+- `docs/product_intelligence_pipeline.md` — Pipeline architecture  
+- `docs/canonical_product_schema.md` — Cross-platform product model
+- `docs/product_matching_architecture.md` — Product matching system design
+- `docs/variant_matching_architecture.md` — Variant matching in depth
 
-| Doc | What It Covers |
-|---|---|
-| `docs/product_intelligence_design.md` | Overall product intelligence design |
-| `docs/product_intelligence_pipeline.md` | Pipeline architecture |
-| `docs/product_matching_architecture.md` | Matching system design |
-| `docs/variant_matching_architecture.md` | Variant matching in depth |
-| `docs/canonical_product_schema.md` | The cross-platform product model |
-| `docs/research_analysis.md` | Cross-platform pricing research findings |
+**Implementation & System Details:**
+- `docs/product_intelligence_evidence_registry.md` — Evidence system design
+- `docs/product_intelligence_candidate_generation.md` — Candidate generation strategy
+- `docs/research_analysis.md` — Cross-platform pricing analysis and research findings
+
+**RFC & Contracts:**
+- `docs/architecture/real_data_ingestion_rfc.md` — Real Data Ingestion RFC
+- `docs/architecture/cart_optimization_contract.md` — Cart Optimization system contracts
+
+**Additional documentation** is located throughout `docs/` covering governance, testing strategies, and implementation details.
 
 ---
 
-## 👥 Who This Is For
+## 🤯 Why This Problem Is Harder Than It Looks
 
-**End users** *(once the consumer experience ships)* — anyone who buys groceries across Blinkit, Zepto, Instamart, or BigBasket and wants the actual cheapest option before checking out.
+Comparing grocery prices seems simple: `price1 < price2`. It's not.
 
-**Developers and contributors** — engineers interested in deterministic matching systems, quick-commerce data infrastructure, offer modeling, or building additional platform integrations.
+**The Variables:**
+- **Thresholds & Minimums** — Blinkit: free delivery >₹500. Zepto: >₹400. Same cart (₹450) has different effective cost on each platform.
+- **Offer Stacking** — "₹100 off >₹1000 + 10% cashback" (excludes some categories, expires after 3 uses). Eligibility depends on cart composition, user history, and time.
+- **Membership Pricing** — BigBasket Plus (₹299/mo) vs Zepto Silver (₹199). Some items 20% cheaper, some no discount. Must amortize membership cost.
+- **Split Carts** — Buying ₹300 from Blinkit + ₹200 from Zepto can be cheaper than ₹500 from one platform due to different fee thresholds.
+- **Location Pricing** — Same milk: ₹45 in Bangalore, ₹48 in Hyderabad. Zones affect pricing dynamically.
 
-**Researchers and analysts** — anyone studying quick-commerce pricing behavior, platform fee structures, or behavioral pricing mechanisms in Indian e-commerce.
+**Why Determinism Matters:**
+With this many variables interacting, approximation is useless. You need reproducible results, auditable decisions, and testable logic. That's what Cartel delivers.
+
+---
+
+**End users** — anyone buying groceries across Blinkit, Zepto, Instamart, or BigBasket who wants the actual cheapest option before checkout.
+
+**Developers** — engineers interested in deterministic matching systems, scrapers, immutable pipelines, or quick-commerce infrastructure.
+
+**Researchers** — anyone studying quick-commerce pricing, platform economics, or behavioral pricing in Indian e-commerce.
+
+**Teams building similar systems** — this architecture is designed to be forkable and extensible.
 
 ---
 
 ## 🎯 Current Focus
 
-Completing deterministic **Cost Intelligence**:
+**Real Data Ingestion Implementation** — Building live scraper integration with Blinkit, BigBasket, and Zepto (architecture & RFC complete).
 
-- Fee Evaluation
-- Membership Evaluation
-- Effective Cost computation
+**Cost Intelligence Implementation** — Fee evaluation and membership evaluation (context & offer evaluation complete).
 
-The foundation — Checkout Observation, Cost Context, Offer Evaluation, and Offer Evaluation Orchestration — is now complete. Finishing these three remaining pieces unlocks true cart optimization, the core promise of the project.
+**Cart Optimization** — optimization engine implementation in progress.
 
 ---
 
@@ -448,36 +484,34 @@ The foundation — Checkout Observation, Cost Context, Offer Evaluation, and Off
 
 | Phase | Focus | Status |
 |---|---|---|
-| 1 | Data Acquisition — Blinkit scraper, session management, raw extraction | ✅ Complete |
-| 2 | Product Intelligence Foundation — schemas, domain models, matching architecture | ✅ Complete |
-| 3 | Product Intelligence — evidence registry, candidate generation, matching | ✅ Complete |
-| 4 | Cost Intelligence Foundation — checkout observation, cost context, offer evaluation | ✅ Complete |
-| 5 | Cost Intelligence Evaluation — fee evaluation, membership evaluation, effective cost | 🚧 Active |
-| 6 | Cart Optimization — multi-platform comparison, cart splitting, cheapest-cart recommendation | 📋 Planned |
-| 7 | Platform Expansion — Zepto, BB Now, JioMart, Instamart | 📋 Planned |
-| 8 | Consumer Experience — public APIs, dashboard, frontend | 📋 Planned |
+| 1 | Real Data Ingestion Architecture & RFC | ✅ Complete |
+| 2 | Product Intelligence Foundation | ✅ Complete |
+| 3 | Product Intelligence Implementation | ✅ Complete |
+| 4 | Cost Intelligence Foundation | ✅ Complete |
+| 5 | Cost Intelligence Evaluation | 🚧 Active |
+| 6 | Effective Cost & Cart Optimization | 🚧 Planned |
+| 7 | Live Scraper Integration | 🚧 Planned |
+| 8 | Consumer Experience (API, Dashboard, Apps) | 📋 Planned |
 
 ---
 
 ## 🤝 Contributing
 
-Cartel is early — architecture decisions are still being made, and contributing now shapes the foundation.
+Cartel is early — architecture decisions are being made, and contributing now shapes the foundation.
 
-**Ground rules:**
-- **Open an issue before a large PR** so design decisions stay consistent with existing governance contracts
-- **Tests are required** — PRs that reduce coverage don't merge
-- **Read the relevant `docs/` spec** before contributing to a module — it saves significant back-and-forth
+**Before contributing:**
+- Read the relevant RFC in `docs/` — architecture comes first, implementation second
+- Open an issue for large PRs to discuss design
+- Tests are required — PRs that reduce coverage don't merge
 
-**Best entry points for contributors right now:**
+**Best entry points:**
 
-| Area | Why It's Accessible |
+| Area | What's Needed |
 |---|---|
-| 🌐 **Platform scrapers** (Zepto, BB Now, JioMart, Instamart) | Base contracts are defined — well-scoped, clear interface |
-| 💰 **Cost Intelligence** | Fee Evaluation and Membership Evaluation are the active focus |
-| 🧪 **Test coverage** | Always welcome across all modules |
-| 📚 **Documentation** | `CONTRIBUTING.md` + `docs/setup.md` in progress — contributions welcome |
-
-A full `CONTRIBUTING.md` with development setup, environment variable documentation, architecture orientation, and extension guides is coming shortly. In the meantime, open an issue and ask.
+| 🌐 **Live scrapers** | BigBasket, Zepto, JioMart, Instamart integrations |
+| 💰 **Cost Intelligence** | Fee evaluation and membership evaluation |
+| 🧪 **Tests** | Always welcome across all modules |
+| 📚 **Docs** | Architecture specs, setup guides, examples |
 
 ---
 
@@ -499,7 +533,7 @@ MIT — see [LICENSE](LICENSE).
 
 <div align="center">
 
-Built by [@neural-agi](https://github.com/neural-agi)
+Created and maintained by [@neural-agi](https://github.com/neural-agi)
 
 [![GitHub stars](https://img.shields.io/github/stars/neural-agi/Cartel-Smart-Cart-Optimizer?style=social)](https://github.com/neural-agi/Cartel-Smart-Cart-Optimizer)
 [![GitHub forks](https://img.shields.io/github/forks/neural-agi/Cartel-Smart-Cart-Optimizer?style=social)](https://github.com/neural-agi/Cartel-Smart-Cart-Optimizer/fork)
