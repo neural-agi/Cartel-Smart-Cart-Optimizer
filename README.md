@@ -277,6 +277,24 @@ flowchart TD
 
 ## 🚀 Quick Start
 
+### Running Locally with Docker
+
+Prerequisites: Docker Desktop with Compose enabled.
+
+```bash
+docker compose up --build
+```
+
+The API is available at `http://localhost:8000`. Check container health at
+`http://localhost:8000/health`; interactive API documentation is available at
+`http://localhost:8000/docs`.
+
+Stop the development environment with:
+
+```bash
+docker compose down
+```
+
 ### Prerequisites
 - Python 3.10+
 - Docker (optional but recommended)

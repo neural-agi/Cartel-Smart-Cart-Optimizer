@@ -1,6 +1,46 @@
-version: "3.9"
-
 services:
+  api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      APP_NAME: Cartel
+      APP_ENV: development
+      APP_DEBUG: "true"
+      APP_VERSION: 0.1.0
+      API_V1_PREFIX: /api/v1
+      LOG_LEVEL: INFO
+      LOG_JSON: "true"
+      DOCS_ENABLED: "true"
+      DATA_DIR: /app/data
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: cartel
+      POSTGRES_USER: cartel
+      POSTGRES_PASSWORD: cartel
+      REDIS_URL: redis://redis:6379/0
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - cartel
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://localhost:8000/health')
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
   postgres:
     image: postgres:16
     environment:
@@ -9,8 +49,26 @@ services:
       POSTGRES_PASSWORD: cartel
     ports:
       - "5432:5432"
+    networks:
+      - cartel
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cartel -d cartel"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   redis:
     image: redis:7
     ports:
       - "6379:6379"
+    networks:
+      - cartel
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+networks:
+  cartel:
+    driver: bridge
