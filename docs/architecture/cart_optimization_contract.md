@@ -74,6 +74,8 @@ A candidate plan is an immutable aggregate containing:
 - checkout grouping;
 - links to effective-cost evaluations;
 - links to applicable constraints;
+- explicit `inconvenience_penalty_units`;
+- explicit `retailer_preference_priority`;
 - feasibility state;
 - unresolved components;
 - provenance references.
@@ -82,7 +84,24 @@ Each requested item allocation must identify the canonical product variant, reta
 
 Candidate plans must not contain raw observations or independently recalculated costs.
 
+`inconvenience_penalty_units` and `retailer_preference_priority` are explicit plan inputs. The optimizer must never derive either value from checkout count, retailer names, fees, or allocation shape. They are required plan attributes and participate in plan identity because changing either can change ranking or selection.
+
+Each candidate plan must contain exactly one plan-level effective-cost evaluation linkage representing the complete plan cost. Checkout groups may retain contextual references, but the optimizer must not sum or otherwise aggregate multiple effective-cost results.
+
 The optimizer consumes the supplied candidate-plan set. Candidate-plan generation, substitution generation, and split-cart enumeration are upstream responsibilities.
+
+Effective-cost linkage validity is deterministic:
+
+- zero linked evaluations: `INVALID`;
+- exactly one valid linkage: eligible for plan validation;
+- duplicate references: `INVALID`;
+- multiple linked evaluations: `INVALID`;
+- dangling linkage: `INVALID`;
+- duplicate evaluation IDs in the request: request validation fails closed as `INVALID`.
+
+Invalid linkage is a structural contract failure, not an unresolved business outcome. The linked result must have a known `effective_cost` and no decision-relevant unknown component for the plan to be `FEASIBLE`. A missing or unknown effective cost makes the plan `UNRESOLVED`. A plan declared `FEASIBLE` while its linked result is missing, unknown, or contains decision-relevant unknowns is `INVALID`.
+
+All linked effective-cost results in one request must use the same currency. Currency mismatch makes the request `INVALID`; the optimizer must not convert currencies.
 
 ## CandidatePlanCoverage
 
@@ -138,6 +157,8 @@ A plan is `INFEASIBLE` when a requirement or hard constraint is deterministicall
 
 A plan is `UNRESOLVED` when feasibility cannot be proven because required information is unknown.
 
+A plan is `INVALID` when its structure violates this contract, including invalid effective-cost linkage. `INVALID` is a structural validation state, not a business decision. An invalid request fails closed and must not produce a recommendation or optimization outcome.
+
 Unknown availability, fees, offers, memberships, or payable costs must never be treated as zero, false, or absent.
 
 Only feasible plans may be selected.
@@ -156,6 +177,8 @@ Ranking is deterministic and lexicographic:
 Relative ranking does not change the candidate coverage state. Ranking available candidates under incomplete coverage is descriptive only.
 
 No hidden heuristic, insertion-order behavior, or implicit preference is permitted.
+
+The comparison uses the single linked plan-level effective cost. Effective-cost aggregation across multiple results is never permitted in Cart Optimization.
 
 ## Recommendation
 
@@ -195,6 +218,7 @@ Request identity includes:
 - canonical cart item identities and quantities;
 - canonical candidate-plan identities;
 - canonical constraint values;
+- explicit plan-level ranking attributes;
 - linked effective-cost evaluation identities;
 - `optimization_policy_version`.
 

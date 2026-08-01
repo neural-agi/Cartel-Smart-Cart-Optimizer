@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.cart_optimization.enums import (
     ConstraintHardness,
@@ -64,6 +64,13 @@ class EffectiveCostEvaluationReference(BaseModel):
 
     effective_cost_evaluation_id: str
 
+    @field_validator("effective_cost_evaluation_id")
+    @classmethod
+    def _require_reference(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("effective-cost evaluation reference is required")
+        return value
+
 
 class OptimizationConstraintReference(BaseModel):
     """Immutable identity reference to one optimization constraint."""
@@ -71,6 +78,13 @@ class OptimizationConstraintReference(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     optimization_constraint_id: str
+
+    @field_validator("optimization_constraint_id")
+    @classmethod
+    def _require_reference(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("optimization constraint reference is required")
+        return value
 
 
 class BudgetConstraint(BaseModel):
@@ -175,12 +189,12 @@ class CandidatePlan(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     plan_id: str
+    inconvenience_penalty_units: int
+    retailer_preference_priority: int
     retailer_allocations: tuple[RetailerAllocation, ...] = Field(default_factory=tuple)
     item_allocations: tuple[ItemAllocation, ...] = Field(default_factory=tuple)
     checkout_groups: tuple[CheckoutGroup, ...] = Field(default_factory=tuple)
-    effective_cost_evaluation_references: tuple[EffectiveCostEvaluationReference, ...] = Field(
-        default_factory=tuple
-    )
+    effective_cost_evaluation_reference: EffectiveCostEvaluationReference
     constraint_references: tuple[OptimizationConstraintReference, ...] = Field(
         default_factory=tuple
     )
@@ -214,6 +228,13 @@ class CartOptimizationRequest(BaseModel):
         default_factory=tuple
     )
     provenance_references: tuple[EvidenceReference, ...] = Field(default_factory=tuple)
+
+    @model_validator(mode="after")
+    def _validate_evaluation_ids(self) -> "CartOptimizationRequest":
+        evaluation_ids = [item.evaluation_id for item in self.effective_cost_evaluations]
+        if len(evaluation_ids) != len(set(evaluation_ids)):
+            raise ValueError("duplicate effective-cost evaluation IDs are invalid")
+        return self
 
 
 class CartOptimizationResult(BaseModel):

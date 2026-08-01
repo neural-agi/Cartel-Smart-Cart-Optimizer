@@ -12,6 +12,7 @@ class PlanFeasibility(StrEnum):
     FEASIBLE = "feasible"
     INFEASIBLE = "infeasible"
     UNRESOLVED = "unresolved"
+    INVALID = "invalid"
 
 
 class OptimizationOutcome(StrEnum):
