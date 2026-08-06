@@ -22,7 +22,7 @@
 
 <br/>
 
-**[🤔 Why This Exists](#-why-this-exists) · [✨ Architecture](#-layered-architecture) · [🏗 Real Data Ingestion](#-real-data-ingestion) · [🚀 Quick Start](#-quick-start) · [🗺 Roadmap](#-roadmap) · [🤝 Contributing](#-contributing)**
+**[🤔 Why This Exists](#-why-this-exists) · [✨ Architecture](#-layered-architecture) · [🔬 Pipelines](#-product-intelligence-pipeline) · [🚀 Quick Start](#-quick-start) · [📡 API](#-api) · [📚 Documentation](#-documentation) · [🗺 Roadmap](#-roadmap)**
 
 </div>
 
@@ -34,7 +34,7 @@ Every grocery price-comparison tool compares the same thing: the price printed o
 
 What you *actually* pay depends on delivery fees, handling charges, platform fees, cashback, loyalty pricing, coupon stacking rules, minimum-order thresholds, membership pricing, and free-item promotions that activate or expire depending on what's already in your cart.
 
-Research across **Blinkit, BB Now, Zepto, Instamart, and JioMart** confirmed the problem is structural, not incidental:
+Research (see [`docs/research_analysis.md`](docs/research_analysis.md)) across **Blinkit, BB Now, Zepto, Instamart, and JioMart** confirmed the problem is structural, not incidental:
 
 - **The cart is the unit of optimization, not the product.** Comparing item prices in isolation misses fees and thresholds that only resolve at checkout.
 - **Identical products are represented differently across platforms** — naive price-scraping silently compares the wrong things.
@@ -73,7 +73,7 @@ Cartel is built around principles that mature engineering teams recognize immedi
 - **Replayable decisions** — every matching and pricing decision can be reproduced and inspected, not just trusted
 - **Evidence-backed reasoning** — every match traces back to the raw source data that justified it
 - **Fail-closed validation** — invalid inputs are rejected explicitly rather than silently degraded
-- **Immutable audit trails** — decision records are append-only and tamper-evident
+- **Immutable audit trails** — decision records are append-only and designed for auditability
 - **Explicit governance contracts** — matching rules are declared, versioned, and enforced, not implicit
 - **Contract-first architecture** — every component defines its input/output contract before implementation
 - **Deterministic identities** — products, carts, and decisions have stable, reproducible identifiers
@@ -84,7 +84,7 @@ Cartel is built around principles that mature engineering teams recognize immedi
 
 ## 🏗 Layered Architecture
 
-Cartel is built as four independent, composable layers:
+Cartel is structured as four composable layers with explicit boundaries:
 
 ```
 Layer 4: Cart Optimization
@@ -114,7 +114,7 @@ What makes Cartel fundamentally different from typical e-commerce projects:
 - **Deterministic architecture** — same inputs always produce same outputs, no hidden state
 - **Replayable operations** — every scrape, match, and cost computation can be replayed from stored artifacts
 - **Immutable contracts** — every layer defines its input/output contract as immutable value objects
-- **Audit-first design** — every operation is logged, checksummed, and reproducible
+- **Audit-first design** — operations are designed to be logged, checksummed, and reproducible
 - **Contract-first development** — architecture RFCs define contracts before implementation
 - **Evidence-backed decisions** — every product match links back to source data that justified it
 
@@ -196,7 +196,7 @@ Pipeline Orchestrator
 Canonical Product Intelligence
 ```
 
-**Status: ✅ Complete**
+**Status: ✅ Core Implementation Complete**
 
 Every stage consumes immutable governed inputs and produces deterministic, replayable outputs with a complete audit trail.
 
@@ -288,6 +288,7 @@ Prerequisites: Docker Desktop with Compose.
 ```bash
 git clone https://github.com/neural-agi/Cartel-Smart-Cart-Optimizer.git
 cd Cartel-Smart-Cart-Optimizer
+cp .env.example .env
 docker compose up --build
 ```
 
@@ -303,7 +304,7 @@ docker compose down
 
 ### Local Setup
 
-Prerequisites: Python 3.12+
+Prerequisites: Python 3.12
 
 ```bash
 cd backend
@@ -324,6 +325,8 @@ python scripts/demo_product_matching.py
 ```
 
 ### Tests
+
+Run from the repository root (if you're still inside `backend/` from local setup, `cd ..` first):
 
 ```bash
 pytest backend/tests/ -v
@@ -376,6 +379,10 @@ Cartel-Smart-Cart-Optimizer/
 │   │   │   ├── context/
 │   │   │   ├── evaluation/
 │   │   │   ├── offer/
+│   │   │   ├── fee/
+│   │   │   ├── membership/
+│   │   │   ├── effective_cost/
+│   │   │   ├── pipeline/
 │   │   │   └── shared/
 │   │   ├── data_ingestion/         # immutable ingestion contracts, enums and identity builders (Slice 1)
 │   │   ├── product_intelligence/   # deterministic product matching pipeline
@@ -387,15 +394,18 @@ Cartel-Smart-Cart-Optimizer/
 │   │   │   └── orchestrator/
 │   │   ├── normalization/          # pricing / products / units normalization
 │   │   ├── schemas/                # shared pydantic models
-│   │   ├── scrapers/               # Blinkit scraper infrastructure
+│   │   ├── scrapers/               # scraper infrastructure
 │   │   │   ├── blinkit/            # Blinkit scraper (not yet live-integrated)
-│   │   │   └── base/               # scraper base contracts
+│   │   │   ├── bigbasket/          # integration placeholder
+│   │   │   ├── zepto/              # integration placeholder
+│   │   │   ├── base/               # scraper base contracts
+│   │   │   └── utils/
 │   │   ├── utils/
 │   │   └── main.py
 │   ├── tests/
 │   └── requirements/, Dockerfile, .env.example
 │
-├── data/                           # real production data
+├── data/                           # scraped and derived data artifacts
 │   ├── raw/blinkit/
 │   ├── cleaned/
 │   └── product_intelligence/
@@ -449,16 +459,18 @@ The `docs/` directory contains **40+ architecture and governance specifications*
 Comparing grocery prices seems simple: `price1 < price2`. It's not.
 
 **The Variables:**
-- **Thresholds & Minimums** — Blinkit: free delivery >₹500. Zepto: >₹400. Same cart (₹450) has different effective cost on each platform.
-- **Offer Stacking** — "₹100 off >₹1000 + 10% cashback" (excludes some categories, expires after 3 uses). Eligibility depends on cart composition, user history, and time.
-- **Membership Pricing** — BigBasket Plus (₹299/mo) vs Zepto Silver (₹199). Some items 20% cheaper, some no discount. Must amortize membership cost.
-- **Split Carts** — Buying ₹300 from Blinkit + ₹200 from Zepto can be cheaper than ₹500 from one platform due to different fee thresholds.
-- **Location Pricing** — Same milk: ₹45 in Bangalore, ₹48 in Hyderabad. Zones affect pricing dynamically.
+- **Thresholds & Minimums** — Platforms apply different free-delivery thresholds, so the same cart subtotal can produce different effective costs depending on which platform's threshold it crosses.
+- **Offer Stacking** — "₹100 off cart >₹1000 + 10% cashback" (excludes some categories, expires after 3 uses). Eligibility depends on cart composition, user history, and time.
+- **Membership Pricing** — Paid membership tiers reduce prices on some items and not others, so effective cost must account for membership fees amortized across purchases.
+- **Split Carts** — Splitting a purchase across two platforms can be cheaper than buying everything from one, because different platforms cross fee thresholds at different subtotals.
+- **Location Pricing** — The same product can be priced differently across delivery zones, so location affects effective cost even for identical carts.
 
 **Why Determinism Matters:**
 With this many variables interacting, approximation is useless. You need reproducible results, auditable decisions, and testable logic. That's what Cartel delivers.
 
 ---
+
+## 👥 Who Cartel Is For
 
 **End users** — anyone buying groceries across Blinkit, Zepto, Instamart, or BigBasket who wants the actual cheapest option before checkout.
 
@@ -489,8 +501,8 @@ With this many variables interacting, approximation is useless. You need reprodu
 | 3 | Product Intelligence Implementation | ✅ Complete |
 | 4 | Cost Intelligence Foundation | ✅ Complete |
 | 5 | Cost Intelligence Evaluation | 🚧 Active |
-| 6 | Effective Cost & Cart Optimization | 🚧 Planned |
-| 7 | Live Scraper Integration | 🚧 Planned |
+| 6 | Effective Cost & Cart Optimization | 🚧 Active |
+| 7 | Live Scraper Integration | 🚧 Active |
 | 8 | Consumer Experience (API, Dashboard, Apps) | 📋 Planned |
 
 ---
