@@ -1,37 +1,19 @@
 "use client";
 
-import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Minus, Plus, ShoppingCart, Trash2 } from "lucide-react";
 
 import AppShell from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/button";
-
-interface CartItem {
-  id: string;
-  name: string;
-  pack: string;
-  quantity: number;
-  unitPriceMinorUnits?: number;
-}
-
-const initialItems: CartItem[] = [];
+import { useCartStore } from "@/store/cartStore";
 
 export default function CartPage() {
   const router = useRouter();
-  const [items, setItems] = useState<CartItem[]>(initialItems);
-
-  const updateQuantity = (id: string, change: number) => {
-    setItems((currentItems) =>
-      currentItems
-        .map((item) => (item.id === id ? { ...item, quantity: item.quantity + change } : item))
-        .filter((item) => item.quantity > 0),
-    );
-  };
-
-  const removeItem = (id: string) => {
-    setItems((currentItems) => currentItems.filter((item) => item.id !== id));
-  };
+  const items = useCartStore((state) => state.items);
+  const increaseQuantity = useCartStore((state) => state.increaseQuantity);
+  const decreaseQuantity = useCartStore((state) => state.decreaseQuantity);
+  const removeItem = useCartStore((state) => state.removeItem);
+  const clearCart = useCartStore((state) => state.clearCart);
 
   return (
     <AppShell>
@@ -61,20 +43,20 @@ export default function CartPage() {
               <h2 id="cart-items-heading" className="text-lg font-semibold">Cart items</h2>
               <div className="divide-y divide-border rounded-2xl border border-border bg-card px-5">
                 {items.map((item) => (
-                  <article key={item.id} className="flex items-center justify-between gap-4 py-5">
+                  <article key={item.itemId} className="flex items-center justify-between gap-4 py-5">
                     <div className="min-w-0">
-                      <h3 className="truncate font-medium">{item.name}</h3>
-                      <p className="mt-1 text-sm text-muted-foreground">{item.pack}</p>
+                      <h3 className="truncate font-medium">{item.product.name}</h3>
+                      <p className="mt-1 text-sm text-muted-foreground">{item.product.pack ?? "Pack information unavailable"}</p>
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
-                      <Button variant="outline" size="icon-sm" aria-label={`Decrease ${item.name} quantity`} onClick={() => updateQuantity(item.id, -1)}>
+                      <Button variant="outline" size="icon-sm" aria-label={`Decrease ${item.product.name} quantity`} onClick={() => decreaseQuantity(item.itemId)}>
                         <Minus className="h-4 w-4" aria-hidden="true" />
                       </Button>
                       <span className="w-6 text-center text-sm font-medium">{item.quantity}</span>
-                      <Button variant="outline" size="icon-sm" aria-label={`Increase ${item.name} quantity`} onClick={() => updateQuantity(item.id, 1)}>
+                      <Button variant="outline" size="icon-sm" aria-label={`Increase ${item.product.name} quantity`} onClick={() => increaseQuantity(item.itemId)}>
                         <Plus className="h-4 w-4" aria-hidden="true" />
                       </Button>
-                      <Button variant="ghost" size="icon-sm" aria-label={`Remove ${item.name}`} onClick={() => removeItem(item.id)}>
+                      <Button variant="ghost" size="icon-sm" aria-label={`Remove ${item.product.name}`} onClick={() => removeItem(item.itemId)}>
                         <Trash2 className="h-4 w-4" aria-hidden="true" />
                       </Button>
                     </div>
@@ -84,7 +66,10 @@ export default function CartPage() {
             </section>
 
             <aside className="h-fit rounded-2xl border border-border bg-card p-5">
-              <h2 className="font-semibold">Cart summary</h2>
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="font-semibold">Cart summary</h2>
+                <Button variant="ghost" size="sm" onClick={clearCart}>Clear cart</Button>
+              </div>
               <div className="mt-5 flex items-center justify-between border-t border-border pt-4 text-sm">
                 <span className="text-muted-foreground">Subtotal</span>
                 <span>To be calculated</span>
