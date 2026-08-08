@@ -5,21 +5,19 @@ import { Search as SearchIcon, X } from "lucide-react";
 
 import AppShell from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/button";
-
-interface ProductResult {
-  id: string;
-  name: string;
-  pack: string;
-  retailer: string;
-  priceMinorUnits?: number;
-}
-
-const productResults: ProductResult[] = [];
+import { productSearchService, type ProductSearchResult } from "@/services/productSearch";
+import { useCartStore } from "@/store/cartStore";
 
 export default function SearchPage() {
   const [query, setQuery] = useState("");
+  const [searchResult, setSearchResult] = useState<ProductSearchResult | null>(null);
+  const addItem = useCartStore((state) => state.addItem);
 
   const hasQuery = query.trim().length > 0;
+
+  const submitSearch = async () => {
+    setSearchResult(await productSearchService.search(query));
+  };
 
   return (
     <AppShell>
@@ -34,7 +32,10 @@ export default function SearchPage() {
 
         <form
           role="search"
-          onSubmit={(event) => event.preventDefault()}
+          onSubmit={(event) => {
+            event.preventDefault();
+            void submitSearch();
+          }}
           className="flex items-center gap-3 rounded-2xl border border-border bg-card p-2 focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/20"
         >
           <SearchIcon className="ml-3 h-5 w-5 shrink-0 text-muted-foreground" aria-hidden="true" />
@@ -51,7 +52,10 @@ export default function SearchPage() {
               variant="ghost"
               size="icon-sm"
               aria-label="Clear search"
-              onClick={() => setQuery("")}
+              onClick={() => {
+                setQuery("");
+                setSearchResult(null);
+              }}
             >
               <X className="h-4 w-4" aria-hidden="true" />
             </Button>
@@ -66,29 +70,35 @@ export default function SearchPage() {
                 {hasQuery ? "Search results" : "Products"}
               </h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                {hasQuery ? "Product search will appear here when the catalog is connected." : "Search to begin building your cart."}
+                {hasQuery
+                  ? searchResult?.status === "unwired"
+                    ? "Search is not connected to a product endpoint yet."
+                    : "Product search results will appear here."
+                  : "Search to begin building your cart."}
               </p>
             </div>
           </div>
 
-          {productResults.length === 0 ? (
+          {searchResult?.products.length === 0 || !searchResult ? (
             <div className="rounded-2xl border border-dashed border-border bg-card/50 px-6 py-16 text-center">
               <SearchIcon className="mx-auto h-8 w-8 text-muted-foreground/60" aria-hidden="true" />
               <h3 className="mt-4 font-semibold">No products to show yet</h3>
               <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted-foreground">
                 {hasQuery
-                  ? "Your search is ready. Results will appear here once product data is available."
+                  ? searchResult?.status === "unwired"
+                    ? "The service boundary is ready; real Product Intelligence search is not wired yet."
+                    : "Your search is ready. Results will appear here once product data is available."
                   : "Enter a grocery item above to search the catalog."}
               </p>
             </div>
           ) : (
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              {productResults.map((product) => (
-                <article key={product.id} className="rounded-2xl border border-border bg-card p-5">
-                  <p className="text-xs text-muted-foreground">{product.retailer}</p>
+              {searchResult?.products.map((product) => (
+                <article key={product.variantId ?? product.listingId ?? product.productId} className="rounded-2xl border border-border bg-card p-5">
+                  <p className="text-xs text-muted-foreground">{product.platform}</p>
                   <h3 className="mt-3 font-semibold">{product.name}</h3>
-                  <p className="mt-1 text-sm text-muted-foreground">{product.pack}</p>
-                  <Button className="mt-5 w-full" disabled>
+                  <p className="mt-1 text-sm text-muted-foreground">{product.pack ?? "Pack information unavailable"}</p>
+                  <Button className="mt-5 w-full" onClick={() => addItem(product)}>
                     Add to cart
                   </Button>
                 </article>
