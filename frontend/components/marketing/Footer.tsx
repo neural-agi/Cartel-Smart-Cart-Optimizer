@@ -1,9 +1,10 @@
 import Link from "next/link";
 
 const navigation = [
-  { name: "Features", href: "/features" },
-  { name: "Roadmap", href: "/roadmap" },
-  { name: "Docs", href: "/docs" },
+  { name: "Features", href: "/#features" },
+  { name: "How it Works", href: "/#how-it-works" },
+  { name: "Pricing", href: "/#pricing" },
+  { name: "FAQ", href: "/#faq" },
   { name: "GitHub", href: "https://github.com/neural-agi/Cartel-Smart-Cart-Optimizer" },
 ];
 

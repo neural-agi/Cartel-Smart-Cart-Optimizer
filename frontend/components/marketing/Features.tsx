@@ -34,7 +34,7 @@ const features = [
 
 export default function Features() {
   return (
-    <section className="mx-auto max-w-7xl px-6 py-24">
+    <section id="features" className="mx-auto max-w-7xl px-6 py-24">
       <div className="mx-auto max-w-3xl text-center">
         <h2 className="text-4xl font-bold tracking-tight md:text-5xl">
           Why use Cartel?

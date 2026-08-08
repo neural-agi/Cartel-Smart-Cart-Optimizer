@@ -12,11 +12,10 @@ import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 
 const navigation = [
-  { name: "Features", href: "/features" },
+  { name: "Features", href: "/#features" },
   { name: "How it Works", href: "/#how-it-works" },
-  { name: "Roadmap", href: "/roadmap" },
-  { name: "Docs", href: "/docs" },
   { name: "Pricing", href: "/#pricing" },
+  { name: "FAQ", href: "/#faq" },
 ];
 
 export default function Navbar() {
