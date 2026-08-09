@@ -88,3 +88,10 @@ class JobState(StrEnum):
     FAILED = "FAILED"
     BLOCKED = "BLOCKED"
     INVALID = "INVALID"
+
+
+class CompletenessState(StrEnum):
+    COMPLETE = "COMPLETE"
+    PARTIAL = "PARTIAL"
+    EMPTY = "EMPTY"
+    UNKNOWN = "UNKNOWN"

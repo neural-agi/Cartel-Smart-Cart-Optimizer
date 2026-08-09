@@ -7,7 +7,7 @@ import json
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from app.data_ingestion.types import ReplayReference, ScrapeJob
+    from app.data_ingestion.types import ParsedRetailObservationBatch, ReplayReference, ScrapeJob
 
 
 def _digest(payload: dict[str, Any]) -> str:
@@ -73,3 +73,11 @@ class ReplayReferenceIdentityBuilder:
 
     def replay_id(self, reference: "ReplayReference") -> str:
         return _digest(self.build(reference))
+
+
+class ParsedObservationBatchIdentityBuilder:
+    def batch_id(self, batch: "ParsedRetailObservationBatch") -> str:
+        return _digest({
+            "artifact_id": batch.raw_artifact_reference.artifact_id,
+            "parser_version": batch.parser_version,
+        })
