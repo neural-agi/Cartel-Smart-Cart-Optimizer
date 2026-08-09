@@ -34,12 +34,28 @@ class BlinkitProductParser:
         )
         return result
 
+    def parse_content(
+        self,
+        payload: bytes,
+        *,
+        query: str | None = None,
+        source_reference: str,
+    ) -> RawExtractionResult:
+        """Parse captured UTF-8 HTML without introducing a filesystem path."""
+        html = payload.decode("utf-8")
+        return self.parse_html(
+            html,
+            query=query,
+            source_reference=source_reference,
+        )
+
     def parse_html(
         self,
         html: str,
         *,
-        source_path: Path,
+        source_path: Path | None = None,
         query: str | None = None,
+        source_reference: str | None = None,
     ) -> RawExtractionResult:
         soup = BeautifulSoup(html, "html.parser")
         products: list[RawExtractedProduct] = []
@@ -65,6 +81,7 @@ class BlinkitProductParser:
         return RawExtractionResult(
             query=query,
             source_path=source_path,
+            source_reference=source_reference,
             extracted_at=datetime.now(timezone.utc),
             product_count=len(products),
             products=products,
@@ -76,7 +93,8 @@ class BlinkitProductParser:
         target_dir.mkdir(parents=True, exist_ok=True)
 
         timestamp = result.extracted_at.strftime("%Y%m%dT%H%M%SZ")
-        query_slug = self._slugify(result.query or result.source_path.stem)
+        source_name = result.source_path.stem if result.source_path is not None else "capture"
+        query_slug = self._slugify(result.query or source_name)
         output_path = target_dir / f"{timestamp}_{query_slug}.json"
         output_path.write_text(
             json.dumps(result.model_dump(mode="json"), indent=2, ensure_ascii=False),
