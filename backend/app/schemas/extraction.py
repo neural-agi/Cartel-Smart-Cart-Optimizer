@@ -21,7 +21,8 @@ class RawExtractedProduct(BaseModel):
 class RawExtractionResult(BaseModel):
     platform: str = "blinkit"
     query: str | None = None
-    source_path: Path
+    source_path: Path | None = None
+    source_reference: str | None = None
     extracted_at: datetime
     product_count: int = Field(ge=0)
     products: list[RawExtractedProduct]
