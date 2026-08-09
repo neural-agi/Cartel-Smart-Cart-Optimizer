@@ -42,6 +42,7 @@ def test_bridge_maps_raw_blinkit_fields_and_preserves_artifact() -> None:
     assert observation.availability_signal == "in_stock"
     assert observation.offer_text == "₹20 OFF"
     assert batch.completeness.state.value == "COMPLETE"
+    assert batch.parser_version == "blinkit-parser-v1"
 
 
 def test_batch_identity_uses_artifact_and_parser_version_only() -> None:

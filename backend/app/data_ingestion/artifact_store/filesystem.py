@@ -14,8 +14,7 @@ from app.data_ingestion.artifact_store.exceptions import (
     CorruptArtifact,
     InvalidStorageReference,
 )
-from app.data_ingestion.artifact_store.interface import ArtifactStore, StorageReference
-from app.data_ingestion.types import RawArtifactReference
+from app.data_ingestion.artifact_store.interface import ArtifactPublicationRequest, ArtifactStore, StorageReference
 
 
 class LocalFilesystemArtifactStore(ArtifactStore):
@@ -31,15 +30,15 @@ class LocalFilesystemArtifactStore(ArtifactStore):
         except OSError as exc:
             raise ArtifactStorageFailure("could not initialize artifact store") from exc
 
-    def store(self, artifact: RawArtifactReference, payload: bytes) -> StorageReference:
-        artifact_id = self._validate_artifact_id(artifact.artifact_id)
+    def store(self, request: ArtifactPublicationRequest, payload: bytes) -> StorageReference:
+        artifact_id = self._validate_artifact_id(request.artifact_id)
         if not isinstance(payload, bytes):
             raise ArtifactStorageFailure("artifact payload must be bytes")
         digest = hashlib.sha256(payload).hexdigest()
-        if digest != artifact.content_digest:
+        if digest != request.content_digest:
             raise ArtifactStorageFailure("payload digest does not match artifact reference")
 
-        reference = self._reference(artifact, digest)
+        reference = self._reference(request, digest)
         payload_path, metadata_path = self._paths(artifact_id)
         try:
             if payload_path.exists() or metadata_path.exists():
@@ -92,15 +91,15 @@ class LocalFilesystemArtifactStore(ArtifactStore):
         except OSError as exc:
             raise ArtifactStorageFailure("artifact existence check failed") from exc
 
-    def _reference(self, artifact: RawArtifactReference, digest: str) -> StorageReference:
-        reference_id = self._reference_id(self._store_namespace, artifact.artifact_id, digest)
+    def _reference(self, request: ArtifactPublicationRequest, digest: str) -> StorageReference:
+        reference_id = self._reference_id(self._store_namespace, request.artifact_id, digest)
         return StorageReference(
             storage_reference_id=reference_id,
-            artifact_id=artifact.artifact_id,
+            artifact_id=request.artifact_id,
             store_namespace=self._store_namespace,
             storage_backend="local_filesystem",
             content_digest=digest,
-            content_type=artifact.content_type,
+            content_type=request.content_type,
         )
 
     @staticmethod

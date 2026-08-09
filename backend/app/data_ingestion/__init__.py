@@ -10,6 +10,7 @@ from app.data_ingestion.enums import (
     Platform,
 )
 from app.data_ingestion.types import (
+    AcquisitionResult,
     CaptureCoverage,
     CaptureContext,
     JobCancellation,
@@ -24,10 +25,18 @@ from app.data_ingestion.types import (
     RequestParameters,
     ScrapeAttempt,
     ScrapeJob,
+    IngestionWorkerResult,
+    NormalizedObservation,
+)
+from app.data_ingestion.observation_registry import (
+    InMemoryObservationRegistry,
+    ObservationRegistrationConflict,
+    ObservationRegistry,
 )
 
 __all__ = [
     "AttemptOutcome",
+    "AcquisitionResult",
     "CaptureContext",
     "CaptureCoverage",
     "CaptureType",
@@ -44,8 +53,13 @@ __all__ = [
     "ObservationFieldReference",
     "ParsedRetailObservation",
     "ParsedRetailObservationBatch",
+    "IngestionWorkerResult",
+    "NormalizedObservation",
     "ReplayReference",
     "RequestParameters",
     "ScrapeAttempt",
     "ScrapeJob",
+    "InMemoryObservationRegistry",
+    "ObservationRegistrationConflict",
+    "ObservationRegistry",
 ]

@@ -7,7 +7,7 @@ import json
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from app.data_ingestion.types import ParsedRetailObservationBatch, ReplayReference, ScrapeJob
+    from app.data_ingestion.types import NormalizedObservation, ParsedRetailObservationBatch, ReplayReference, ScrapeJob
 
 
 def _digest(payload: dict[str, Any]) -> str:
@@ -81,3 +81,30 @@ class ParsedObservationBatchIdentityBuilder:
             "artifact_id": batch.raw_artifact_reference.artifact_id,
             "parser_version": batch.parser_version,
         })
+
+
+class ArtifactIdentityBuilder:
+    def artifact_id(self, *, job_id: str, attempt_id: str, capture_type: str, content_digest: str) -> str:
+        return _digest({"job_id": job_id, "attempt_id": attempt_id, "capture_type": capture_type, "content_digest": content_digest})
+
+
+class NormalizedObservationIdentityBuilder:
+    def build(self, observation: "NormalizedObservation") -> dict[str, Any]:
+        return {
+            "platform": observation.platform.value,
+            "source_record_id": observation.source_record_id,
+            "artifact_id": observation.raw_artifact_reference.artifact_id,
+            "normalized_name": observation.normalized_name,
+            "normalized_quantity": observation.normalized_quantity,
+            "normalized_category": observation.normalized_category,
+            "platform_identifiers": tuple(observation.platform_identifiers),
+            "observed_price_text": observation.observed_price_text,
+            "observed_mrp_text": observation.observed_mrp_text,
+            "observed_offer_text": observation.observed_offer_text,
+            "availability_signal": observation.availability_signal,
+            "completeness": observation.completeness.model_dump(mode="json"),
+            "normalization_version": observation.normalization_version,
+        }
+
+    def observation_id(self, observation: "NormalizedObservation") -> str:
+        return _digest(self.build(observation))

@@ -6,7 +6,20 @@ from abc import ABC, abstractmethod
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
-from app.data_ingestion.types import RawArtifactReference
+
+class ArtifactPublicationRequest(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    artifact_id: str
+    content_digest: str
+    content_type: str
+
+    @field_validator("artifact_id", "content_digest", "content_type")
+    @classmethod
+    def _require_non_empty(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("publication fields must be non-empty")
+        return value
 
 
 class StorageReference(BaseModel):
@@ -40,7 +53,7 @@ class ArtifactStore(ABC):
     """Deterministic storage boundary independent of backend technology."""
 
     @abstractmethod
-    def store(self, artifact: RawArtifactReference, payload: bytes) -> StorageReference:
+    def store(self, request: ArtifactPublicationRequest, payload: bytes) -> StorageReference:
         """Store immutable bytes and return an opaque storage reference."""
 
     @abstractmethod

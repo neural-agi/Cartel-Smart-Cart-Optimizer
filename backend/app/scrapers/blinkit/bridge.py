@@ -25,7 +25,7 @@ class BlinkitParserBridge:
         observations = tuple(self._observation(product, artifact_reference) for product in result.products)
         return ParsedRetailObservationBatch(
             raw_artifact_reference=artifact_reference,
-            parser_version=self.parser_version,
+            parser_version=result.parser_version,
             observations=observations,
             warnings=tuple(result.warnings),
             completeness=self._completeness(result, coverage, bool(observations)),

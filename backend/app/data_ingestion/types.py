@@ -48,6 +48,31 @@ class CaptureCoverage(_FrozenContract):
     _validate_strings = field_validator("evaluation_scope", "termination_reason")(_non_empty)
 
 
+class AcquisitionResult(_FrozenContract):
+    payload: bytes
+    source_reference: str
+    content_type: str
+    capture_timestamp: datetime
+    evaluation_scope: str
+    pages_evaluated: int = Field(ge=1)
+    pagination_complete: bool | None
+    termination_reason: str
+    capture_type: CaptureType
+    warnings: tuple[str, ...] = Field(default_factory=tuple)
+    capture_coverage: CaptureCoverage
+
+    _validate_strings = field_validator("source_reference", "content_type", "evaluation_scope", "termination_reason")(_non_empty)
+
+    @model_validator(mode="after")
+    def _validate_coverage(self) -> Self:
+        coverage = self.capture_coverage
+        if (coverage.evaluation_scope, coverage.pages_evaluated, coverage.pagination_complete, coverage.termination_reason) != (self.evaluation_scope, self.pages_evaluated, self.pagination_complete, self.termination_reason):
+            raise ValueError("capture coverage must match acquisition result metadata")
+        if any(not item.strip() for item in self.warnings):
+            raise ValueError("warnings must be non-empty")
+        return self
+
+
 class ObservationCompleteness(_FrozenContract):
     state: CompletenessState
     scope_reference: str | None = None
@@ -378,3 +403,73 @@ class ReplayReference(_FrozenContract):
         from app.data_ingestion.identity import ReplayReferenceIdentityBuilder
 
         return ReplayReferenceIdentityBuilder().replay_id(self)
+
+
+class IngestionWorkerResult(_FrozenContract):
+    job_id: str
+    attempt: ScrapeAttempt
+    artifact_reference: RawArtifactReference | None = None
+    parsed_batch: ParsedRetailObservationBatch | None = None
+    failed_stage: str | None = None
+
+    _validate_job = field_validator("job_id")(_non_empty)
+
+    @field_validator("failed_stage")
+    @classmethod
+    def _validate_stage(cls, value: str | None) -> str | None:
+        return None if value is None else _non_empty(value)
+
+    @model_validator(mode="after")
+    def _validate_result(self) -> Self:
+        if self.attempt.job_id != self.job_id:
+            raise ValueError("attempt must belong to result job")
+        if self.parsed_batch is not None and self.attempt.outcome is not AttemptOutcome.SUCCEEDED:
+            raise ValueError("parsed batch requires successful attempt")
+        if self.parsed_batch is not None and self.artifact_reference is None:
+            raise ValueError("parsed batch requires artifact reference")
+        if self.failed_stage is not None and self.parsed_batch is not None:
+            raise ValueError("failed result cannot contain parsed batch")
+        if self.failed_stage is None and self.parsed_batch is None and self.attempt.outcome is AttemptOutcome.SUCCEEDED:
+            raise ValueError("successful result requires parsed batch")
+        return self
+
+
+class NormalizedObservation(_FrozenContract):
+    platform: Platform
+    source_record_id: str
+    raw_artifact_reference: RawArtifactReference
+    normalized_name: str | None = None
+    normalized_quantity: str | None = None
+    normalized_category: str | None = None
+    platform_identifiers: tuple[tuple[str, str], ...] = Field(default_factory=tuple)
+    observed_price_text: str | None = None
+    observed_mrp_text: str | None = None
+    observed_offer_text: str | None = None
+    availability_signal: str | None = None
+    evidence_references: tuple[EvidenceReference, ...]
+    field_references: tuple[ObservationFieldReference, ...]
+    completeness: ObservationCompleteness
+    parser_version: str
+    normalization_version: str
+
+    _validate_source = field_validator("source_record_id", "parser_version", "normalization_version")(_non_empty)
+
+    @field_validator(
+        "normalized_name", "normalized_quantity", "normalized_category",
+        "observed_price_text", "observed_mrp_text", "observed_offer_text",
+        "availability_signal",
+    )
+    @classmethod
+    def _optional_text(cls, value: str | None) -> str | None:
+        return None if value is None else _non_empty(value)
+
+    @field_validator("platform_identifiers")
+    @classmethod
+    def _identifiers(cls, value: tuple[tuple[str, str], ...]) -> tuple[tuple[str, str], ...]:
+        return _canonical_pairs(value)
+
+    @property
+    def observation_id(self) -> str:
+        from app.data_ingestion.identity import NormalizedObservationIdentityBuilder
+
+        return NormalizedObservationIdentityBuilder().observation_id(self)
