@@ -35,7 +35,7 @@ class BlinkitScraper(BaseScraper):
             max_retries=max_retries,
         )
 
-    async def search_products(self, query: str) -> bytes:
+    async def acquire_search(self, query: str) -> RawHttpResponse:
         try:
             response = await self.fetch_raw(
                 method="GET",
@@ -48,7 +48,11 @@ class BlinkitScraper(BaseScraper):
                 query,
             )
             response = await self._fetch_via_browser(query)
-        self.save_raw_response(query=query, response=response, extension="html")
+        return response
+
+    async def search_products(self, query: str) -> bytes:
+        """Backward-compatible raw payload API for existing callers."""
+        response = await self.acquire_search(query)
         return response.body
 
     async def _fetch_via_browser(self, query: str) -> RawHttpResponse:
