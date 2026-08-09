@@ -9,7 +9,7 @@ from app.data_ingestion.artifact_store.exceptions import (
     InvalidStorageReference,
 )
 from app.data_ingestion.artifact_store.filesystem import LocalFilesystemArtifactStore
-from app.data_ingestion.artifact_store.interface import ArtifactStore, StorageReference
+from app.data_ingestion.artifact_store.interface import ArtifactPublicationRequest, ArtifactStore, StorageReference
 
 __all__ = [
     "ArtifactAlreadyExists",
@@ -17,6 +17,7 @@ __all__ = [
     "ArtifactStorageError",
     "ArtifactStorageFailure",
     "ArtifactStore",
+    "ArtifactPublicationRequest",
     "CorruptArtifact",
     "InvalidStorageReference",
     "LocalFilesystemArtifactStore",

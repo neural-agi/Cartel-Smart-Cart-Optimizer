@@ -20,6 +20,7 @@ class RawExtractedProduct(BaseModel):
 
 class RawExtractionResult(BaseModel):
     platform: str = "blinkit"
+    parser_version: str = "blinkit-parser-v1"
     query: str | None = None
     source_path: Path | None = None
     source_reference: str | None = None
@@ -29,3 +30,6 @@ class RawExtractionResult(BaseModel):
     warnings: list[str] = Field(default_factory=list)
     evaluation_scope: str | None = None
     capture_coverage: CaptureCoverage | None = None
+    pages_evaluated: int | None = None
+    pagination_complete: bool | None = None
+    termination_reason: str | None = None

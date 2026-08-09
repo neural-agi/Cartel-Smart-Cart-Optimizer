@@ -22,6 +22,7 @@ class BlinkitProductParser:
     """Extracts raw structured product data from rendered Blinkit HTML."""
 
     platform = "blinkit"
+    parser_version = "blinkit-parser-v1"
 
     def parse_file(self, source_path: Path, *, query: str | None = None) -> RawExtractionResult:
         logger.info("blinkit_parser_read_start path=%s", str(source_path))
@@ -79,6 +80,7 @@ class BlinkitProductParser:
 
         logger.info("blinkit_parser_products_extracted count=%s", len(products))
         return RawExtractionResult(
+            parser_version=self.parser_version,
             query=query,
             source_path=source_path,
             source_reference=source_reference,

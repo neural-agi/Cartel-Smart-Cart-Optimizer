@@ -8,6 +8,7 @@ import pytest
 
 from app.data_ingestion import CaptureType, Platform
 from app.data_ingestion.artifact_store import (
+    ArtifactPublicationRequest,
     ArtifactAlreadyExists,
     ArtifactNotFound,
     ArtifactStorageFailure,
@@ -19,18 +20,11 @@ from app.data_ingestion.artifact_store import (
 from app.data_ingestion.types import RawArtifactReference
 
 
-def _artifact(payload: bytes = b"payload", artifact_id: str = "artifact-1") -> RawArtifactReference:
-    return RawArtifactReference(
+def _artifact(payload: bytes = b"payload", artifact_id: str = "artifact-1") -> ArtifactPublicationRequest:
+    return ArtifactPublicationRequest(
         artifact_id=artifact_id,
-        job_id="job-1",
-        attempt_id="attempt-1",
-        platform=Platform.BLINKIT,
-        capture_type=CaptureType.SEARCH_RESULTS,
         content_digest=hashlib.sha256(payload).hexdigest(),
-        storage_reference="external-storage-reference",
         content_type="application/octet-stream",
-        capture_timestamp="2026-01-01T00:00:00Z",
-        source_reference="https://example.test/search",
     )
 
 
