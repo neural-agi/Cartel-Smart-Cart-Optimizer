@@ -6,10 +6,12 @@ from datetime import datetime
 from typing import Self
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator, model_validator
+from app.product_intelligence.models import EvidenceReference
 
 from app.data_ingestion.enums import (
     AttemptOutcome,
     CaptureType,
+    CompletenessState,
     DownstreamMode,
     FailureCategory,
     JobState,
@@ -36,6 +38,105 @@ def _canonical_pairs(value: tuple[tuple[str, str], ...]) -> tuple[tuple[str, str
 
 class _FrozenContract(BaseModel):
     model_config = ConfigDict(frozen=True)
+
+
+class CaptureCoverage(_FrozenContract):
+    evaluation_scope: str
+    pages_evaluated: int = Field(ge=1)
+    pagination_complete: bool | None
+    termination_reason: str
+    _validate_strings = field_validator("evaluation_scope", "termination_reason")(_non_empty)
+
+
+class ObservationCompleteness(_FrozenContract):
+    state: CompletenessState
+    scope_reference: str | None = None
+    basis: str
+    missing_scope: tuple[str, ...] = Field(default_factory=tuple)
+    _validate_basis = field_validator("basis")(_non_empty)
+
+    @field_validator("scope_reference")
+    @classmethod
+    def _scope(cls, value: str | None) -> str | None:
+        return None if value is None else _non_empty(value)
+
+    @field_validator("missing_scope")
+    @classmethod
+    def _missing(cls, value: tuple[str, ...]) -> tuple[str, ...]:
+        if any(not item.strip() for item in value) or value != tuple(sorted(value)) or len(value) != len(set(value)):
+            raise ValueError("missing scope values must be unique, non-empty, and ordered")
+        return value
+
+    @model_validator(mode="after")
+    def _state_rules(self) -> Self:
+        if self.state in {CompletenessState.COMPLETE, CompletenessState.EMPTY} and (self.scope_reference is None or self.missing_scope):
+            raise ValueError("complete and empty states require a complete scope")
+        if self.state is CompletenessState.PARTIAL and (self.scope_reference is None or not self.missing_scope):
+            raise ValueError("partial state requires missing scope")
+        return self
+
+
+class ObservationFieldReference(_FrozenContract):
+    evidence_reference: EvidenceReference
+    locator: str
+    _validate_locator = field_validator("locator")(_non_empty)
+
+
+class ParsedRetailObservation(_FrozenContract):
+    source_record_id: str
+    platform: Platform
+    raw_title: str | None = None
+    raw_quantity: str | None = None
+    raw_category: str | None = None
+    platform_identifiers: tuple[tuple[str, str], ...] = Field(default_factory=tuple)
+    raw_price_text: str | None = None
+    raw_mrp_text: str | None = None
+    offer_text: str | None = None
+    availability_signal: str | None = None
+    field_references: tuple[ObservationFieldReference, ...]
+    _validate_record = field_validator("source_record_id")(_non_empty)
+
+    @field_validator("raw_title", "raw_quantity", "raw_category", "raw_price_text", "raw_mrp_text", "offer_text", "availability_signal")
+    @classmethod
+    def _optional_text(cls, value: str | None) -> str | None:
+        return None if value is None else _non_empty(value)
+
+    @field_validator("platform_identifiers")
+    @classmethod
+    def _identifiers(cls, value: tuple[tuple[str, str], ...]) -> tuple[tuple[str, str], ...]:
+        return _canonical_pairs(value)
+
+
+class ParsedRetailObservationBatch(_FrozenContract):
+    raw_artifact_reference: RawArtifactReference
+    parser_version: str
+    observations: tuple[ParsedRetailObservation, ...]
+    warnings: tuple[str, ...] = Field(default_factory=tuple)
+    completeness: ObservationCompleteness
+    _validate_parser = field_validator("parser_version")(_non_empty)
+
+    @field_validator("warnings")
+    @classmethod
+    def _warnings(cls, value: tuple[str, ...]) -> tuple[str, ...]:
+        if any(not item.strip() for item in value):
+            raise ValueError("warnings must be non-empty")
+        return value
+
+    @model_validator(mode="after")
+    def _records(self) -> Self:
+        ids = tuple(item.source_record_id for item in self.observations)
+        if len(ids) != len(set(ids)):
+            raise ValueError("source record identifiers must be unique")
+        if self.completeness.state is CompletenessState.EMPTY and self.observations:
+            raise ValueError("empty completeness requires no observations")
+        if self.completeness.state is not CompletenessState.EMPTY and not self.observations:
+            raise ValueError("empty batches require EMPTY completeness")
+        return self
+
+    @property
+    def batch_id(self) -> str:
+        from app.data_ingestion.identity import ParsedObservationBatchIdentityBuilder
+        return ParsedObservationBatchIdentityBuilder().batch_id(self)
 
 
 class CaptureContext(_FrozenContract):

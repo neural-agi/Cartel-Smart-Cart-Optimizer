@@ -3,6 +3,8 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
+from app.data_ingestion.types import CaptureCoverage
+
 
 class RawExtractedProduct(BaseModel):
     source_index: int
@@ -23,3 +25,6 @@ class RawExtractionResult(BaseModel):
     extracted_at: datetime
     product_count: int = Field(ge=0)
     products: list[RawExtractedProduct]
+    warnings: list[str] = Field(default_factory=list)
+    evaluation_scope: str | None = None
+    capture_coverage: CaptureCoverage | None = None
