@@ -1,5 +1,4 @@
 """Product intelligence domain models."""
-
 from app.product_intelligence.models import (
     AttributeAssertion,
     BrandReference,
