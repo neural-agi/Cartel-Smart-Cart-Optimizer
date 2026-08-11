@@ -449,3 +449,33 @@ def test_replay_is_deterministic_and_persisted_catalog_can_execute(tmp_path) -> 
     assert first.model_dump(mode="json") == second.model_dump(mode="json")
     assert len(orchestrator.requests) == 2
     assert orchestrator.requests[0].model_dump(mode="json") == orchestrator.requests[1].model_dump(mode="json")
+
+
+def test_evidence_publication_failure_prevents_orchestrator_execution(tmp_path) -> None:
+    observation = _observation()
+    catalog = _catalog(tmp_path)
+    catalog.register_product(_product())
+    catalog.register_variant(_variant())
+    association_registry = FilesystemCanonicalListingAssociationRegistry(
+        store=FilesystemCanonicalListingAssociationStore(root_dir=tmp_path / "catalog")
+    )
+    association = association_registry.register(_association())
+    orchestrator = _RecordingOrchestrator(
+        _pipeline_result(_product(), _variant(), _bundle(tmp_path, observation))
+    )
+
+    class _FailingPublisher:
+        async def publish(self, handoff):
+            raise RuntimeError("evidence publication failed")
+
+    trigger = ProductIntelligenceExecutionTrigger(
+        evidence_publisher=_FailingPublisher(),
+        association_registry=association_registry,
+        catalog=catalog,
+        orchestrator_factory=lambda snapshot: orchestrator,
+    )
+
+    result = _run(trigger.execute(observation, association))
+
+    assert result.status is ProductIntelligenceExecutionStatus.evidence_publication_failed
+    assert orchestrator.requests == []

@@ -30,6 +30,7 @@ from app.data_ingestion.types import (
 )
 from app.data_ingestion.observation_registry import (
     InMemoryObservationRegistry,
+    FilesystemObservationRegistry,
     ObservationRegistrationConflict,
     ObservationRegistry,
 )
@@ -60,6 +61,7 @@ __all__ = [
     "ScrapeAttempt",
     "ScrapeJob",
     "InMemoryObservationRegistry",
+    "FilesystemObservationRegistry",
     "ObservationRegistrationConflict",
     "ObservationRegistry",
 ]
