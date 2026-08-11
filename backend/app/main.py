@@ -7,6 +7,8 @@ from app.api.router import api_router
 from app.api.routes.health import router as health_router
 from app.core.config import Settings, get_settings
 from app.core.logging import configure_logging, get_logger
+from app.workers.bootstrap import build_product_intelligence_runtime
+from app.workers.product_intelligence_runtime import ProductIntelligenceRuntime
 
 
 logger = get_logger(__name__)
@@ -42,7 +44,10 @@ async def lifespan(app: FastAPI):
         logger.info("Application shutdown complete: app=%s", settings.app_name)
 
 
-def create_application(settings: Settings | None = None) -> FastAPI:
+def create_application(
+    settings: Settings | None = None,
+    runtime: ProductIntelligenceRuntime | None = None,
+) -> FastAPI:
     app_settings = settings or get_settings()
     docs_url = "/docs" if app_settings.docs_enabled else None
     redoc_url = "/redoc" if app_settings.docs_enabled else None
@@ -59,6 +64,7 @@ def create_application(settings: Settings | None = None) -> FastAPI:
     )
     application.include_router(health_router, tags=["health"])
     application.include_router(api_router, prefix=app_settings.api_v1_prefix)
+    application.state.product_intelligence_runtime = runtime or build_product_intelligence_runtime(app_settings)
     return application
 
 
