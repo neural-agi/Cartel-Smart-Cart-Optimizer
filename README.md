@@ -105,6 +105,10 @@ Layer 1: Real Data Ingestion
 
 Each layer follows an **architecture-first development process:** contracts and design are completed before implementation, enabling multiple implementation efforts to progress in parallel.
 
+Solid lines = implemented, integrated, and tested components.
+Dashed lines = implemented components or contracts whose end-to-end production integration is still being completed.
+Dotted lines = designed or planned components not yet implemented.
+
 ---
 
 ## 🔬 Engineering Highlights
@@ -153,12 +157,16 @@ Deterministic Storage
 Replay & Audit Trail
 ```
 
-**Architecture & Contracts Complete ✅**
+### 🚧 Data Acquisition — Active Integration
+
 - RFC: Data Ingestion Architecture
 - Lifecycle contracts: Job scheduling, context capture, artifact storage
 - Deterministic serialization contracts and identity builders
 - Storage architecture specified through RFCs; implementation in progress.
 - Replay system specified through RFCs; implementation in progress.
+- Durable scrape-job lifecycle persistence
+- Append-only lifecycle transition history
+- Observation registration and downstream Product Intelligence handoff
 
 **Implementation In Progress 🚧**
 - Lifecycle implementation
@@ -172,6 +180,21 @@ Replay & Audit Trail
 Match products deterministically across platforms using evidence-backed reasoning.
 
 ```
+Scrape / Ingestion
+      │
+      ▼
+Normalized Observation
+      │
+      ▼
+Evidence Publication
+      │
+      ▼
+Canonical Catalog
+      │
+      ▼
+Candidate Catalog Snapshot
+      │
+      ▼
 Evidence Registry
       │
       ▼
@@ -183,22 +206,82 @@ Product Matching
       ▼
 Variant Matching
       │
-      ▼
-Review Queue
+      ├── unresolved / ambiguous ──► Review Queue
       │
       ▼
 Assertion Manager
       │
       ▼
-Pipeline Orchestrator
+Product Intelligence Execution
       │
       ▼
-Canonical Product Intelligence
+Cost Intelligence
 ```
 
-**Status: ✅ Core Implementation Complete**
+> Note: not every stage above is fully wired end-to-end yet — lifecycle integration across these stages is still incomplete.
+
+The system processes scraped retail observations through ingestion, normalization, observation registration, canonical catalog resolution, and Product Intelligence execution. The current executable pipeline continues from normalized observations into canonical Product/ProductVariant resolution and Product Intelligence execution. Canonical catalog persistence and lifecycle governance are filesystem-backed MVP infrastructure.
+
+### 🚧 Product Intelligence Foundation — Active Development
+
+- Canonical product schema + domain models
+- Matching architecture + governance contracts
+- Deterministic matching framework
+- Canonical catalog boundary and governance contracts
+- Filesystem-backed catalog persistence and deterministic snapshot construction
+
+### 🚧 Product Intelligence — Active Development
+
+- Evidence Registry
+- Deterministic Candidate Generation
+- Deterministic Product Matching
+- Deterministic Variant Matching
+- Deterministic Review Queue
+- Deterministic Assertion Manager
+- Product Intelligence execution trigger
+- Canonical catalog persistence and deterministic snapshot construction
+- End-to-end Product Intelligence execution path — active integration
+- Audit trails & replayable decision records
+- Canonical assertion pipeline
 
 Every stage consumes immutable governed inputs and produces deterministic, replayable outputs with a complete audit trail.
+
+### 🚧 Canonical Catalog — Active Development
+
+- Governed canonical Product and ProductVariant identity
+- Manually curated canonical catalog
+- Stable externally assigned canonical IDs
+- Filesystem-backed catalog persistence
+- Product/Variant listing association
+- Deterministic CandidateCatalogSnapshot construction
+- Fail-closed duplicate and conflict handling
+- Approved, active, parent-consistent entities only
+
+Product Intelligence resolves observations against an externally/curated canonical catalog. Matching and candidate generation do not create canonical Product or ProductVariant entities.
+
+Canonical identity is governed separately from platform identity. Platform identifiers, observation IDs, timestamps, and runtime metadata do not define canonical Product or ProductVariant identity.
+
+The MVP includes a filesystem-backed authoritative catalog path with deterministic canonical resolution and snapshot construction. CandidateCatalogSnapshot remains a derived in-memory view.
+
+The current MVP uses filesystem-backed persistence for canonical catalog state. A database-backed persistence technology is not yet established.
+
+### 🚧 Execution Lifecycle — Active Development
+
+- Deterministic ScrapeJob identity
+- Durable ScrapeAttempt records
+- Append-only lifecycle transition history
+- Filesystem-backed lifecycle state projection
+- Retry and attempt identity contracts
+
+The lifecycle contract defines the complete job state machine from CREATED through terminal states. The current implementation persists lifecycle transitions through the acquisition/parsing boundary, while the ownership boundary for post-PARSED transitions through COMPLETED remains an implementation gap.
+
+Retry semantics are contractually defined, including a maximum of three attempts and retryable failure categories. Durable restart/recovery and full runtime integration remain incomplete.
+
+The scrape API is wired into the ingestion and Product Intelligence runtime path, with filesystem-backed runtime dependencies.
+
+Product Intelligence execution is implemented and tested. The remaining work is completing the authoritative catalog/runtime lifecycle path and productionizing the persistence and lifecycle boundaries.
+
+Data Acquisition through the implemented Product Intelligence components, with canonical catalog and lifecycle integration actively under development.
 
 ---
 
@@ -279,6 +362,19 @@ Audit Trail & Replay Reference
 
 ---
 
+## ⚠️ Current Limitations
+
+- Canonical Product and ProductVariant entities are manually curated.
+- Canonical IDs are externally assigned stable identifiers.
+- The canonical catalog currently uses filesystem-backed persistence.
+- Candidate generation operates over the populated canonical catalog snapshot.
+- The full scrape lifecycle is not yet represented end-to-end through COMPLETED.
+- Automatic canonical entity creation from observations is not supported.
+- Unresolved or conflicting identity remains unresolved and requires manual resolution.
+- Additional platforms beyond Blinkit remain incomplete.
+
+---
+
 ## 🚀 Quick Start
 
 ### Docker (Recommended)
@@ -311,6 +407,7 @@ cd backend
 python -m venv venv
 source venv/bin/activate
 pip install -r requirements/dev.txt
+# Configure .env using docs/setup.md
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
@@ -384,13 +481,14 @@ Cartel-Smart-Cart-Optimizer/
 │   │   │   ├── effective_cost/
 │   │   │   ├── pipeline/
 │   │   │   └── shared/
-│   │   ├── data_ingestion/         # immutable ingestion contracts, enums and identity builders (Slice 1)
+│   │   ├── data_ingestion/         # immutable ingestion contracts, enums, identity builders and observation registry (Slice 1)
 │   │   ├── product_intelligence/   # deterministic product matching pipeline
 │   │   │   ├── evidence/
 │   │   │   ├── candidate_generation/
 │   │   │   ├── matching/
 │   │   │   ├── assertions/
 │   │   │   ├── review/
+│   │   │   ├── catalog/            # canonical catalog, identity resolution, persistence, snapshots
 │   │   │   └── orchestrator/
 │   │   ├── normalization/          # pricing / products / units normalization
 │   │   ├── schemas/                # shared pydantic models
@@ -400,6 +498,7 @@ Cartel-Smart-Cart-Optimizer/
 │   │   │   ├── zepto/              # integration placeholder
 │   │   │   ├── base/               # scraper base contracts
 │   │   │   └── utils/
+│   │   ├── workers/                 # ingestion and Product Intelligence runtime boundaries
 │   │   ├── utils/
 │   │   └── main.py
 │   ├── tests/
@@ -420,7 +519,7 @@ Cartel-Smart-Cart-Optimizer/
 ## 📈 Project Metrics
 
 - **40+** architecture and governance specifications
-- **Product Intelligence** implementation complete
+- **Deterministic** Product Intelligence architecture spanning evidence, canonical catalog, candidate generation, matching, review, and assertion
 - **Cost Intelligence** core implementation in progress
 - **Cart Optimization** contracts, identity builders, request builder, orchestrator and service implemented; optimization engine in progress
 - **Real Data Ingestion** immutable contract layer implemented (Slice 1)
@@ -497,11 +596,12 @@ With this many variables interacting, approximation is useless. You need reprodu
 | Phase | Focus | Status |
 |---|---|---|
 | 1 | Real Data Ingestion Architecture & RFC | ✅ Complete |
-| 2 | Product Intelligence Foundation | ✅ Complete |
-| 3 | Product Intelligence Implementation | ✅ Complete |
+| 2 | Product Intelligence Foundation | 🚧 Active |
+| 3 | Product Intelligence Implementation | 🚧 Active |
 | 4 | Cost Intelligence Foundation | ✅ Complete |
 | 5 | Cost Intelligence Evaluation | 🚧 Active |
 | 6 | Effective Cost & Cart Optimization | 🚧 Active |
+| — | Complete canonical catalog and lifecycle integration, including post-PARSED lifecycle transitions, restart/idempotency behavior, and durable catalog/runtime boundaries | 🚧 Active |
 | 7 | Live Scraper Integration | 🚧 Active |
 | 8 | Consumer Experience (API, Dashboard, Apps) | 📋 Planned |
 
