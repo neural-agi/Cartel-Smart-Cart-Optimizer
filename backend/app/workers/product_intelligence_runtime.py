@@ -5,6 +5,7 @@ from enum import StrEnum
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.data_ingestion.observation_registry.interface import ObservationRegistry
+from app.data_ingestion.enums import JobState
 from app.data_ingestion.types import NormalizedObservation, ScrapeJob
 from app.normalization.ingestion import DeterministicIngestionNormalizer
 from app.product_intelligence.catalog import (
@@ -79,6 +80,9 @@ class ProductIntelligenceRuntime:
 
     async def execute(self, job: ScrapeJob) -> ProductIntelligenceRuntimeResult:
         worker_result = await self.ingestion_worker.execute(job)
+        return await self.execute_worker_result(job, worker_result)
+
+    async def execute_worker_result(self, job: ScrapeJob, worker_result, lifecycle_reporter=None) -> ProductIntelligenceRuntimeResult:
         if worker_result.parsed_batch is None:
             return ProductIntelligenceRuntimeResult(
                 job_id=worker_result.job_id,
@@ -97,9 +101,20 @@ class ProductIntelligenceRuntime:
                 rationale=(str(exc),),
             )
 
+        if lifecycle_reporter is not None:
+            lifecycle_reporter(job, JobState.NORMALIZING, JobState.NORMALIZED,
+                               "normalization completed", attempt_number=worker_result.attempt.attempt_number)
+            lifecycle_reporter(job, JobState.NORMALIZED, JobState.REGISTERING_OBSERVATION,
+                               "observation registration started", attempt_number=worker_result.attempt.attempt_number)
+
         records = tuple(
             [await self._execute_observation(observation) for observation in normalized]
         )
+        if lifecycle_reporter is not None:
+            lifecycle_reporter(job, JobState.REGISTERING_OBSERVATION, JobState.REGISTERED,
+                               "observations registered", attempt_number=worker_result.attempt.attempt_number)
+            lifecycle_reporter(job, JobState.REGISTERED, JobState.PUBLISHING_PIPELINE_EVENT,
+                               "pipeline publication started", attempt_number=worker_result.attempt.attempt_number)
         statuses = {record.status for record in records}
         if not statuses:
             status = "completed"

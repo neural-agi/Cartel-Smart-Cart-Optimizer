@@ -79,6 +79,9 @@ def test_create_application_bootstraps_runtime_from_configured_data_root(tmp_pat
         tmp_path / "product_intelligence" / "evidence"
     )
     assert runtime.ingestion_worker._artifact_store._root == tmp_path / "raw"
+    assert runtime.lifecycle_store.root_dir == (
+        tmp_path / "data_ingestion" / "lifecycle"
+    )
 
 
 def test_scrape_endpoint_is_available_from_bootstrapped_application(tmp_path) -> None:

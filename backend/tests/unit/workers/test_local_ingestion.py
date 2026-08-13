@@ -4,11 +4,15 @@ import pytest
 
 from app.data_ingestion import CaptureContext, CaptureCoverage, CaptureType, DownstreamMode, Platform, RequestParameters, ScrapeJob
 from app.data_ingestion.artifact_store import ArtifactPublicationRequest, StorageReference
+from app.data_ingestion import JobState
+from app.data_ingestion.lifecycle_store import FilesystemScrapeJobLifecycleStore
 from app.data_ingestion.enums import FailureCategory
 from app.data_ingestion.types import AcquisitionResult
 from app.schemas.extraction import RawExtractedProduct, RawExtractionResult
 from app.scrapers.blinkit.bridge import BlinkitParserBridge
 from app.workers.local_ingestion import LocalIngestionWorker
+from app.workers.job_execution_coordinator import JobExecutionCoordinator
+from app.workers.product_intelligence_runtime import ProductIntelligenceRuntime
 
 
 def _job() -> ScrapeJob:
@@ -72,3 +76,36 @@ async def test_storage_failure_prevents_parsing() -> None:
     assert result.attempt.failure is not None
     assert result.attempt.failure.category is FailureCategory.STORAGE_FAILURE
     assert result.artifact_reference is None
+
+
+@pytest.mark.asyncio
+async def test_worker_persists_lifecycle_transitions_and_attempt(tmp_path) -> None:
+    lifecycle_store = FilesystemScrapeJobLifecycleStore(root_dir=tmp_path / "lifecycle")
+    worker = LocalIngestionWorker(
+        acquisition=FakeAcquisition(),
+        artifact_store=FakeStore(),
+        parser=FakeParser(),
+        bridge=BlinkitParserBridge(),
+    )
+    coordinator = JobExecutionCoordinator(
+        ingestion_worker=worker,
+        product_intelligence_runtime=ProductIntelligenceRuntime.__new__(ProductIntelligenceRuntime),
+        lifecycle_store=lifecycle_store,
+    )
+
+    result = await coordinator.ingestion_worker.execute(_job())
+    lifecycle_store.record_attempt(result.attempt)
+
+    assert result.parsed_batch is not None
+    assert result.attempt.outcome.value == "SUCCEEDED"
+    assert lifecycle_store.get_current_state(_job().job_id) is JobState.PARSED
+    assert lifecycle_store.get_attempt(_job().job_id, result.attempt.attempt_id) == result.attempt
+    assert tuple(record.transition.current_state for record in lifecycle_store.get_transitions(_job().job_id)) == (
+        JobState.CREATED,
+        JobState.QUEUED,
+        JobState.DEQUEUED,
+        JobState.ACQUIRING,
+        JobState.ARTIFACT_CAPTURED,
+        JobState.PARSING,
+        JobState.PARSED,
+    )
