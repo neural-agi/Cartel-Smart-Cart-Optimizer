@@ -49,6 +49,7 @@ class PersistedScrapeJobLifecycle(BaseModel):
     job_id: str
     transitions: list[LifecycleTransitionRecord] = Field(default_factory=list)
     attempts: list[ScrapeAttemptRecord] = Field(default_factory=list)
+    allocated_attempt_numbers: list[int] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _validate(self) -> "PersistedScrapeJobLifecycle":
@@ -58,6 +59,8 @@ class PersistedScrapeJobLifecycle(BaseModel):
         attempt_ids = [item.attempt_identity for item in self.attempts]
         if len(attempt_ids) != len(set(attempt_ids)):
             raise LifecycleStoreCorruption("persisted lifecycle attempts contain duplicates")
+        if self.allocated_attempt_numbers != sorted(set(self.allocated_attempt_numbers)):
+            raise LifecycleStoreCorruption("persisted attempt allocation is invalid")
         return self
 
 
@@ -166,6 +169,35 @@ class FilesystemScrapeJobLifecycleStore:
             )
             self._save(updated)
             return persisted.attempt
+
+    def allocate_attempt_number(self, job_id: str) -> int:
+        record = self._load_or_empty(job_id)
+        with self._lock:
+            record = self._validate_record(record)
+            allocated = set(record.allocated_attempt_numbers)
+            allocated.update(item.attempt.attempt_number for item in record.attempts)
+            next_number = max(allocated, default=0) + 1
+            if next_number > 3:
+                raise LifecycleStoreConflict("maximum scrape attempts exhausted")
+            updated = record.model_copy(update={
+                "allocated_attempt_numbers": [*record.allocated_attempt_numbers, next_number],
+            })
+            self._save(updated)
+            return next_number
+
+    def has_unfinalized_allocation(self, job_id: str) -> bool:
+        record = self._load_optional(job_id)
+        if record is None:
+            return False
+        record = self._validate_record(record)
+        finalized = {item.attempt.attempt_number for item in record.attempts}
+        return any(number not in finalized for number in record.allocated_attempt_numbers)
+
+    def latest_allocated_attempt_number(self, job_id: str) -> int | None:
+        record = self._load_optional(job_id)
+        if record is None or not record.allocated_attempt_numbers:
+            return None
+        return record.allocated_attempt_numbers[-1]
 
     def get_current_state(self, job_id: str) -> JobState | None:
         record = self._load_optional(job_id)
