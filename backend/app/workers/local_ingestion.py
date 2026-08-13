@@ -51,8 +51,7 @@ class LocalIngestionWorker:
         self._bridge = bridge or BlinkitParserBridge()
         self._lifecycle_reporter = lifecycle_reporter
 
-    async def execute(self, job: ScrapeJob) -> IngestionWorkerResult:
-        attempt_number = 1
+    async def execute(self, job: ScrapeJob, *, attempt_number: int = 1) -> IngestionWorkerResult:
         attempt_id = f"{job.job_id}:{attempt_number}"
         started_at = datetime.now(timezone.utc)
         artifact_reference: RawArtifactReference | None = None
@@ -77,9 +76,6 @@ class LocalIngestionWorker:
                 )
 
         try:
-            report_transition(None, JobState.CREATED, "job accepted")
-            report_transition(JobState.CREATED, JobState.QUEUED, "job queued")
-            report_transition(JobState.QUEUED, JobState.DEQUEUED, "worker leased job")
             stage = "acquisition"
             report_transition(JobState.DEQUEUED, JobState.ACQUIRING, "acquisition started")
             query = self._query(job)
@@ -154,9 +150,6 @@ class LocalIngestionWorker:
                     FailureCategory.STORAGE_FAILURE,
                 },
             )
-            if self._lifecycle_reporter is not None and failure_stage not in {"job_created", "lifecycle_persistence"}:
-                previous_state = self._failure_previous_state(failure_stage)
-                report_transition(previous_state, JobState.FAILED, f"{failure_stage} failed", failure=failure)
             attempt = ScrapeAttempt(
                 job_id=job.job_id,
                 attempt_number=attempt_number,
@@ -200,7 +193,6 @@ class LocalIngestionWorker:
     @staticmethod
     def _failure_category(stage: str) -> FailureCategory:
         return {
-            "job_created": FailureCategory.STORAGE_FAILURE,
             "acquisition": FailureCategory.NETWORK_ERROR,
             "artifact_storage": FailureCategory.STORAGE_FAILURE,
             "parsing": FailureCategory.PARSER_RUNTIME_FAILURE,
@@ -210,7 +202,6 @@ class LocalIngestionWorker:
     @staticmethod
     def _failure_previous_state(stage: str) -> JobState | None:
         return {
-            "job_created": None,
             "acquisition": JobState.ACQUIRING,
             "artifact_storage": JobState.ACQUIRING,
             "parsing": JobState.PARSING,

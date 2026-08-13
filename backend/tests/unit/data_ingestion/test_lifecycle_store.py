@@ -22,6 +22,7 @@ from app.data_ingestion import (
     LifecycleTransition,
 )
 from app.data_ingestion.lifecycle_store import LifecycleStoreCorruption
+from app.data_ingestion.lifecycle_store import LifecycleStoreConflict
 
 
 NOW = datetime(2026, 1, 1, tzinfo=timezone.utc)
@@ -181,6 +182,19 @@ def test_restart_reconstructs_same_state(tmp_path) -> None:
         JobState.QUEUED,
         JobState.DEQUEUED,
     )
+
+
+def test_attempt_allocation_is_durable_and_bounded(tmp_path) -> None:
+    job = _job()
+    store_a = FilesystemScrapeJobLifecycleStore(root_dir=tmp_path / "lifecycle")
+
+    assert store_a.allocate_attempt_number(job.job_id) == 1
+    store_b = FilesystemScrapeJobLifecycleStore(root_dir=tmp_path / "lifecycle")
+    assert store_b.allocate_attempt_number(job.job_id) == 2
+    assert store_b.allocate_attempt_number(job.job_id) == 3
+
+    with pytest.raises(LifecycleStoreConflict):
+        store_b.allocate_attempt_number(job.job_id)
 
 
 def test_empty_job_lookup_returns_none(tmp_path) -> None:

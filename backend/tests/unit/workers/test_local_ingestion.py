@@ -93,7 +93,8 @@ async def test_worker_persists_lifecycle_transitions_and_attempt(tmp_path) -> No
         lifecycle_store=lifecycle_store,
     )
 
-    result = await coordinator.ingestion_worker.execute(_job())
+    coordinator._prepare_attempt(_job())
+    result = await coordinator.ingestion_worker.execute(_job(), attempt_number=1)
     lifecycle_store.record_attempt(result.attempt)
 
     assert result.parsed_batch is not None
@@ -130,5 +131,7 @@ async def test_coordinator_persists_failed_attempt(tmp_path) -> None:
     assert result.status == "ingestion_failed"
     assert result.worker_result.attempt.failure is not None
     persisted = lifecycle_store.get_attempt(_job().job_id, result.worker_result.attempt.attempt_id)
-    assert persisted == result.worker_result.attempt
-    assert lifecycle_store.get_current_state(_job().job_id) is JobState.FAILED
+    assert persisted is not None
+    assert persisted.attempt_number == 1
+    assert persisted.outcome.value == "RETRY_SCHEDULED"
+    assert lifecycle_store.get_current_state(_job().job_id) is JobState.RETRY_SCHEDULED
