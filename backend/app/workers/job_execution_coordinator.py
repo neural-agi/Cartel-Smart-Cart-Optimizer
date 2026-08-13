@@ -48,6 +48,7 @@ class JobExecutionCoordinator:
         worker_result = await self.ingestion_worker.execute(job)
         if worker_result.parsed_batch is None:
             self._finalize_failure(job, worker_result)
+            self.lifecycle_store.record_attempt(worker_result.attempt)
             return ProductIntelligenceRuntimeResult(
                 job_id=worker_result.job_id,
                 status="ingestion_failed",

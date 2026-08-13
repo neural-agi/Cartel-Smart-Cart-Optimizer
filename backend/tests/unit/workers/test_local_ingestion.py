@@ -109,3 +109,26 @@ async def test_worker_persists_lifecycle_transitions_and_attempt(tmp_path) -> No
         JobState.PARSING,
         JobState.PARSED,
     )
+
+
+@pytest.mark.asyncio
+async def test_coordinator_persists_failed_attempt(tmp_path) -> None:
+    lifecycle_store = FilesystemScrapeJobLifecycleStore(root_dir=tmp_path / "lifecycle")
+    coordinator = JobExecutionCoordinator(
+        ingestion_worker=LocalIngestionWorker(
+            acquisition=FakeAcquisition(),
+            artifact_store=FakeStore(fail=True),
+            parser=FakeParser(),
+            bridge=BlinkitParserBridge(),
+        ),
+        product_intelligence_runtime=ProductIntelligenceRuntime.__new__(ProductIntelligenceRuntime),
+        lifecycle_store=lifecycle_store,
+    )
+
+    result = await coordinator.execute(_job())
+
+    assert result.status == "ingestion_failed"
+    assert result.worker_result.attempt.failure is not None
+    persisted = lifecycle_store.get_attempt(_job().job_id, result.worker_result.attempt.attempt_id)
+    assert persisted == result.worker_result.attempt
+    assert lifecycle_store.get_current_state(_job().job_id) is JobState.FAILED
