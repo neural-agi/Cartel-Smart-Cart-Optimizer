@@ -6,6 +6,7 @@ from decimal import Decimal
 import pytest
 
 from app.data_ingestion import (
+    JobState,
     AcquisitionResult,
     CaptureContext,
     CaptureCoverage,
@@ -61,6 +62,8 @@ from app.product_intelligence.review import DeterministicReviewQueueManager
 from app.scrapers.blinkit.bridge import BlinkitParserBridge
 from app.workers.local_ingestion import LocalIngestionWorker
 from app.workers.product_intelligence_runtime import ProductIntelligenceRuntime
+from app.workers.job_execution_coordinator import JobExecutionCoordinator
+from app.data_ingestion.lifecycle_store import FilesystemScrapeJobLifecycleStore
 
 
 FIXTURE_HTML = b'''<!doctype html>
@@ -351,6 +354,33 @@ async def test_scrape_job_runtime_entrypoint_returns_product_intelligence_result
     assert record.execution.association.canonical_variant_id == "variant-amul-taaza-500ml"
     assert association_registry.get("BLINKIT", "1") is not None
     assert len(catalog.load_state().products) == 1
+
+
+@pytest.mark.asyncio
+async def test_job_execution_coordinator_persists_complete_lifecycle_and_reloads(tmp_path) -> None:
+    runtime, _catalog, _associations = _runtime(tmp_path, resolver=_resolver())
+    lifecycle_store = FilesystemScrapeJobLifecycleStore(root_dir=tmp_path / "lifecycle")
+    coordinator = JobExecutionCoordinator(
+        ingestion_worker=runtime.ingestion_worker,
+        product_intelligence_runtime=runtime,
+        lifecycle_store=lifecycle_store,
+    )
+
+    result = await coordinator.execute(_job())
+
+    assert result.status == "completed"
+    assert lifecycle_store.get_current_state(_job().job_id) is JobState.COMPLETED
+    assert tuple(item.transition.current_state for item in lifecycle_store.get_transitions(_job().job_id)) == (
+        JobState.CREATED, JobState.QUEUED, JobState.DEQUEUED, JobState.ACQUIRING,
+        JobState.ARTIFACT_CAPTURED, JobState.PARSING, JobState.PARSED,
+        JobState.NORMALIZING, JobState.NORMALIZED, JobState.REGISTERING_OBSERVATION,
+        JobState.REGISTERED, JobState.PUBLISHING_PIPELINE_EVENT, JobState.COMPLETED,
+    )
+    assert lifecycle_store.get_attempt(_job().job_id, result.worker_result.attempt.attempt_id) is not None
+
+    reloaded = FilesystemScrapeJobLifecycleStore(root_dir=tmp_path / "lifecycle")
+    assert reloaded.get_current_state(_job().job_id) is JobState.COMPLETED
+    assert len(reloaded.get_transitions(_job().job_id)) == 13
 
 
 @pytest.mark.asyncio

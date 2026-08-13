@@ -10,6 +10,7 @@ from app.data_ingestion import (
     AttemptOutcome,
     IngestionWorkerResult,
     JobFailure,
+    JobState,
     RawArtifactReference,
     ScrapeAttempt,
     ScrapeJob,
@@ -42,19 +43,45 @@ class LocalIngestionWorker:
         artifact_store: ArtifactStore,
         parser: ParserBoundary | None = None,
         bridge: BlinkitParserBridge | None = None,
+        lifecycle_reporter=None,
     ) -> None:
         self._acquisition = acquisition or BlinkitAcquisitionAdapter()
         self._artifact_store = artifact_store
         self._parser = parser or BlinkitProductParser()
         self._bridge = bridge or BlinkitParserBridge()
+        self._lifecycle_reporter = lifecycle_reporter
 
     async def execute(self, job: ScrapeJob) -> IngestionWorkerResult:
         attempt_number = 1
         attempt_id = f"{job.job_id}:{attempt_number}"
         started_at = datetime.now(timezone.utc)
         artifact_reference: RawArtifactReference | None = None
-        stage = "acquisition"
+        stage = "job_created"
+
+        def report_transition(
+            previous_state: JobState | None,
+            current_state: JobState,
+            reason: str,
+            *,
+            failure: JobFailure | None = None,
+        ) -> None:
+            if self._lifecycle_reporter is not None:
+                self._lifecycle_reporter(
+                    job,
+                    previous_state,
+                    current_state,
+                    reason,
+                    attempt_number=attempt_number if current_state is not JobState.CREATED else None,
+                    failure=failure,
+                    transition_timestamp=started_at,
+                )
+
         try:
+            report_transition(None, JobState.CREATED, "job accepted")
+            report_transition(JobState.CREATED, JobState.QUEUED, "job queued")
+            report_transition(JobState.QUEUED, JobState.DEQUEUED, "worker leased job")
+            stage = "acquisition"
+            report_transition(JobState.DEQUEUED, JobState.ACQUIRING, "acquisition started")
             query = self._query(job)
             evaluation_scope = self._evaluation_scope(job, query)
             acquisition = await self._acquisition.acquire_search(
@@ -87,7 +114,9 @@ class LocalIngestionWorker:
                 capture_timestamp=acquisition.capture_timestamp,
                 source_reference=acquisition.source_reference,
             )
+            report_transition(JobState.ACQUIRING, JobState.ARTIFACT_CAPTURED, "artifact captured")
             stage = "parsing"
+            report_transition(JobState.ARTIFACT_CAPTURED, JobState.PARSING, "parsing started")
             extraction = self._parser.parse_content(
                 acquisition.payload,
                 query=query,
@@ -95,6 +124,7 @@ class LocalIngestionWorker:
             )
             extraction = self._complete_extraction(extraction, acquisition)
             batch = self._bridge.build_batch(extraction, artifact_reference)
+            report_transition(JobState.PARSING, JobState.PARSED, "parsing completed")
             attempt = ScrapeAttempt(
                 job_id=job.job_id,
                 attempt_number=attempt_number,
@@ -110,6 +140,7 @@ class LocalIngestionWorker:
                 parsed_batch=batch,
             )
         except Exception as exc:
+            failure_stage = stage
             category = self._failure_category(stage)
             failure = JobFailure(
                 category=category,
@@ -123,6 +154,9 @@ class LocalIngestionWorker:
                     FailureCategory.STORAGE_FAILURE,
                 },
             )
+            if self._lifecycle_reporter is not None and failure_stage not in {"job_created", "lifecycle_persistence"}:
+                previous_state = self._failure_previous_state(failure_stage)
+                report_transition(previous_state, JobState.FAILED, f"{failure_stage} failed", failure=failure)
             attempt = ScrapeAttempt(
                 job_id=job.job_id,
                 attempt_number=attempt_number,
@@ -166,7 +200,19 @@ class LocalIngestionWorker:
     @staticmethod
     def _failure_category(stage: str) -> FailureCategory:
         return {
+            "job_created": FailureCategory.STORAGE_FAILURE,
             "acquisition": FailureCategory.NETWORK_ERROR,
             "artifact_storage": FailureCategory.STORAGE_FAILURE,
             "parsing": FailureCategory.PARSER_RUNTIME_FAILURE,
+            "lifecycle_persistence": FailureCategory.STORAGE_FAILURE,
+        }[stage]
+
+    @staticmethod
+    def _failure_previous_state(stage: str) -> JobState | None:
+        return {
+            "job_created": None,
+            "acquisition": JobState.ACQUIRING,
+            "artifact_storage": JobState.ACQUIRING,
+            "parsing": JobState.PARSING,
+            "lifecycle_persistence": JobState.ACQUIRING,
         }[stage]

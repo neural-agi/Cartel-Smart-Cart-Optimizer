@@ -28,6 +28,14 @@ from app.data_ingestion.types import (
     IngestionWorkerResult,
     NormalizedObservation,
 )
+from app.data_ingestion.lifecycle_store import (
+    FilesystemScrapeJobLifecycleStore,
+    LifecycleStoreConflict,
+    LifecycleStoreCorruption,
+    PersistedScrapeJobLifecycle,
+    LifecycleTransitionRecord,
+    ScrapeAttemptRecord,
+)
 from app.data_ingestion.observation_registry import (
     InMemoryObservationRegistry,
     FilesystemObservationRegistry,
@@ -56,6 +64,12 @@ __all__ = [
     "ParsedRetailObservationBatch",
     "IngestionWorkerResult",
     "NormalizedObservation",
+    "FilesystemScrapeJobLifecycleStore",
+    "LifecycleStoreConflict",
+    "LifecycleStoreCorruption",
+    "PersistedScrapeJobLifecycle",
+    "LifecycleTransitionRecord",
+    "ScrapeAttemptRecord",
     "ReplayReference",
     "RequestParameters",
     "ScrapeAttempt",

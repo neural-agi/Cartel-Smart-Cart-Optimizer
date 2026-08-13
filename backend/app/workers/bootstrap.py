@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from app.core.config import Settings
 from app.data_ingestion.artifact_store import LocalFilesystemArtifactStore
+from app.data_ingestion.lifecycle_store import FilesystemScrapeJobLifecycleStore
 from app.data_ingestion.observation_registry import FilesystemObservationRegistry
 from app.normalization.ingestion import DeterministicIngestionNormalizer
 from app.product_intelligence.assertions import DeterministicAssertionManager
@@ -28,11 +29,13 @@ from app.product_intelligence.orchestrator import DeterministicProductIntelligen
 from app.product_intelligence.review import DeterministicReviewQueueManager
 from app.workers.local_ingestion import LocalIngestionWorker
 from app.workers.product_intelligence_runtime import ProductIntelligenceRuntime
+from app.workers.job_execution_coordinator import JobExecutionCoordinator
 
 
-def build_product_intelligence_runtime(settings: Settings) -> ProductIntelligenceRuntime:
+def build_product_intelligence_runtime(settings: Settings) -> JobExecutionCoordinator:
     catalog_root = settings.data_dir / "product_intelligence" / "catalog"
     evidence_root = settings.data_dir / "product_intelligence" / "evidence"
+    lifecycle_root = settings.data_dir / "data_ingestion" / "lifecycle"
     catalog = FilesystemAuthoritativeCatalog(
         store=CatalogFilesystemStore(root_dir=catalog_root)
     )
@@ -63,12 +66,12 @@ def build_product_intelligence_runtime(settings: Settings) -> ProductIntelligenc
             assertion_manager=DeterministicAssertionManager(),
         ),
     )
-    return ProductIntelligenceRuntime(
+    runtime = ProductIntelligenceRuntime(
         ingestion_worker=LocalIngestionWorker(
             artifact_store=LocalFilesystemArtifactStore(
                 root=settings.raw_data_dir,
                 store_namespace="product-intelligence",
-            )
+            ),
         ),
         normalizer=DeterministicIngestionNormalizer(),
         observation_registry=FilesystemObservationRegistry(
@@ -78,4 +81,9 @@ def build_product_intelligence_runtime(settings: Settings) -> ProductIntelligenc
         resolver=resolver,
         association_registry=association_registry,
         execution_trigger=trigger,
+    )
+    return JobExecutionCoordinator(
+        ingestion_worker=runtime.ingestion_worker,
+        product_intelligence_runtime=runtime,
+        lifecycle_store=FilesystemScrapeJobLifecycleStore(root_dir=lifecycle_root),
     )
