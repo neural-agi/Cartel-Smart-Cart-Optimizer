@@ -31,6 +31,24 @@ def test_normalizer_maps_fields_and_preserves_provenance() -> None:
     assert observation.parser_version == "blinkit-parser-v1"
 
 
+def test_normalizer_propagates_capture_currency_into_typed_price() -> None:
+    observation = DeterministicIngestionNormalizer().normalize(
+        _batch(), currency_code="INR"
+    )[0]
+
+    assert observation.observed_selling_price is not None
+    assert observation.observed_selling_price.currency == "INR"
+    assert observation.observed_selling_price.minor_units == 10000
+    assert observation.tax_status.value == "UNKNOWN"
+
+
+def test_normalizer_keeps_price_raw_only_without_currency_context() -> None:
+    observation = DeterministicIngestionNormalizer().normalize(_batch())[0]
+
+    assert observation.observed_price_text == "\u20b9100"
+    assert observation.observed_selling_price is None
+
+
 def test_normalizer_is_deterministic_and_does_not_convert_quantity_or_price() -> None:
     first = DeterministicIngestionNormalizer().normalize(_batch())
     second = DeterministicIngestionNormalizer().normalize(_batch())

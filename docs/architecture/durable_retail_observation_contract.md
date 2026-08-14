@@ -287,7 +287,40 @@ The future durable boundary must support these semantic queries:
 
 These are query requirements, not schema or index prescriptions.
 
-## 13. Explicit OPEN Questions
+## 13. Approved MVP Typed Selling-Price Policy
+
+The following MVP policy is approved for the first typed displayed-price
+comparison implementation:
+
+- `observed_price_text` remains the preserved normalized textual fact.
+- `observed_selling_price` is an optional derived projection using the existing
+  `Money` representation.
+- `CaptureContext.currency_code` is the currency authority and the resulting
+  currency is persisted inside `Money`.
+- Currency support is explicitly configured; the initial supported currency is
+  `INR`. Currency is never inferred from platform, country, symbol, or locale.
+- Currency precision is governed by supported-currency configuration. Values
+  requiring rounding are rejected.
+- Tax status is explicit and defaults to `UNKNOWN`. Unknown-tax observations
+  are excluded from strict comparison. Tax is never calculated or adjusted.
+- Price parsing is governed and fail-closed. Missing, malformed, ambiguous,
+  unsupported-locale, or otherwise non-governed values remain raw-only and
+  non-comparable.
+- `observed_mrp_text` and `observed_offer_text` are not parsed into selling
+  price and do not produce discounts.
+- Typed price does not participate in `observation_id`; existing identity and
+  replay semantics remain unchanged.
+- Existing text-only observations remain readable but non-comparable unless
+  explicitly reprocessed.
+- Strict comparison requires the same resolved canonical ProductVariant, a
+  valid typed selling price, the same supported currency, and an approved
+  non-unknown tax status. Country, location scope, session scope, locale, and
+  additional parameters do not gate MVP comparison.
+- The result is a displayed-price comparison only, not delivery-inclusive,
+  final-payable, location-equivalent, membership-equivalent, or true-total
+  cost.
+
+## 14. Remaining OPEN Questions
 
 1. Exact durable ListingObservation identity and its relationship to
    `NormalizedObservation.observation_id`.
@@ -302,7 +335,7 @@ These are query requirements, not schema or index prescriptions.
 9. Whether review cases and assertion history are durable domain state.
 10. Required retention and query performance targets for historical data.
 
-## 14. Non-Goals
+## 15. Non-Goals
 
 This contract does not:
 
@@ -315,7 +348,7 @@ This contract does not:
 - implement price history, database persistence, retries, or recovery;
 - define cart optimization or cross-platform ranking.
 
-## 15. Migration and Database Implications
+## 16. Migration and Database Implications
 
 When the remaining semantic decisions are approved, a durable database may
 represent separate domains for canonical identity, listing identity,

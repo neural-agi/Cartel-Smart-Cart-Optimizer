@@ -48,6 +48,13 @@ class InMemoryObservationRegistry(ObservationRegistry):
         with self._lock:
             return observation_id in self._records
 
+    def list_all(self) -> tuple[NormalizedObservation, ...]:
+        with self._lock:
+            return tuple(
+                self._records[observation_id][0].model_copy(deep=True)
+                for observation_id in sorted(self._records)
+            )
+
     @staticmethod
     def _validate_lookup_key(observation_id: str) -> None:
         if not isinstance(observation_id, str) or not observation_id.strip():

@@ -8,6 +8,7 @@ from app.data_ingestion.enums import (
     FailureCategory,
     JobState,
     Platform,
+    TaxStatus,
 )
 from app.data_ingestion.types import (
     AcquisitionResult,
@@ -57,6 +58,7 @@ __all__ = [
     "JobState",
     "LifecycleTransition",
     "Platform",
+    "TaxStatus",
     "RawArtifactReference",
     "ObservationCompleteness",
     "ObservationFieldReference",

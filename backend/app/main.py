@@ -9,6 +9,7 @@ from app.core.config import Settings, get_settings
 from app.core.logging import configure_logging, get_logger
 from app.workers.bootstrap import build_product_intelligence_runtime
 from app.workers.product_intelligence_runtime import ProductIntelligenceRuntime
+from app.data_ingestion.observation_registry.query import RetailObservationQueryService
 
 
 logger = get_logger(__name__)
@@ -64,7 +65,12 @@ def create_application(
     )
     application.include_router(health_router, tags=["health"])
     application.include_router(api_router, prefix=app_settings.api_v1_prefix)
-    application.state.product_intelligence_runtime = runtime or build_product_intelligence_runtime(app_settings)
+    configured_runtime = runtime or build_product_intelligence_runtime(app_settings)
+    application.state.product_intelligence_runtime = configured_runtime
+    application.state.retail_observation_query = RetailObservationQueryService(
+        observation_registry=configured_runtime.observation_registry,
+        association_registry=configured_runtime.association_registry,
+    )
     return application
 
 

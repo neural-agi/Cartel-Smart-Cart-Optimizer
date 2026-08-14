@@ -135,3 +135,70 @@ async def test_coordinator_persists_failed_attempt(tmp_path) -> None:
     assert persisted.attempt_number == 1
     assert persisted.outcome.value == "RETRY_SCHEDULED"
     assert lifecycle_store.get_current_state(_job().job_id) is JobState.RETRY_SCHEDULED
+
+
+@pytest.mark.asyncio
+async def test_retryable_failures_dead_letter_after_three_attempts(tmp_path) -> None:
+    lifecycle_root = tmp_path / "lifecycle"
+
+    for expected_attempt in (1, 2, 3):
+        store = FilesystemScrapeJobLifecycleStore(root_dir=lifecycle_root)
+        coordinator = JobExecutionCoordinator(
+            ingestion_worker=LocalIngestionWorker(
+                acquisition=FakeAcquisition(),
+                artifact_store=FakeStore(fail=True),
+                parser=FakeParser(),
+                bridge=BlinkitParserBridge(),
+            ),
+            product_intelligence_runtime=ProductIntelligenceRuntime.__new__(ProductIntelligenceRuntime),
+            lifecycle_store=store,
+        )
+        result = await coordinator.execute(_job())
+        assert result.worker_result.attempt.attempt_number == expected_attempt
+
+    store = FilesystemScrapeJobLifecycleStore(root_dir=lifecycle_root)
+    assert store.get_current_state(_job().job_id) is JobState.DEAD_LETTERED
+    assert tuple(attempt.attempt_number for attempt in store.list_attempts(_job().job_id)) == (1, 2, 3)
+    with pytest.raises(ValueError, match="terminal scrape job"):
+        JobExecutionCoordinator(
+            ingestion_worker=LocalIngestionWorker(
+                acquisition=FakeAcquisition(),
+                artifact_store=FakeStore(fail=True),
+                parser=FakeParser(),
+                bridge=BlinkitParserBridge(),
+            ),
+            product_intelligence_runtime=ProductIntelligenceRuntime.__new__(ProductIntelligenceRuntime),
+            lifecycle_store=store,
+        )._prepare_attempt(_job())
+
+
+def test_interrupted_allocation_recovers_with_a_new_attempt(tmp_path) -> None:
+    root = tmp_path / "lifecycle"
+    store_a = FilesystemScrapeJobLifecycleStore(root_dir=root)
+    coordinator_a = JobExecutionCoordinator(
+        ingestion_worker=LocalIngestionWorker(
+            acquisition=FakeAcquisition(), artifact_store=FakeStore(), parser=FakeParser(), bridge=BlinkitParserBridge()
+        ),
+        product_intelligence_runtime=ProductIntelligenceRuntime.__new__(ProductIntelligenceRuntime),
+        lifecycle_store=store_a,
+    )
+    assert coordinator_a._prepare_attempt(_job()) == 1
+
+    store_b = FilesystemScrapeJobLifecycleStore(root_dir=root)
+    coordinator_b = JobExecutionCoordinator(
+        ingestion_worker=LocalIngestionWorker(
+            acquisition=FakeAcquisition(), artifact_store=FakeStore(), parser=FakeParser(), bridge=BlinkitParserBridge()
+        ),
+        product_intelligence_runtime=ProductIntelligenceRuntime.__new__(ProductIntelligenceRuntime),
+        lifecycle_store=store_b,
+    )
+    assert coordinator_b._prepare_attempt(_job()) == 2
+    assert store_b.latest_allocated_attempt_number(_job().job_id) == 2
+    assert tuple(record.transition.current_state for record in store_b.get_transitions(_job().job_id)) == (
+        JobState.CREATED,
+        JobState.QUEUED,
+        JobState.DEQUEUED,
+        JobState.RETRY_SCHEDULED,
+        JobState.QUEUED,
+        JobState.DEQUEUED,
+    )

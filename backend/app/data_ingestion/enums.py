@@ -95,3 +95,9 @@ class CompletenessState(StrEnum):
     PARTIAL = "PARTIAL"
     EMPTY = "EMPTY"
     UNKNOWN = "UNKNOWN"
+
+
+class TaxStatus(StrEnum):
+    UNKNOWN = "UNKNOWN"
+    INCLUDED = "INCLUDED"
+    EXCLUDED = "EXCLUDED"

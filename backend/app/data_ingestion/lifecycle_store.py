@@ -199,6 +199,11 @@ class FilesystemScrapeJobLifecycleStore:
             return None
         return record.allocated_attempt_numbers[-1]
 
+    @staticmethod
+    def transition_allowed(previous_state: JobState, current_state: JobState) -> bool:
+        """Return whether the frozen lifecycle graph permits this edge."""
+        return current_state in _VALID_NEXT_STATES[previous_state]
+
     def get_current_state(self, job_id: str) -> JobState | None:
         record = self._load_optional(job_id)
         if record is None:

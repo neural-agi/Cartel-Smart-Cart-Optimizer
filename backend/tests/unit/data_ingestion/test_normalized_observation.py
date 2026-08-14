@@ -55,6 +55,12 @@ def test_observation_identity_is_deterministic_and_versioned() -> None:
     assert first.observation_id != _observation("normalizer-v2").observation_id
 
 
+def test_typed_price_does_not_change_observation_identity() -> None:
+    first = _observation()
+    changed = first.model_copy(update={"observed_selling_price": {"currency": "INR", "minor_units": 10000}})
+    assert first.observation_id == changed.observation_id
+
+
 def test_identity_changes_for_observation_defining_input() -> None:
     first = _observation()
     changed = first.model_copy(update={"normalized_name": "Curd"})
