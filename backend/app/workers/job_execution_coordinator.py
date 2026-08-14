@@ -79,7 +79,13 @@ class JobExecutionCoordinator:
         attempt_number = self.lifecycle_store.allocate_attempt_number(job.job_id)
         current = self.lifecycle_store.get_current_state(job.job_id)
         if current is JobState.RETRY_SCHEDULED:
-            self.record_transition(job, JobState.RETRY_SCHEDULED, JobState.QUEUED, "retry became eligible")
+            self.record_transition(
+                job,
+                JobState.RETRY_SCHEDULED,
+                JobState.QUEUED,
+                "retry became eligible",
+                attempt_number=attempt_number,
+            )
         self.record_transition(job, JobState.QUEUED, JobState.DEQUEUED, "worker leased job", attempt_number=attempt_number)
         return attempt_number
 
@@ -94,7 +100,19 @@ class JobExecutionCoordinator:
             attempt_id=f"{job.job_id}:{self.lifecycle_store.latest_allocated_attempt_number(job.job_id) or 1}",
             retryable=True,
         )
-        self.record_transition(job, current, JobState.RETRY_SCHEDULED, "interrupted attempt recovered", failure=failure, attempt_number=interrupted_number)
+        can_retry = (
+            interrupted_number < 3
+            and self.lifecycle_store.transition_allowed(current, JobState.RETRY_SCHEDULED)
+        )
+        next_state = JobState.RETRY_SCHEDULED if can_retry else JobState.DEAD_LETTERED
+        self.record_transition(
+            job,
+            current,
+            next_state,
+            "interrupted attempt recovered" if can_retry else "interrupted attempt dead-lettered",
+            failure=failure,
+            attempt_number=interrupted_number,
+        )
 
     def _handle_failure(self, job: ScrapeJob, worker_result: IngestionWorkerResult) -> ScrapeAttempt:
         current = self.lifecycle_store.get_current_state(job.job_id)
@@ -109,7 +127,13 @@ class JobExecutionCoordinator:
             )
         number = worker_result.attempt.attempt_number
         retryable = failure.retryable and number < 3
-        next_state = JobState.RETRY_SCHEDULED if retryable else JobState.FAILED
+        next_state = JobState.RETRY_SCHEDULED if retryable else (
+            JobState.DEAD_LETTERED if failure.retryable else JobState.FAILED
+        )
         self.record_transition(job, current, next_state, "retry scheduled" if retryable else "execution failed", attempt_number=number, failure=failure)
-        outcome = AttemptOutcome.RETRY_SCHEDULED if retryable else AttemptOutcome.FAILED
+        outcome = (
+            AttemptOutcome.RETRY_SCHEDULED
+            if retryable
+            else (AttemptOutcome.DEAD_LETTERED if failure.retryable else AttemptOutcome.FAILED)
+        )
         return worker_result.attempt.model_copy(update={"outcome": outcome, "finished_at": datetime.now(timezone.utc)})

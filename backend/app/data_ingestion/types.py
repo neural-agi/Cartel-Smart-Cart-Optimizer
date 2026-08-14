@@ -16,7 +16,9 @@ from app.data_ingestion.enums import (
     FailureCategory,
     JobState,
     Platform,
+    TaxStatus,
 )
+from app.cost_intelligence.shared.money import Money
 
 
 def _non_empty(value: str) -> str:
@@ -446,6 +448,8 @@ class NormalizedObservation(_FrozenContract):
     observed_mrp_text: str | None = None
     observed_offer_text: str | None = None
     availability_signal: str | None = None
+    observed_selling_price: Money | None = None
+    tax_status: TaxStatus = TaxStatus.UNKNOWN
     evidence_references: tuple[EvidenceReference, ...]
     field_references: tuple[ObservationFieldReference, ...]
     completeness: ObservationCompleteness

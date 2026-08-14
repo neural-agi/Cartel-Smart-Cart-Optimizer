@@ -49,6 +49,13 @@ class FilesystemObservationRegistry(ObservationRegistry):
         with self._lock:
             return self._path(observation_id).exists()
 
+    def list_all(self) -> tuple[NormalizedObservation, ...]:
+        with self._lock:
+            return tuple(
+                self._read(path).model_copy(deep=True)
+                for path in sorted(self.root_dir.glob("*.json"), key=lambda item: item.name)
+            )
+
     def _path(self, observation_id: str) -> Path:
         return self.root_dir / f"{observation_id}.json"
 

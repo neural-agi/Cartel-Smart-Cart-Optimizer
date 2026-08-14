@@ -13,6 +13,7 @@ from app.cart_optimization.enums import (
 )
 from app.cost_intelligence.evaluation.types import EffectiveCostEvaluationResult
 from app.cost_intelligence.shared.money import Money
+from app.data_ingestion.observation_registry.comparison import ComparableRetailObservation
 from app.product_intelligence.models import EvidenceReference
 
 
@@ -45,6 +46,57 @@ class ItemAllocation(BaseModel):
     quantity: int
     retailer_id: str
     checkout_group_id: str
+
+
+class CandidateListingProvenance(BaseModel):
+    """Exact persisted listing and displayed-price source for an allocation."""
+
+    model_config = ConfigDict(frozen=True)
+
+    platform: str
+    platform_listing_id: str
+    observation_id: str
+    observed_selling_price: Money
+
+
+class CandidateItemAllocation(BaseModel):
+    """Candidate allocation retaining listing provenance without cart execution state."""
+
+    model_config = ConfigDict(frozen=True)
+
+    item_id: str
+    canonical_variant_id: str
+    quantity: int
+    retailer_id: str
+    checkout_group_id: str
+    listing_provenance: CandidateListingProvenance
+
+    @classmethod
+    def from_comparable_observation(
+        cls,
+        *,
+        item_id: str,
+        canonical_variant_id: str,
+        quantity: int,
+        retailer_id: str,
+        checkout_group_id: str,
+        observation: ComparableRetailObservation,
+    ) -> "CandidateItemAllocation":
+        if observation.canonical_variant_id != canonical_variant_id:
+            raise ValueError("listing association does not target requested canonical Variant")
+        return cls(
+            item_id=item_id,
+            canonical_variant_id=canonical_variant_id,
+            quantity=quantity,
+            retailer_id=retailer_id,
+            checkout_group_id=checkout_group_id,
+            listing_provenance=CandidateListingProvenance(
+                platform=observation.platform,
+                platform_listing_id=observation.platform_listing_id,
+                observation_id=observation.observation_id,
+                observed_selling_price=observation.observed_selling_price,
+            ),
+        )
 
 
 class CheckoutGroup(BaseModel):

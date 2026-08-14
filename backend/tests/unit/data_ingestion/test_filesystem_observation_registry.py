@@ -5,6 +5,7 @@ from unittest.mock import patch
 import pytest
 
 from app.data_ingestion import FilesystemObservationRegistry, ObservationRegistrationConflict
+from app.cost_intelligence.shared.money import Money
 from tests.unit.data_ingestion.test_observation_registry import _observation
 
 
@@ -25,6 +26,19 @@ def test_registration_lookup_and_restart_preserve_all_fields(tmp_path) -> None:
     assert restored.evidence_references == original.evidence_references
     assert restored.parser_version == original.parser_version
     assert restored.normalization_version == original.normalization_version
+
+
+def test_typed_price_round_trips_after_restart(tmp_path) -> None:
+    original = _observation().model_copy(
+        update={"observed_selling_price": Money(currency="INR", minor_units=10000)}
+    )
+    FilesystemObservationRegistry(tmp_path).register(original)
+
+    restored = FilesystemObservationRegistry(tmp_path).get(original.observation_id)
+
+    assert restored is not None
+    assert restored.observed_selling_price == Money(currency="INR", minor_units=10000)
+    assert restored.observed_price_text == original.observed_price_text
 
 
 def test_identical_registration_is_idempotent_and_serialization_is_deterministic(tmp_path) -> None:

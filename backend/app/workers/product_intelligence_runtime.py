@@ -92,7 +92,10 @@ class ProductIntelligenceRuntime:
             )
 
         try:
-            normalized = self.normalizer.normalize(worker_result.parsed_batch)
+            normalized = self.normalizer.normalize(
+                worker_result.parsed_batch,
+                currency_code=job.capture_context.currency_code,
+            )
         except Exception as exc:
             return ProductIntelligenceRuntimeResult(
                 job_id=worker_result.job_id,

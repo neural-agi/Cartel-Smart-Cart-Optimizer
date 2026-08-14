@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from app.data_ingestion import NormalizedObservation, ParsedRetailObservation, ParsedRetailObservationBatch
 from app.product_intelligence.models import EvidenceReference
+from app.normalization.pricing.parser import GovernedRetailPriceParser
 
 
 class DeterministicIngestionNormalizer:
@@ -11,13 +12,18 @@ class DeterministicIngestionNormalizer:
 
     normalization_version = "normalizer-v1"
 
-    def normalize(self, batch: ParsedRetailObservationBatch) -> tuple[NormalizedObservation, ...]:
-        return tuple(self._normalize_observation(batch, observation) for observation in batch.observations)
+    def __init__(self, *, price_parser: GovernedRetailPriceParser | None = None) -> None:
+        self.price_parser = price_parser or GovernedRetailPriceParser()
+
+    def normalize(self, batch: ParsedRetailObservationBatch, *, currency_code: str | None = None) -> tuple[NormalizedObservation, ...]:
+        return tuple(self._normalize_observation(batch, observation, currency_code=currency_code) for observation in batch.observations)
 
     def _normalize_observation(
         self,
         batch: ParsedRetailObservationBatch,
         observation: ParsedRetailObservation,
+        *,
+        currency_code: str | None,
     ) -> NormalizedObservation:
         return NormalizedObservation(
             platform=observation.platform,
@@ -31,6 +37,9 @@ class DeterministicIngestionNormalizer:
             observed_mrp_text=self._text(observation.raw_mrp_text),
             observed_offer_text=self._text(observation.offer_text),
             availability_signal=self._text(observation.availability_signal),
+            observed_selling_price=self.price_parser.parse(
+                self._text(observation.raw_price_text), currency_code=currency_code
+            ),
             evidence_references=self._evidence(observation),
             field_references=observation.field_references,
             completeness=batch.completeness,

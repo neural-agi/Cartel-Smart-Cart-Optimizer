@@ -91,3 +91,57 @@ def test_scrape_endpoint_is_available_from_bootstrapped_application(tmp_path) ->
     response = client.post("/api/v1/scrape", json={})
 
     assert response.status_code == 422
+
+
+def test_observation_query_endpoint_returns_persisted_observation_with_association(tmp_path) -> None:
+    runtime, _catalog, associations = _runtime(tmp_path, resolver=_resolver())
+    application = create_application(runtime=runtime)
+    client = TestClient(application)
+
+    scrape = client.post("/api/v1/scrape", json=_job().model_dump(mode="json"))
+    assert scrape.status_code == 200
+    observation_id = client.get("/api/v1/observations").json()[0]["observation_id"]
+
+    exact = client.get(f"/api/v1/observations/{observation_id}")
+    assert exact.status_code == 200
+    assert exact.json()["observation_id"] == observation_id
+    assert exact.json()["association"]["canonical_product_id"] == "product-amul-taaza"
+
+    filtered = client.get(
+        "/api/v1/observations",
+        params={"canonical_variant_id": "variant-amul-taaza-500ml"},
+    )
+    assert filtered.status_code == 200
+    assert [item["observation_id"] for item in filtered.json()] == [observation_id]
+
+    assert associations.all()
+
+
+def test_observation_query_endpoint_returns_null_association_for_unresolved_observation(tmp_path) -> None:
+    runtime, _catalog, _associations = _runtime(tmp_path, resolver=_resolver(missing_product=True))
+    application = create_application(runtime=runtime)
+    client = TestClient(application)
+
+    scrape = client.post("/api/v1/scrape", json=_job().model_dump(mode="json"))
+    observation_id = client.get("/api/v1/observations").json()[0]["observation_id"]
+
+    exact = client.get(f"/api/v1/observations/{observation_id}")
+    assert exact.status_code == 200
+    assert exact.json()["observation_id"] == observation_id
+    assert exact.json()["association"] is None
+    assert client.get(
+        "/api/v1/observations",
+        params={"canonical_product_id": "product-amul-taaza"},
+    ).json() == []
+
+
+def test_displayed_price_comparison_endpoint_returns_explicit_empty_result(tmp_path) -> None:
+    application = create_application(Settings(_env_file=None, data_dir=tmp_path))
+    client = TestClient(application)
+
+    response = client.get(
+        "/api/v1/comparisons/variants/unknown-variant/displayed-price"
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "no_comparable_observations"
