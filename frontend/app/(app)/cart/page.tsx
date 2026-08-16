@@ -74,7 +74,7 @@ export default function CartPage() {
                 <span className="text-muted-foreground">Subtotal</span>
                 <span>To be calculated</span>
               </div>
-              <Button className="mt-5 w-full" disabled>
+              <Button className="mt-5 w-full" onClick={() => router.push("/optimize")}>
                 Optimize cart
               </Button>
             </aside>
