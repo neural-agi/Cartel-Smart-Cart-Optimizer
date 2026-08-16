@@ -864,6 +864,54 @@ above.
   inputs, whether every or infeasible plan receives an ECE, failure behavior,
   or reference attachment timing.
 
+### Cross-cutting prerequisite: dual-identity consistency
+
+- **Decision ID:** Cross-cutting prerequisite
+- **Evidence:** `CartItemResolutionRequest` permits
+  `canonical_variant_id` together with `platform` and
+  `platform_listing_id`. `CartResolutionService._resolve_item` validates the
+  canonical variant/product path and performs the listing-association lookup,
+  but does not compare the association's canonical product/variant mapping
+  with the requested canonical identity.
+- **Classification:** EXISTING IMPLEMENTATION / TEST EVIDENCE / OWNER DECISION REQUIRED
+- **Repository location:** `backend/app/services/cart_resolution.py::CartItemResolutionRequest`;
+  `backend/app/services/cart_resolution.py::CartResolutionService._resolve_item`;
+  `backend/tests/integration/api/test_scrape_api.py::test_cart_resolution_resolves_variant_and_listing_items_in_input_order`.
+- **What it establishes:** The API accepts both identity forms, and existing
+  tests exercise the forms independently while preserving input order.
+- **What it does not establish:** Whether both identities must agree, which
+  identity is authoritative, or whether a mismatch must be rejected, returned
+  as unresolved, or handled by another explicit policy. This prerequisite is
+  upstream of CandidatePlan construction and is not a CP-01 through CP-09
+  approval.
+
+### Cross-cutting prerequisite: candidate duplicate/equivalence semantics
+
+- **Decision ID:** Cross-cutting prerequisite
+- **Evidence:** Association registration is idempotent for identical records,
+  rejects listing reassignment and conflicting observation-ID mappings, and
+  `FilesystemCanonicalListingAssociationRegistry.all()` validates persisted
+  conflicts before returning deterministic ordering. Candidate discovery then
+  preserves all matching persisted records and sorts them by platform, listing
+  ID, and observation ID.
+- **Classification:** FROZEN CONTRACT / EXISTING IMPLEMENTATION / TEST EVIDENCE /
+  OWNER DECISION REQUIRED
+- **Repository location:** `backend/app/product_intelligence/catalog/association_storage.py::FilesystemCanonicalListingAssociationRegistry.register`;
+  `backend/app/product_intelligence/catalog/association_storage.py::FilesystemCanonicalListingAssociationRegistry.all`;
+  `backend/app/services/cart_candidate_discovery.py::CartCandidateDiscoveryService._discover_item`;
+  `backend/tests/unit/product_intelligence/catalog/test_resolution.py::test_resolved_association_persists_and_reloads_with_history`;
+  `backend/tests/unit/product_intelligence/catalog/test_resolution.py::test_conflicting_association_fails_closed_without_reassignment`;
+  `backend/tests/integration/api/test_scrape_api.py::test_cart_candidate_discovery_preserves_deterministic_item_and_candidate_order`.
+- **What it establishes:** Association-level conflict handling and candidate
+  ordering are deterministic. Identical association registration is
+  idempotent, listing reassignment is rejected, and observation-ID conflicts
+  are rejected.
+- **What it does not establish:** Candidate-level treatment of identical
+  records, one listing represented by multiple observations, or other
+  equivalent records. The repository does not choose preservation,
+  deduplication, or rejection for those candidate records. Association-level
+  conflict handling must not be treated as a candidate duplicate policy.
+
 ### Evidence limitations
 
 The repository provides enough evidence to preserve the existing Cart
