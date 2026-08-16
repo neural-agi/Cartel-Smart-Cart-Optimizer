@@ -36,6 +36,17 @@ class RetailerAllocation(BaseModel):
     checkout_group_id: str
 
 
+class CandidateListingProvenance(BaseModel):
+    """Exact persisted listing and displayed-price source for an allocation."""
+
+    model_config = ConfigDict(frozen=True)
+
+    platform: str
+    platform_listing_id: str
+    observation_id: str
+    observed_selling_price: Money
+
+
 class ItemAllocation(BaseModel):
     """Fulfillment assignment for one requested cart item."""
 
@@ -46,17 +57,7 @@ class ItemAllocation(BaseModel):
     quantity: int
     retailer_id: str
     checkout_group_id: str
-
-
-class CandidateListingProvenance(BaseModel):
-    """Exact persisted listing and displayed-price source for an allocation."""
-
-    model_config = ConfigDict(frozen=True)
-
-    platform: str
-    platform_listing_id: str
-    observation_id: str
-    observed_selling_price: Money
+    listing_provenance: CandidateListingProvenance | None = None
 
 
 class CandidateItemAllocation(BaseModel):
@@ -96,6 +97,17 @@ class CandidateItemAllocation(BaseModel):
                 observation_id=observation.observation_id,
                 observed_selling_price=observation.observed_selling_price,
             ),
+        )
+
+    def to_item_allocation(self) -> ItemAllocation:
+        """Convert to optimizer allocation data without dropping provenance."""
+        return ItemAllocation(
+            item_id=self.item_id,
+            canonical_variant_id=self.canonical_variant_id,
+            quantity=self.quantity,
+            retailer_id=self.retailer_id,
+            checkout_group_id=self.checkout_group_id,
+            listing_provenance=self.listing_provenance,
         )
 
 
@@ -253,6 +265,22 @@ class CandidatePlan(BaseModel):
     feasibility: PlanFeasibility
     unknown_components: tuple[str, ...] = Field(default_factory=tuple)
     provenance_references: tuple[EvidenceReference, ...] = Field(default_factory=tuple)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_candidate_allocations(cls, data: object) -> object:
+        if not isinstance(data, dict):
+            return data
+        allocations = data.get("item_allocations")
+        if allocations is None:
+            return data
+        normalized = tuple(
+            allocation.to_item_allocation()
+            if isinstance(allocation, CandidateItemAllocation)
+            else allocation
+            for allocation in allocations
+        )
+        return {**data, "item_allocations": normalized}
 
 
 class RejectedPlan(BaseModel):
