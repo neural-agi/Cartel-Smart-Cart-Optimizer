@@ -10,6 +10,8 @@ from app.core.logging import configure_logging, get_logger
 from app.workers.bootstrap import build_product_intelligence_runtime
 from app.workers.product_intelligence_runtime import ProductIntelligenceRuntime
 from app.data_ingestion.observation_registry.query import RetailObservationQueryService
+from app.services.cart_resolution import CartResolutionService
+from app.services.cart_candidate_discovery import CartCandidateDiscoveryService
 
 
 logger = get_logger(__name__)
@@ -70,6 +72,16 @@ def create_application(
     application.state.retail_observation_query = RetailObservationQueryService(
         observation_registry=configured_runtime.observation_registry,
         association_registry=configured_runtime.association_registry,
+    )
+    application.state.cart_resolution = CartResolutionService(
+        catalog=configured_runtime.catalog,
+        association_registry=configured_runtime.association_registry,
+        observation_registry=configured_runtime.observation_registry,
+    )
+    application.state.cart_candidate_discovery = CartCandidateDiscoveryService(
+        catalog=configured_runtime.catalog,
+        association_registry=configured_runtime.association_registry,
+        observation_registry=configured_runtime.observation_registry,
     )
     return application
 
