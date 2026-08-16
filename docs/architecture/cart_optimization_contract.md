@@ -137,10 +137,10 @@ Each `ItemAllocation.quantity` must be a positive integer. Zero and negative all
 
 Quantity fulfillment uses integer arithmetic only. Cart Optimization does not introduce pack, consumer-unit, platform-unit, inventory, substitution, or quantity-conversion semantics.
 
-Allocation identity and quantity fulfillment are structural Cart Optimization
-validation concerns. Checkout-group ECE semantics, constraint-reference
-resolution, and the remaining semantic conditions represented by `FEASIBLE`
-remain outside this frozen slice.
+Allocation identity, quantity fulfillment, and checkout-group ECE handling are
+Cart Optimization contract concerns. Constraint-reference resolution and the
+remaining semantic conditions represented by `FEASIBLE` remain outside this
+frozen slice.
 
 ## Open Policy Decisions
 
@@ -171,9 +171,40 @@ Optimization does not derive, normalize, or validate retailer relationships.
 This policy does not define constraint-reference resolution, hard-constraint
 ownership, or checkout execution capability.
 
-3. **Checkout-group effective-cost references:** whether group ECE IDs must resolve, may be shared, must be unique, or must equal the plan-level ECE. Group ECEs are never aggregated into plan-level cost. Their contextual, economic, and identity/provenance semantics remain OPEN.
-4. **Constraint-reference resolution and identity scope:** whether `CandidatePlan.constraint_references` must resolve against request constraints and whether their IDs are request-local, global, or otherwise scoped. Cart Optimization does not currently resolve these references.
-5. **Hard-constraint satisfaction and complete feasibility proof:** whether Cart Optimization must independently evaluate hard constraints and prove all `FEASIBLE` conditions, or consume those guarantees from upstream. Cart Optimization does not currently independently evaluate hard constraints.
+### Checkout-group effective-cost references
+
+`CheckoutGroup.effective_cost_evaluation_id` is an opaque contextual
+traceability reference. Cart Optimization does not resolve it against
+`CartOptimizationRequest.effective_cost_evaluations`; missing or unresolved
+group references do not independently affect optimization behavior.
+
+Multiple checkout groups may share a group ECE ID. Group ECE IDs need not be
+unique within a candidate plan and need not equal the plan-level
+`effective_cost_evaluation_reference`.
+
+Group ECEs have no independent economic authority. Only the plan-level ECE
+represents complete plan cost and participates in ranking or cost comparison.
+Group ECE IDs remain part of candidate-plan identity, but they are not
+converted into `EvidenceReference` values or aggregated into
+`CartOptimizationResult.provenance_references`.
+
+### Constraint-reference and feasibility ownership
+
+`CandidatePlan.constraint_references` are opaque upstream references. Cart
+Optimization does not resolve them against `CartOptimizationRequest.constraints`.
+Missing or unresolved references do not independently change optimization
+behavior. Registry scope, duplicate-reference semantics, and lookup behavior
+are outside this contract.
+
+Hard-constraint evaluation is upstream-owned. Upstream supplies
+`CandidatePlan.feasibility` as `FEASIBLE`, `INFEASIBLE`, or `UNRESOLVED`.
+Cart Optimization consumes that classification and does not independently
+evaluate `OptimizationConstraint` variants. It does not reinterpret supplied
+feasibility except for the established structural fulfillment and plan-level
+effective-cost validations.
+
+The existing ranking and selection behavior remains based on the resulting
+feasibility classification and the authoritative plan-level effective cost.
 
 Existing fixtures and demos that omit allocations or use contextual checkout-group data are not evidence for resolving the remaining OPEN decisions. They must not weaken the contractual semantic requirements above and may require migration after the policies are frozen.
 
@@ -275,6 +306,15 @@ For `PARTIAL`, `UNKNOWN`, or `INVALID` coverage:
 
 If all candidates are infeasible, the optimization outcome is `INFEASIBLE`. If decision-relevant uncertainty remains, the outcome is `UNRESOLVED`.
 
+Unresolved candidate plans remain semantically distinct from infeasible plans.
+They are excluded from `ranked_plan_ids`, are never represented in
+`rejected_plans`, and cannot produce `chosen_plan`. No separate
+`unresolved_plans` result field is used. When unresolved plans can affect the
+decision, `OptimizationOutcome.UNRESOLVED` is authoritative. Their plan IDs
+are preserved in deterministic `rationale`, and their unknown components are
+preserved in `unknowns`. `RejectedPlan` is reserved for deterministically
+infeasible plans.
+
 ## Split Carts
 
 Single-cart plans must be included by the upstream candidate-plan generator whenever they are within scope.
@@ -362,6 +402,14 @@ Optimization outputs must preserve links to:
 - matching and review decision references where applicable.
 
 Provenance is merged by exact identity while preserving canonical first-seen order. The optimizer may aggregate provenance but must not reinterpret or discard it.
+
+For selected-plan listing and observation provenance, the authoritative
+representation is `chosen_plan.item_allocations[*].listing_provenance`. Cart
+Optimization does not convert `CandidateListingProvenance` into
+`EvidenceReference`, add it to `CartOptimizationResult.provenance_references`,
+or aggregate listing provenance from rejected or unresolved candidate plans.
+`CartOptimizationResult.provenance_references` remains limited to its existing
+`EvidenceReference` sources.
 
 ## Replayability
 
