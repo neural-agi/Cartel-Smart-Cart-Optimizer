@@ -35,11 +35,17 @@ class CartOptimizationService:
 
     def optimize(self, request: CartOptimizationRequest) -> CartOptimizationResult:
         evaluations_by_id = self._validate_request(request)
+        structurally_infeasible_plan_ids = self._validate_fulfillment_structure(request)
         linked_evaluations = self._resolve_linked_evaluations(request, evaluations_by_id)
         effective_cost_by_plan_id = self._extract_effective_costs(linked_evaluations)
 
         feasible_plans = tuple(
-            plan for plan in request.candidate_plans if plan.feasibility is PlanFeasibility.FEASIBLE
+            plan
+            for plan in request.candidate_plans
+            if (
+                plan.feasibility is PlanFeasibility.FEASIBLE
+                and plan.plan_id not in structurally_infeasible_plan_ids
+            )
         )
         unresolved_plans = tuple(
             plan
@@ -49,7 +55,10 @@ class CartOptimizationService:
         infeasible_plans = tuple(
             plan
             for plan in request.candidate_plans
-            if plan.feasibility is PlanFeasibility.INFEASIBLE
+            if (
+                plan.feasibility is PlanFeasibility.INFEASIBLE
+                or plan.plan_id in structurally_infeasible_plan_ids
+            )
         )
 
         ranked_plans = self._rank_feasible_plans(feasible_plans, effective_cost_by_plan_id)
@@ -78,6 +87,55 @@ class CartOptimizationService:
             rejected_plans=self._build_rejected_plans(infeasible_plans),
             rejection_reasons=self._build_rejection_reasons(infeasible_plans),
         )
+
+    def _validate_fulfillment_structure(
+        self, request: CartOptimizationRequest
+    ) -> tuple[str, ...]:
+        requested_quantities = {
+            (item.item_id, item.canonical_variant_id): item.quantity
+            for item in request.cart_items
+        }
+        structurally_infeasible_plan_ids: list[str] = []
+
+        for plan in request.candidate_plans:
+            allocation_totals: dict[tuple[str, str], int] = {}
+            seen_allocations: set[str] = set()
+            for allocation in plan.item_allocations:
+                allocation_key = json.dumps(
+                    allocation.model_dump(mode="json"),
+                    sort_keys=True,
+                    separators=(",", ":"),
+                )
+                if allocation_key in seen_allocations:
+                    raise ValueError(
+                        f"candidate plan {plan.plan_id} contains duplicate item allocation"
+                    )
+                seen_allocations.add(allocation_key)
+
+                if allocation.quantity <= 0:
+                    raise ValueError(
+                        f"candidate plan {plan.plan_id} contains non-positive allocation quantity"
+                    )
+
+                logical_key = (allocation.item_id, allocation.canonical_variant_id)
+                if logical_key not in requested_quantities:
+                    raise ValueError(
+                        f"candidate plan {plan.plan_id} contains allocation for unknown cart item"
+                    )
+                allocation_totals[logical_key] = (
+                    allocation_totals.get(logical_key, 0) + allocation.quantity
+                )
+
+            if plan.feasibility is not PlanFeasibility.FEASIBLE:
+                continue
+
+            if any(
+                allocation_totals.get(logical_key, 0) != requested_quantity
+                for logical_key, requested_quantity in requested_quantities.items()
+            ):
+                structurally_infeasible_plan_ids.append(plan.plan_id)
+
+        return tuple(structurally_infeasible_plan_ids)
 
     def _validate_request(
         self, request: CartOptimizationRequest
@@ -212,14 +270,7 @@ class CartOptimizationService:
         return None
 
     def _build_optimization_id(self, request: CartOptimizationRequest) -> str:
-        payload = {
-            "request_id": request.request_id,
-            "optimization_policy_version": request.optimization_policy_version,
-            "candidate_plans": sorted(
-                (self._identity_builder.build(plan) for plan in request.candidate_plans),
-                key=lambda item: item["plan_id"],
-            ),
-        }
+        payload = self._identity_builder.build_request_identity(request)
         serialized = json.dumps(payload, sort_keys=True, separators=(",", ":"))
         return "cartopt_" + hashlib.sha256(serialized.encode("utf-8")).hexdigest()
 

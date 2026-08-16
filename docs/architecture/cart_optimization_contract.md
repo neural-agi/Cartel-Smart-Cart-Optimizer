@@ -103,6 +103,54 @@ Invalid linkage is a structural contract failure, not an unresolved business out
 
 All linked effective-cost results in one request must use the same currency. Currency mismatch makes the request `INVALID`; the optimizer must not convert currencies.
 
+## Current Validation and Ownership Boundary
+
+Cart Optimization independently validates the following executable input conditions:
+
+- the optimization policy version is supported;
+- candidate plan identities are present and unique;
+- `INVALID` candidate-plan feasibility is rejected;
+- request effective-cost evaluation IDs are unique;
+- the plan-level effective-cost reference resolves;
+- a `FEASIBLE` plan has a known linked effective cost;
+- a `FEASIBLE` plan has no linked effective-cost unknown components;
+- linked plan-level effective-cost currencies are consistent.
+
+The semantic meaning of `FEASIBLE` remains the definition in this contract. The current Cart Optimization service does not independently prove every semantic condition represented by that state. Unless explicitly reassigned by a later contract decision, upstream candidate-plan responsibilities include:
+
+- candidate-plan construction;
+- split-cart enumeration;
+- fulfillment construction;
+- canonical Product and ProductVariant validation;
+- unresolved dependency resolution;
+- generation of the supplied feasibility state.
+
+This boundary does not authorize upstream components to change the meaning of `FEASIBLE`, and it does not authorize Cart Optimization to infer unresolved structural policy.
+
+## Fulfillment Semantics
+
+Item-level split allocation is supported. A `CartItemRequest` may be represented by one or more `ItemAllocation` records. The logical request-item key is exactly the pair `(item_id, canonical_variant_id)`.
+
+Every `FEASIBLE` candidate plan must fulfill every requested logical item. For each request-item key, the sum of matching allocation quantities must equal the corresponding `CartItemRequest.quantity`. An omitted item, under-allocation, or over-allocation cannot produce a `FEASIBLE` plan.
+
+Each `ItemAllocation.quantity` must be a positive integer. Zero and negative allocation quantities are structurally invalid. Exact duplicate allocation records are structurally invalid; multiple non-identical allocations for one logical request item are valid intentional split allocations.
+
+Quantity fulfillment uses integer arithmetic only. Cart Optimization does not introduce pack, consumer-unit, platform-unit, inventory, substitution, or quantity-conversion semantics.
+
+Allocation identity and quantity fulfillment are structural Cart Optimization validation concerns. Retailer-allocation relationships, checkout-group membership/completeness, checkout-group ECE resolution/equality, constraint-reference resolution, and the remaining semantic conditions represented by `FEASIBLE` remain outside this frozen slice.
+
+## Open Policy Decisions
+
+The following decisions remain OPEN. No implementation rule may be inferred for them until the relevant policy is explicitly frozen:
+
+1. **Allocation-to-checkout-group membership and completeness:** whether allocations must reference declared checkout groups, whether every declared group must contain an allocation, and whether `checkout_group_id` is authoritative or descriptive.
+2. **`RetailerAllocation` relationships and authority:** whether retailer allocations are authoritative, informational, or required to correspond to item allocations or checkout groups. `retailer_id` remains opaque.
+3. **Checkout-group effective-cost references:** whether group ECE IDs must resolve, may be shared, must be unique, or must equal the plan-level ECE. Group ECEs are never aggregated into plan-level cost.
+4. **Constraint-reference resolution and identity scope:** whether `CandidatePlan.constraint_references` must resolve against request constraints and whether their IDs are request-local, global, or otherwise scoped. Cart Optimization does not currently resolve these references.
+5. **Hard-constraint satisfaction and complete feasibility proof:** whether Cart Optimization must independently evaluate hard constraints and prove all `FEASIBLE` conditions, or consume those guarantees from upstream. Cart Optimization does not currently independently evaluate hard constraints.
+
+Existing fixtures and demos that omit allocations or use contextual checkout-group data are not evidence for resolving the remaining OPEN decisions. They must not weaken the contractual semantic requirements above and may require migration after the policies are frozen.
+
 ## CandidatePlanCoverage
 
 Coverage is an immutable declaration describing completeness for a declared optimization scope.

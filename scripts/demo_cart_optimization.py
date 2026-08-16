@@ -17,6 +17,7 @@ from app.cart_optimization.types import (
     CartOptimizationRequest,
     CheckoutGroup,
     EffectiveCostEvaluationReference,
+    ItemAllocation,
 )
 from app.cost_intelligence.evaluation.types import EffectiveCostEvaluationResult
 from app.cost_intelligence.shared.money import Money
@@ -32,6 +33,15 @@ def _plan(plan_id: str, evaluation_id: str, amount: int) -> tuple[CandidatePlan,
                 checkout_group_id=f"{plan_id}-checkout",
                 retailer_id=f"{plan_id}-retailer",
                 effective_cost_evaluation_id=evaluation_id,
+            ),
+        ),
+        item_allocations=(
+            ItemAllocation(
+                item_id="milk-line",
+                canonical_variant_id="amul-taaza-toned-milk-500ml",
+                quantity=2,
+                retailer_id=f"{plan_id}-retailer",
+                checkout_group_id=f"{plan_id}-checkout",
             ),
         ),
         effective_cost_evaluation_reference=EffectiveCostEvaluationReference(
