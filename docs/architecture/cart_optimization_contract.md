@@ -437,6 +437,221 @@ independent implementations must produce identical:
 
 The implementation must not depend on clocks, randomness, global state, hidden configuration, insertion order, or mutable storage.
 
+## CandidatePlan Construction Policy Gate
+
+This section is an owner-facing decision package for the boundary between
+persisted cart candidate discovery and CandidatePlan construction. It records
+questions that are not established by the current contract or implementation.
+It is not an implementation authorization. No default, fallback, or policy may
+be inferred from the presence of a model field, a fixture, a demo, or current
+permissive behavior.
+
+The approved pipeline is:
+
+```text
+resolved cart
+  -> persisted candidates
+  -> candidate readiness/provenance
+  -> [OWNER POLICY GATE]
+  -> CandidatePlan construction
+  -> plan-level economic evaluation
+  -> Cart Optimization
+```
+
+### 1. Retailer identity
+
+The existing contract defines `retailer_id` as an opaque optimization-domain
+identifier. `platform` must not be treated as `retailer_id`.
+
+Before CandidatePlan construction, the owner must approve:
+
+- the domain entity that owns `retailer_id`;
+- the authoritative source of the identifier;
+- whether the identifier is attached to a persisted listing, observation,
+  platform configuration, or another domain object;
+- whether one platform may contain multiple retailer identifiers;
+- whether one retailer may span multiple platforms;
+- whether retailer identity is immutable for a persisted listing candidate;
+- the behavior when retailer identity is unavailable.
+
+Until approved, retailer identity is unavailable for plan construction unless
+an upstream-approved source supplies it. No identifier namespace or platform
+equivalence is introduced by this contract.
+
+### 2. Checkout-group construction
+
+Every `CheckoutGroup` requires:
+
+- `checkout_group_id`;
+- `retailer_id`;
+- `effective_cost_evaluation_id`.
+
+The existing membership policy remains authoritative: every allocation group
+reference must match a declared group in the same plan, every declared group
+must contain an allocation, and `checkout_group_id` is authoritative for
+allocation membership. This section does not change that policy.
+
+The owner must still approve the construction rule for:
+
+- the grouping dimension and grouping key;
+- whether platform participates in grouping;
+- whether fulfillment or delivery context participates;
+- whether different retailers may share a group;
+- whether different platforms may share a group;
+- whether one item may span groups;
+- deterministic derivation of `checkout_group_id`;
+- behavior when grouping context is unavailable.
+
+No grouping rule may be derived from `retailer_id`, `platform`, checkout count,
+or field-name similarity without that decision.
+
+### 3. Candidate-to-plan enumeration
+
+The owner must approve the enumeration semantics for:
+
+- zero candidates for a cart item;
+- exactly one candidate;
+- multiple candidates;
+- multiple candidates for one item;
+- split allocations;
+- combinations across candidates;
+- elimination of equivalent plans.
+
+The existing fulfillment contract permits split allocations, but it does not
+select an enumeration strategy for persisted candidates. Candidate discovery
+does not construct plans and does not imply that multiple candidates are
+alternatives, splits, or combinations.
+
+### 4. Typed-price-ineligible candidates
+
+Candidate discovery distinguishes these states:
+
+1. a persisted candidate exists;
+2. the candidate has a valid typed observed selling price;
+3. the candidate lacks a valid typed observed selling price.
+
+Missing, malformed, or unsupported prices must not be fabricated, defaulted, or
+silently converted. The owner must choose whether a price-ineligible candidate
+is:
+
+- excluded before allocation;
+- retained as non-comparable preparation data;
+- allowed to produce an unresolved plan;
+- or handled by another explicitly defined policy.
+
+The current readiness metadata records this condition but does not choose its
+CandidatePlan meaning.
+
+### 5. CandidatePlan identity and plan IDs
+
+`CandidatePlanIdentityBuilder` is the existing identity authority. Its
+identity-bearing inputs are:
+
+- `plan_id`;
+- `inconvenience_penalty_units`;
+- `retailer_preference_priority`;
+- retailer allocations;
+- item allocations, including allocation quantities;
+- checkout groups, including their identity-bearing ECE IDs;
+- the plan-level effective-cost evaluation reference;
+- constraint reference IDs.
+
+Collections are canonically ordered before serialization. Listing provenance is
+preserved on item allocations but is not independently identity-bearing where
+the existing builder excludes it. No new hashing or plan identity scheme is
+introduced here.
+
+The owner must approve how newly enumerated plans receive `plan_id`. Until
+approved, CandidatePlan construction must not generate plan IDs.
+
+### 6. Feasibility handoff
+
+The allowed feasibility states remain `FEASIBLE`, `INFEASIBLE`, `UNRESOLVED`,
+and `INVALID`. Feasibility is upstream-owned. Cart Optimization consumes the
+supplied classification and applies only the already-established structural
+fulfillment and plan-level effective-cost validations.
+
+The owner must specify:
+
+- which component assigns feasibility;
+- the evidence required for each state;
+- whether a plan may be constructed before feasibility is assigned;
+- how missing retailer identity, grouping context, typed price, or ECE inputs
+  affect construction versus feasibility.
+
+This section does not assign meanings to missing data and does not expand
+Cart Optimization's feasibility responsibility.
+
+### 7. Inconvenience penalty
+
+`inconvenience_penalty_units` is a required explicit CandidatePlan attribute.
+It participates in CandidatePlan identity and ranking. The optimizer does not
+derive it from checkout count, retailer names, fees, or allocation shape.
+
+The owner must approve its source, owner, default behavior, whether zero is
+valid, whether it is user/configuration/planner/retailer/checkout-derived, and
+when it becomes available.
+
+### 8. Retailer preference
+
+`retailer_preference_priority` is a required explicit CandidatePlan attribute.
+It participates in CandidatePlan identity and ranking. Its preference direction
+and source are not inferred from platform names or lexical ordering.
+
+The owner must approve its source, owner, default behavior, whether lower or
+higher values are preferred under ranking, whether it is user-specific,
+global, metadata-derived, or planner-derived, and when it becomes available.
+
+### 9. Economic evaluation handoff
+
+The established lifecycle is:
+
+```text
+candidate discovery/readiness
+  -> CandidatePlan construction
+  -> plan-level Effective Cost Evaluation
+  -> CandidatePlan.effective_cost_evaluation_reference
+  -> CartOptimizationRequest
+  -> Cart Optimization
+```
+
+CandidatePlan stores an `EffectiveCostEvaluationReference`, not an embedded
+evaluation. The plan-level ECE is the economic authority. Checkout-group ECEs
+remain contextual and are never aggregated into plan cost. Cost Intelligence
+owns ECE calculation.
+
+The owner must approve:
+
+- which component creates one ECE per plan;
+- the required ECE inputs;
+- whether every plan receives an ECE;
+- whether infeasible plans receive ECEs;
+- failure behavior;
+- how the reference is attached to the plan.
+
+This gate does not modify Cost Intelligence or plan-level ECE validation.
+
+### 10. Implementation gate
+
+| Decision | Current contract | Owner decision required | Required upstream data | Blocked implementation area |
+|---|---|---|---|---|
+| retailer identity | Opaque identifier; platform is not retailer identity | Owner/source/scope/unavailable behavior | Approved retailer identifier on or linked to candidate data | CandidateItemAllocation and CheckoutGroup construction |
+| checkout grouping | Membership references are frozen; construction dimension is not | Grouping key, context, cross-retailer/platform rules, unavailable behavior | Approved grouping context and deterministic derivation inputs | CheckoutGroup and allocation construction |
+| zero candidates | Candidate discovery reports explicit no-candidate state; plan meaning is not frozen | Unresolved, infeasible, invalid, or excluded behavior | Approved zero-candidate policy | CandidatePlan enumeration |
+| one candidate | Candidate discovery preserves one candidate; plan consequence is not frozen | Whether one candidate necessarily yields a plan | Required plan attributes and feasibility evidence | CandidatePlan enumeration |
+| multiple candidates | Candidate discovery preserves deterministic candidates; alternative/split semantics are not frozen | Alternatives, splits, combinations, and equivalence rules | Enumeration policy and complete candidate data | CandidatePlan enumeration |
+| split allocation | Fulfillment permits split allocations; persisted-candidate enumeration is not defined | Split eligibility, quantity distribution, and equivalence rules | Approved allocation policy | ItemAllocation/CandidatePlan construction |
+| plan identity | Existing builder and identity fields are frozen | Assignment convention for newly generated `plan_id` | Deterministic plan identity inputs | CandidatePlan construction |
+| feasibility | States and upstream ownership are frozen | Assigning component and evidence for generated plans | Feasibility evidence and unresolved-dependency policy | CandidatePlan construction/handoff |
+| inconvenience | Required explicit identity/ranking input; derivation is prohibited | Source, default, zero, owner, availability | Penalty value for each plan | CandidatePlan construction |
+| retailer preference | Required explicit identity/ranking input; lexical derivation is prohibited | Source, default, direction, owner, availability | Priority value for each plan | CandidatePlan construction |
+| plan-level ECE | Reference is required by CandidatePlan; Cost Intelligence owns calculation | Creator, inputs, coverage, failure, attachment | ECE result/reference per policy | ECE handoff and CartOptimizationRequest construction |
+
+Until the blocked decisions and required upstream data are approved, the
+implementation gate remains closed. No CandidatePlan, CandidateItemAllocation,
+ItemAllocation, CheckoutGroup, CartOptimizationRequest, or Effective Cost
+Evaluation is constructed from persisted discovery candidates by this boundary.
+
 ## Frozen Boundary
 
 Cart Optimization is implementation-ready under this contract. It is a deterministic decision layer over supplied candidate plans and structured Effective Cost Evaluation results. It does not replace or extend Product Intelligence, Cost Context, evaluator, review, assertion, or persistence responsibilities.
