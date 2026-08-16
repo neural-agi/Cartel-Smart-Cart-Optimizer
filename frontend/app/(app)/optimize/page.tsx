@@ -8,20 +8,30 @@ import { useMutation } from "@tanstack/react-query";
 import AppShell from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/button";
 import { CartResolutionError, resolveCart } from "@/services/cartResolution";
+import {
+  CartCandidateDiscoveryError,
+  discoverCartCandidates,
+} from "@/services/cartCandidates";
 import { useCartStore } from "@/store/cartStore";
 
 export default function OptimizePage() {
   const router = useRouter();
   const items = useCartStore((state) => state.items);
   const setResolution = useCartStore((state) => state.setResolution);
+  const setCandidateDiscovery = useCartStore((state) => state.setCandidateDiscovery);
   const mutation = useMutation({
-    mutationFn: () => resolveCart(items),
-    onSuccess: (result) => {
-      setResolution(result);
+    mutationFn: async () => {
+      const resolution = await resolveCart(items);
+      const candidates = await discoverCartCandidates(resolution);
+      return { resolution, candidates };
+    },
+    onSuccess: ({ resolution, candidates }) => {
+      setResolution(resolution);
+      setCandidateDiscovery(candidates);
       router.push("/results");
     },
   });
-  const hasUnresolved = mutation.data?.items.some((item) => item.status === "unresolved") ?? false;
+  const hasUnresolved = mutation.data?.resolution.items.some((item) => item.status === "unresolved") ?? false;
 
   return (
     <AppShell>
@@ -62,7 +72,7 @@ export default function OptimizePage() {
               {mutation.isError && (
                 <div role="alert" className="flex items-start gap-3 rounded-xl border border-destructive/40 bg-destructive/5 p-4 text-sm">
                   <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" aria-hidden="true" />
-                  <span>{mutation.error instanceof CartResolutionError ? mutation.error.message : "Cart resolution failed. Try again."}</span>
+                  <span>{mutation.error instanceof CartResolutionError || mutation.error instanceof CartCandidateDiscoveryError ? mutation.error.message : "Cart preparation failed. Try again."}</span>
                 </div>
               )}
               {mutation.isSuccess && !hasUnresolved && (
