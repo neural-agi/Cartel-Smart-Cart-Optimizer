@@ -90,6 +90,41 @@ def test_result_is_immutable_and_optional_fields_are_empty_by_default() -> None:
         result.request_id = "changed"  # type: ignore[misc]
 
 
+def test_result_accepts_matching_chosen_plan_fields() -> None:
+    plan = _plan()
+    result = CartOptimizationResult(
+        optimization_id="optimization-1",
+        request_id="request-1",
+        chosen_plan_id=plan.plan_id,
+        chosen_plan=plan,
+        outcome=OptimizationOutcome.SELECTED,
+    )
+    assert result.chosen_plan_id == result.chosen_plan.plan_id
+
+
+@pytest.mark.parametrize(
+    ("chosen_plan_id", "chosen_plan", "message"),
+    (
+        ("plan-1", None, "chosen_plan_id and chosen_plan must be provided together"),
+        (None, _plan(), "chosen_plan_id and chosen_plan must be provided together"),
+        ("plan-2", _plan(), "chosen_plan_id must match chosen_plan.plan_id"),
+    ),
+)
+def test_result_rejects_inconsistent_chosen_plan_fields(
+    chosen_plan_id: str | None,
+    chosen_plan: CandidatePlan | None,
+    message: str,
+) -> None:
+    with pytest.raises(ValidationError, match=message):
+        CartOptimizationResult(
+            optimization_id="optimization-1",
+            request_id="request-1",
+            chosen_plan_id=chosen_plan_id,
+            chosen_plan=chosen_plan,
+            outcome=OptimizationOutcome.SELECTED,
+        )
+
+
 def test_coverage_supports_all_frozen_states() -> None:
     for state in CoverageState:
         coverage = CandidatePlanCoverage(
