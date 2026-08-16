@@ -64,7 +64,13 @@ class CandidatePlanIdentityBuilder:
     def _canonical_models(
         self, models: tuple[BaseModel, ...], sort_fields: tuple[str, ...]
     ) -> tuple[dict[str, object], ...]:
-        serialized = [model.model_dump(mode="json") for model in models]
+        serialized = [
+            {
+                field: model.model_dump(mode="json")[field]
+                for field in sort_fields
+            }
+            for model in models
+        ]
         return tuple(
             sorted(
                 serialized,

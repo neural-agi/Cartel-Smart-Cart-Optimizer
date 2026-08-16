@@ -11,6 +11,7 @@ from app.cart_optimization.service import CartOptimizationService
 from app.cart_optimization.identity import CandidatePlanIdentityBuilder
 from app.cart_optimization.types import (
     BudgetConstraint,
+    CandidateItemAllocation,
     CandidatePlan,
     CandidatePlanCoverage,
     CartItemRequest,
@@ -29,6 +30,8 @@ from app.cart_optimization.types import (
 )
 from app.cost_intelligence.evaluation.types import EffectiveCostEvaluationResult
 from app.cost_intelligence.shared.money import Money
+from app.data_ingestion.enums import TaxStatus
+from app.data_ingestion.observation_registry.comparison import ComparableRetailObservation
 from app.product_intelligence.models import EvidenceReference
 
 
@@ -262,6 +265,40 @@ def test_known_fulfillment_mismatch_does_not_require_feasible_ece() -> None:
 
     assert result.outcome is OptimizationOutcome.INFEASIBLE
     assert result.rejected_plans[0].plan_id == "plan-1"
+
+
+def test_optimizer_accepts_candidate_allocation_and_preserves_listing_provenance() -> None:
+    candidate = CandidateItemAllocation.from_comparable_observation(
+        item_id="item-1",
+        canonical_variant_id="variant-1",
+        quantity=1,
+        retailer_id="BLINKIT",
+        checkout_group_id="plan-1-checkout-0",
+        observation=ComparableRetailObservation(
+            observation_id="observation-1",
+            platform="BLINKIT",
+            platform_listing_id="listing-1",
+            canonical_product_id="product-1",
+            canonical_variant_id="variant-1",
+            observed_selling_price=Money(currency="INR", minor_units=10000),
+            tax_status=TaxStatus.INCLUDED,
+        ),
+    )
+    plan = _plan("plan-1", "eval-1").model_copy(update={"item_allocations": (candidate,)})
+    request = _request(
+        candidate_plans=(plan,),
+        evaluations=(_evaluation("eval-1", 1000),),
+    )
+
+    result = CartOptimizationService().optimize(request)
+
+    assert result.chosen_plan is not None
+    provenance = result.chosen_plan.item_allocations[0].listing_provenance
+    assert provenance is not None
+    assert provenance.platform == "BLINKIT"
+    assert provenance.platform_listing_id == "listing-1"
+    assert provenance.observation_id == "observation-1"
+    assert provenance.observed_selling_price == Money(currency="INR", minor_units=10000)
 
 
 def test_unresolved_plan_blocks_recommendation_and_preserves_unknowns() -> None:
