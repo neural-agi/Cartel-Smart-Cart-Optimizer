@@ -307,3 +307,11 @@ class CartOptimizationResult(BaseModel):
     alternative_plans: tuple[CandidatePlan, ...] = Field(default_factory=tuple)
     rejected_plans: tuple[RejectedPlan, ...] = Field(default_factory=tuple)
     rejection_reasons: tuple[str, ...] = Field(default_factory=tuple)
+
+    @model_validator(mode="after")
+    def _validate_chosen_plan_consistency(self) -> "CartOptimizationResult":
+        if (self.chosen_plan_id is None) != (self.chosen_plan is None):
+            raise ValueError("chosen_plan_id and chosen_plan must be provided together")
+        if self.chosen_plan is not None and self.chosen_plan.plan_id != self.chosen_plan_id:
+            raise ValueError("chosen_plan_id must match chosen_plan.plan_id")
+        return self
