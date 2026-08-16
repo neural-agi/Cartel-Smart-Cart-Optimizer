@@ -168,6 +168,102 @@ def test_all_plans_infeasible_returns_infeasible() -> None:
     assert result.rejected_plans[0].plan_id == "plan-1"
 
 
+@pytest.mark.parametrize(
+    ("declared_feasibility", "requested_quantity", "expected_outcome", "ranked", "rejected"),
+    (
+        (
+            PlanFeasibility.FEASIBLE,
+            1,
+            OptimizationOutcome.SELECTED,
+            ("plan-1",),
+            (),
+        ),
+        (
+            PlanFeasibility.FEASIBLE,
+            2,
+            OptimizationOutcome.INFEASIBLE,
+            (),
+            ("plan-1",),
+        ),
+        (
+            PlanFeasibility.UNRESOLVED,
+            1,
+            OptimizationOutcome.UNRESOLVED,
+            (),
+            (),
+        ),
+        (
+            PlanFeasibility.UNRESOLVED,
+            2,
+            OptimizationOutcome.INFEASIBLE,
+            (),
+            ("plan-1",),
+        ),
+        (
+            PlanFeasibility.INFEASIBLE,
+            1,
+            OptimizationOutcome.INFEASIBLE,
+            (),
+            ("plan-1",),
+        ),
+        (
+            PlanFeasibility.INFEASIBLE,
+            2,
+            OptimizationOutcome.INFEASIBLE,
+            (),
+            ("plan-1",),
+        ),
+    ),
+)
+def test_effective_feasibility_precedence(
+    declared_feasibility: PlanFeasibility,
+    requested_quantity: int,
+    expected_outcome: OptimizationOutcome,
+    ranked: tuple[str, ...],
+    rejected: tuple[str, ...],
+) -> None:
+    request = _request(
+        candidate_plans=(
+            _plan("plan-1", "eval-1", feasibility=declared_feasibility),
+        ),
+        evaluations=(_evaluation("eval-1", 1000),),
+    ).model_copy(
+        update={
+            "cart_items": (
+                CartItemRequest(
+                    item_id="item-1",
+                    canonical_variant_id="variant-1",
+                    quantity=requested_quantity,
+                ),
+            )
+        }
+    )
+
+    result = CartOptimizationService().optimize(request)
+
+    assert result.outcome is expected_outcome
+    assert result.ranked_plan_ids == ranked
+    assert tuple(plan.plan_id for plan in result.rejected_plans) == rejected
+
+
+def test_known_fulfillment_mismatch_does_not_require_feasible_ece() -> None:
+    request = _request(
+        candidate_plans=(_plan("plan-1", "eval-1"),),
+        evaluations=(_evaluation("eval-1", None, unknown_components=("effective_cost",)),),
+    ).model_copy(
+        update={
+            "cart_items": (
+                CartItemRequest(item_id="item-1", canonical_variant_id="variant-1", quantity=2),
+            )
+        }
+    )
+
+    result = CartOptimizationService().optimize(request)
+
+    assert result.outcome is OptimizationOutcome.INFEASIBLE
+    assert result.rejected_plans[0].plan_id == "plan-1"
+
+
 def test_unresolved_plan_blocks_recommendation_and_preserves_unknowns() -> None:
     feasible = _plan("plan-feasible", "eval-feasible")
     unresolved = _plan(
@@ -252,14 +348,42 @@ def test_ranking_tie_breakers_are_deterministic() -> None:
     by_penalty = _plan("plan-c", "eval-c", inconvenience_penalty_units=5)
     by_priority = _plan("plan-d", "eval-d", retailer_preference_priority=1)
     by_plan_id = _plan("plan-a", "eval-a")
+    plans = tuple(
+        plan.model_copy(
+            update={
+                "item_allocations": (
+                    *plan.item_allocations,
+                    ItemAllocation(
+                        item_id="item-2",
+                        canonical_variant_id="variant-2",
+                        quantity=1,
+                        retailer_id="retailer-1" if len(plan.checkout_groups) > 1 else "retailer-0",
+                        checkout_group_id=(
+                            f"{plan.plan_id}-checkout-1"
+                            if len(plan.checkout_groups) > 1
+                            else f"{plan.plan_id}-checkout-0"
+                        ),
+                    ),
+                )
+            }
+        )
+        for plan in (by_checkout_count, by_penalty, by_priority, by_plan_id)
+    )
     request = _request(
-        candidate_plans=(by_checkout_count, by_penalty, by_priority, by_plan_id),
+        candidate_plans=plans,
         evaluations=(
             _evaluation("eval-b", 1000),
             _evaluation("eval-c", 1000),
             _evaluation("eval-d", 1000),
             _evaluation("eval-a", 1000),
         ),
+    ).model_copy(
+        update={
+            "cart_items": (
+                CartItemRequest(item_id="item-1", canonical_variant_id="variant-1", quantity=1),
+                CartItemRequest(item_id="item-2", canonical_variant_id="variant-2", quantity=1),
+            )
+        }
     )
 
     result = CartOptimizationService().optimize(request)
@@ -615,6 +739,81 @@ def test_each_candidate_plan_identity_component_changes_plan_identity() -> None:
         assert builder.build(base.model_copy(update=change)) != original
 
 
+def test_checkout_group_evaluation_identity_changes_plan_identity() -> None:
+    builder = CandidatePlanIdentityBuilder()
+    base = _plan("plan-1", "eval-1", checkout_groups=1)
+    changed = base.model_copy(
+        update={
+            "checkout_groups": (
+                base.checkout_groups[0].model_copy(
+                    update={"effective_cost_evaluation_id": "group-eval-2"}
+                ),
+            )
+        }
+    )
+
+    assert builder.build(changed) != builder.build(base)
+
+
+def test_candidate_plan_identity_is_stable_for_reordered_nested_collections() -> None:
+    builder = CandidatePlanIdentityBuilder()
+    base = CandidatePlan(
+        plan_id="plan-1",
+        inconvenience_penalty_units=1,
+        retailer_preference_priority=1,
+        retailer_allocations=(
+            RetailerAllocation(retailer_id="retailer-1", checkout_group_id="group-1"),
+            RetailerAllocation(retailer_id="retailer-2", checkout_group_id="group-2"),
+        ),
+        item_allocations=(
+            ItemAllocation(
+                item_id="item-1",
+                canonical_variant_id="variant-1",
+                quantity=1,
+                retailer_id="retailer-1",
+                checkout_group_id="group-1",
+            ),
+            ItemAllocation(
+                item_id="item-2",
+                canonical_variant_id="variant-2",
+                quantity=1,
+                retailer_id="retailer-2",
+                checkout_group_id="group-2",
+            ),
+        ),
+        checkout_groups=(
+            CheckoutGroup(
+                checkout_group_id="group-1",
+                retailer_id="retailer-1",
+                effective_cost_evaluation_id="group-eval-1",
+            ),
+            CheckoutGroup(
+                checkout_group_id="group-2",
+                retailer_id="retailer-2",
+                effective_cost_evaluation_id="group-eval-2",
+            ),
+        ),
+        effective_cost_evaluation_reference=EffectiveCostEvaluationReference(
+            effective_cost_evaluation_id="eval-1"
+        ),
+        constraint_references=(
+            OptimizationConstraintReference(optimization_constraint_id="constraint-1"),
+            OptimizationConstraintReference(optimization_constraint_id="constraint-2"),
+        ),
+        feasibility=PlanFeasibility.FEASIBLE,
+    )
+    reordered = base.model_copy(
+        update={
+            "retailer_allocations": tuple(reversed(base.retailer_allocations)),
+            "item_allocations": tuple(reversed(base.item_allocations)),
+            "checkout_groups": tuple(reversed(base.checkout_groups)),
+            "constraint_references": tuple(reversed(base.constraint_references)),
+        }
+    )
+
+    assert builder.build(reordered) == builder.build(base)
+
+
 def test_single_allocation_exactly_fulfills_request_item() -> None:
     request = _request(
         candidate_plans=(_plan("plan-1", "eval-1"),),
@@ -708,6 +907,114 @@ def test_split_allocation_order_does_not_change_result() -> None:
     assert first.optimization_id == second.optimization_id
 
 
+def test_allocation_must_reference_declared_checkout_group() -> None:
+    plan = _plan("plan-1", "eval-1").model_copy(
+        update={
+            "item_allocations": (
+                _plan("plan-1", "eval-1").item_allocations[0].model_copy(
+                    update={"checkout_group_id": "unknown-group"}
+                ),
+            )
+        }
+    )
+    request = _request(
+        candidate_plans=(plan,),
+        evaluations=(_evaluation("eval-1", 1000),),
+    )
+
+    with pytest.raises(ValueError, match="undeclared checkout group"):
+        CartOptimizationService().optimize(request)
+
+
+def test_declared_empty_checkout_group_is_invalid() -> None:
+    plan = _plan("plan-1", "eval-1", checkout_groups=2)
+    request = _request(
+        candidate_plans=(plan,),
+        evaluations=(_evaluation("eval-1", 1000),),
+    )
+
+    with pytest.raises(ValueError, match="empty checkout group"):
+        CartOptimizationService().optimize(request)
+
+
+def test_multiple_allocations_may_share_one_checkout_group() -> None:
+    base = _plan("plan-1", "eval-1").item_allocations[0]
+    plan = _plan("plan-1", "eval-1").model_copy(
+        update={
+            "item_allocations": (
+                base,
+                base.model_copy(update={"retailer_id": "another-retailer"}),
+            )
+        }
+    )
+    request = _request(
+        candidate_plans=(plan,),
+        evaluations=(_evaluation("eval-1", 1000),),
+    ).model_copy(
+        update={
+            "cart_items": (
+                CartItemRequest(item_id="item-1", canonical_variant_id="variant-1", quantity=2),
+            )
+        }
+    )
+
+    result = CartOptimizationService().optimize(request)
+
+    assert result.chosen_plan_id == "plan-1"
+
+
+def test_reordering_checkout_groups_and_allocations_does_not_change_result() -> None:
+    plan = _plan("plan-1", "eval-1", checkout_groups=2).model_copy(
+        update={
+            "item_allocations": (
+                ItemAllocation(
+                    item_id="item-1",
+                    canonical_variant_id="variant-1",
+                    quantity=1,
+                    retailer_id="retailer-0",
+                    checkout_group_id="plan-1-checkout-0",
+                ),
+                ItemAllocation(
+                    item_id="item-1",
+                    canonical_variant_id="variant-1",
+                    quantity=1,
+                    retailer_id="retailer-1",
+                    checkout_group_id="plan-1-checkout-1",
+                ),
+            )
+        }
+    )
+    request = _request(
+        candidate_plans=(plan,),
+        evaluations=(_evaluation("eval-1", 1000),),
+    ).model_copy(
+        update={
+            "cart_items": (
+                CartItemRequest(item_id="item-1", canonical_variant_id="variant-1", quantity=2),
+            )
+        }
+    )
+    reordered = request.model_copy(
+        update={
+            "candidate_plans": (
+                plan.model_copy(
+                    update={
+                        "item_allocations": tuple(reversed(plan.item_allocations)),
+                        "checkout_groups": tuple(reversed(plan.checkout_groups)),
+                    }
+                ),
+            )
+        }
+    )
+
+    first = CartOptimizationService().optimize(request)
+    second = CartOptimizationService().optimize(reordered)
+
+    assert first.outcome is second.outcome is OptimizationOutcome.SELECTED
+    assert first.optimization_id == second.optimization_id
+    assert first.chosen_plan_id == second.chosen_plan_id
+
+
 @pytest.mark.parametrize("requested_quantity", (2, 3))
 def test_missing_or_under_allocated_item_is_infeasible(requested_quantity: int) -> None:
     request = _request(
@@ -729,6 +1036,8 @@ def test_missing_or_under_allocated_item_is_infeasible(requested_quantity: int) 
 
     assert result.outcome is OptimizationOutcome.INFEASIBLE
     assert result.chosen_plan is None
+    assert result.ranked_plan_ids == ()
+    assert result.rejected_plans[0].plan_id == "plan-1"
 
 
 def test_over_allocated_item_is_infeasible() -> None:
@@ -748,6 +1057,8 @@ def test_over_allocated_item_is_infeasible() -> None:
 
     assert result.outcome is OptimizationOutcome.INFEASIBLE
     assert result.chosen_plan is None
+    assert result.ranked_plan_ids == ()
+    assert result.rejected_plans[0].plan_id == "plan-1"
 
 
 @pytest.mark.parametrize("quantity", (0, -1))

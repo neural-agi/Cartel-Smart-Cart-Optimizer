@@ -137,15 +137,41 @@ Each `ItemAllocation.quantity` must be a positive integer. Zero and negative all
 
 Quantity fulfillment uses integer arithmetic only. Cart Optimization does not introduce pack, consumer-unit, platform-unit, inventory, substitution, or quantity-conversion semantics.
 
-Allocation identity and quantity fulfillment are structural Cart Optimization validation concerns. Retailer-allocation relationships, checkout-group membership/completeness, checkout-group ECE resolution/equality, constraint-reference resolution, and the remaining semantic conditions represented by `FEASIBLE` remain outside this frozen slice.
+Allocation identity and quantity fulfillment are structural Cart Optimization
+validation concerns. Checkout-group ECE semantics, constraint-reference
+resolution, and the remaining semantic conditions represented by `FEASIBLE`
+remain outside this frozen slice.
 
 ## Open Policy Decisions
 
 The following decisions remain OPEN. No implementation rule may be inferred for them until the relevant policy is explicitly frozen:
 
-1. **Allocation-to-checkout-group membership and completeness:** whether allocations must reference declared checkout groups, whether every declared group must contain an allocation, and whether `checkout_group_id` is authoritative or descriptive.
-2. **`RetailerAllocation` relationships and authority:** whether retailer allocations are authoritative, informational, or required to correspond to item allocations or checkout groups. `retailer_id` remains opaque.
-3. **Checkout-group effective-cost references:** whether group ECE IDs must resolve, may be shared, must be unique, or must equal the plan-level ECE. Group ECEs are never aggregated into plan-level cost.
+Every `ItemAllocation.checkout_group_id` must match a declared `CheckoutGroup.checkout_group_id` within the same candidate plan. Every declared checkout group must contain at least one item allocation. Multiple non-identical item allocations may reference the same checkout group. `checkout_group_id` is authoritative for allocation membership within a candidate plan.
+
+This membership rule does not define or validate `retailer_id` relationships. It does not resolve, compare, aggregate, require uniqueness for, or otherwise interpret checkout-group effective-cost evaluation IDs.
+
+### Retailer allocation semantics
+
+For MVP, `retailer_id` is an opaque optimization-domain identifier. It is not
+defined as a platform, seller, marketplace, or execution capability.
+
+`RetailerAllocation` is informational identity/provenance data. It is not
+authoritative for `ItemAllocation` or `CheckoutGroup` membership.
+
+Cart Optimization does not require:
+
+- `ItemAllocation.retailer_id` to equal `CheckoutGroup.retailer_id`;
+- `RetailerAllocation.retailer_id` to equal either allocation retailer ID;
+- every item allocation to have a retailer allocation;
+- every checkout group to have a retailer allocation.
+
+Multiple checkout groups may share the same opaque `retailer_id`. Cart
+Optimization does not derive, normalize, or validate retailer relationships.
+
+This policy does not define constraint-reference resolution, hard-constraint
+ownership, or checkout execution capability.
+
+3. **Checkout-group effective-cost references:** whether group ECE IDs must resolve, may be shared, must be unique, or must equal the plan-level ECE. Group ECEs are never aggregated into plan-level cost. Their contextual, economic, and identity/provenance semantics remain OPEN.
 4. **Constraint-reference resolution and identity scope:** whether `CandidatePlan.constraint_references` must resolve against request constraints and whether their IDs are request-local, global, or otherwise scoped. Cart Optimization does not currently resolve these references.
 5. **Hard-constraint satisfaction and complete feasibility proof:** whether Cart Optimization must independently evaluate hard constraints and prove all `FEASIBLE` conditions, or consume those guarantees from upstream. Cart Optimization does not currently independently evaluate hard constraints.
 
