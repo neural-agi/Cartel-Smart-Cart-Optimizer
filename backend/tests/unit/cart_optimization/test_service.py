@@ -2,18 +2,30 @@ import pytest
 from pydantic import ValidationError
 
 from app.cart_optimization.enums import (
+    ConstraintHardness,
     CoverageState,
     OptimizationOutcome,
     PlanFeasibility,
 )
 from app.cart_optimization.service import CartOptimizationService
+from app.cart_optimization.identity import CandidatePlanIdentityBuilder
 from app.cart_optimization.types import (
+    BudgetConstraint,
     CandidatePlan,
     CandidatePlanCoverage,
     CartItemRequest,
     CartOptimizationRequest,
+    DeliveryPreferenceConstraint,
     CheckoutGroup,
     EffectiveCostEvaluationReference,
+    InconveniencePenaltyConstraint,
+    ItemAllocation,
+    MaximumCheckoutGroupsConstraint,
+    MembershipPreferenceConstraint,
+    OptimizationConstraintReference,
+    RetailerAllocation,
+    RetailerPreferenceConstraint,
+    SubstitutionPolicyConstraint,
 )
 from app.cost_intelligence.evaluation.types import EffectiveCostEvaluationResult
 from app.cost_intelligence.shared.money import Money
@@ -59,6 +71,15 @@ def _plan(
                 effective_cost_evaluation_id=evaluation_id,
             )
             for index in range(checkout_groups)
+        ),
+        item_allocations=(
+            ItemAllocation(
+                item_id="item-1",
+                canonical_variant_id="variant-1",
+                quantity=1,
+                retailer_id="retailer-0",
+                checkout_group_id=f"{plan_id}-checkout-0",
+            ),
         ),
         effective_cost_evaluation_reference=EffectiveCostEvaluationReference(
             effective_cost_evaluation_id=evaluation_id
@@ -269,6 +290,9 @@ def test_provenance_is_preserved_and_deduplicated_by_identity() -> None:
     request = CartOptimizationRequest(
         request_id="request-1",
         optimization_policy_version="policy-v1",
+        cart_items=(
+            CartItemRequest(item_id="item-1", canonical_variant_id="variant-1", quantity=1),
+        ),
         candidate_plans=(plan,),
         candidate_plan_coverage=_coverage(),
         effective_cost_evaluations=(
@@ -298,3 +322,551 @@ def test_result_and_request_are_immutable() -> None:
         request.request_id = "changed"  # type: ignore[misc]
     with pytest.raises((TypeError, ValidationError)):
         result.request_id = "changed"  # type: ignore[misc]
+
+
+def test_optimization_identity_excludes_request_id() -> None:
+    request = _request(
+        candidate_plans=(_plan("plan-1", "eval-1"),),
+        evaluations=(_evaluation("eval-1", 1000),),
+    )
+    changed = request.model_copy(update={"request_id": "different-request"})
+
+    assert CartOptimizationService().optimize(request).optimization_id == (
+        CartOptimizationService().optimize(changed).optimization_id
+    )
+
+
+def test_optimization_identity_includes_cart_item_identity_and_quantity() -> None:
+    request = _request(
+        candidate_plans=(_plan("plan-1", "eval-1"),),
+        evaluations=(_evaluation("eval-1", 1000),),
+    )
+    changed_quantity = request.model_copy(
+        update={"cart_items": (CartItemRequest(item_id="item-1", canonical_variant_id="variant-1", quantity=2),)}
+    )
+    changed_variant = request.model_copy(
+        update={
+            "cart_items": (
+                CartItemRequest(item_id="item-1", canonical_variant_id="variant-2", quantity=1),
+            ),
+            "candidate_plans": (
+                _plan("plan-1", "eval-1").model_copy(
+                    update={
+                        "item_allocations": (
+                            _plan("plan-1", "eval-1").item_allocations[0].model_copy(
+                                update={"canonical_variant_id": "variant-2"}
+                            ),
+                        )
+                    }
+                ),
+            ),
+        }
+    )
+    service = CartOptimizationService()
+
+    original_id = service.optimize(request).optimization_id
+    assert service.optimize(changed_quantity).optimization_id != original_id
+    assert service.optimize(changed_variant).optimization_id != original_id
+
+
+def test_optimization_identity_includes_plan_evaluation_policy_and_constraint_values() -> None:
+    request = _request(
+        candidate_plans=(_plan("plan-1", "eval-1"),),
+        evaluations=(_evaluation("eval-1", 1000),),
+    )
+    service = CartOptimizationService(supported_policy_versions=("policy-v1", "policy-v2"))
+    original_id = service.optimize(request).optimization_id
+
+    changed_plan = request.model_copy(
+        update={
+            "candidate_plans": (
+                _plan("plan-1", "eval-1", inconvenience_penalty_units=1),
+            )
+        }
+    )
+    changed_evaluation = request.model_copy(
+        update={
+            "candidate_plans": (_plan("plan-1", "eval-2"),),
+            "effective_cost_evaluations": (_evaluation("eval-2", 1000),),
+        }
+    )
+    changed_policy = request.model_copy(update={"optimization_policy_version": "policy-v2"})
+    changed_constraint = request.model_copy(
+        update={
+            "constraints": (
+                BudgetConstraint(
+                    amount=Money(currency="INR", minor_units=1001),
+                    hardness=ConstraintHardness.HARD,
+                ),
+            )
+        }
+    )
+
+    assert service.optimize(changed_plan).optimization_id != original_id
+    assert service.optimize(changed_evaluation).optimization_id != original_id
+    assert service.optimize(changed_policy).optimization_id != original_id
+    assert service.optimize(changed_constraint).optimization_id != original_id
+
+
+def test_request_identity_is_stable_for_reordered_canonical_collections() -> None:
+    first = _request(
+        candidate_plans=(_plan("plan-2", "eval-2"), _plan("plan-1", "eval-1")),
+        evaluations=(_evaluation("eval-1", 1000), _evaluation("eval-2", 900)),
+    )
+    second = first.model_copy(
+        update={
+            "candidate_plans": tuple(reversed(first.candidate_plans)),
+            "effective_cost_evaluations": tuple(reversed(first.effective_cost_evaluations)),
+        }
+    )
+    service = CartOptimizationService()
+
+    assert service.optimize(first).optimization_id == service.optimize(second).optimization_id
+
+
+def test_candidate_plan_identity_payload_is_directly_stable() -> None:
+    builder = CandidatePlanIdentityBuilder()
+    first = builder.build(_plan("plan-1", "eval-1"))
+    second = builder.build(_plan("plan-1", "eval-1"))
+
+    assert first == second
+    assert first["plan_id"] == "plan-1"
+    assert first["effective_cost_evaluation_id"] == "eval-1"
+
+
+def test_reordering_cart_items_does_not_change_optimization_identity() -> None:
+    request = _request(
+        candidate_plans=(_plan("plan-1", "eval-1"),),
+        evaluations=(_evaluation("eval-1", 1000),),
+    ).model_copy(
+        update={
+            "cart_items": (
+                CartItemRequest(item_id="item-1", canonical_variant_id="variant-1", quantity=1),
+                CartItemRequest(item_id="item-2", canonical_variant_id="variant-2", quantity=2),
+            )
+        }
+    )
+    reordered = request.model_copy(update={"cart_items": tuple(reversed(request.cart_items))})
+    service = CartOptimizationService()
+
+    assert service.optimize(request).optimization_id == service.optimize(reordered).optimization_id
+
+
+def test_reordering_constraints_does_not_change_optimization_identity() -> None:
+    request = _request(
+        candidate_plans=(_plan("plan-1", "eval-1"),),
+        evaluations=(_evaluation("eval-1", 1000),),
+    ).model_copy(
+        update={
+            "constraints": (
+                BudgetConstraint(
+                    amount=Money(currency="INR", minor_units=1000),
+                    hardness=ConstraintHardness.HARD,
+                ),
+                RetailerPreferenceConstraint(
+                    retailer_ids=("retailer-1",),
+                    hardness=ConstraintHardness.SOFT,
+                ),
+            )
+        }
+    )
+    reordered = request.model_copy(update={"constraints": tuple(reversed(request.constraints))})
+    service = CartOptimizationService()
+
+    assert service.optimize(request).optimization_id == service.optimize(reordered).optimization_id
+
+
+def test_unused_effective_cost_evaluation_does_not_change_optimization_identity() -> None:
+    request = _request(
+        candidate_plans=(_plan("plan-1", "eval-1"),),
+        evaluations=(_evaluation("eval-1", 1000),),
+    )
+    with_unused = request.model_copy(
+        update={
+            "effective_cost_evaluations": (
+                *_request(
+                    candidate_plans=(_plan("plan-1", "eval-1"),),
+                    evaluations=(_evaluation("eval-1", 1000),),
+                ).effective_cost_evaluations,
+                _evaluation("eval-2", 900),
+            )
+        }
+    )
+    service = CartOptimizationService()
+
+    assert service.optimize(request).optimization_id == service.optimize(with_unused).optimization_id
+
+
+def test_constraint_hardness_is_part_of_request_identity() -> None:
+    request = _request(
+        candidate_plans=(_plan("plan-1", "eval-1"),),
+        evaluations=(_evaluation("eval-1", 1000),),
+    ).model_copy(
+        update={
+            "constraints": (
+                BudgetConstraint(
+                    amount=Money(currency="INR", minor_units=1000),
+                    hardness=ConstraintHardness.HARD,
+                ),
+            )
+        }
+    )
+    changed = request.model_copy(
+        update={
+            "constraints": (
+                BudgetConstraint(
+                    amount=Money(currency="INR", minor_units=1000),
+                    hardness=ConstraintHardness.SOFT,
+                ),
+            )
+        }
+    )
+    service = CartOptimizationService()
+
+    assert service.optimize(request).optimization_id != service.optimize(changed).optimization_id
+
+
+@pytest.mark.parametrize(
+    ("original", "changed"),
+    (
+        (
+            BudgetConstraint(amount=Money(currency="INR", minor_units=1000), hardness=ConstraintHardness.HARD),
+            BudgetConstraint(amount=Money(currency="INR", minor_units=1100), hardness=ConstraintHardness.HARD),
+        ),
+        (
+            RetailerPreferenceConstraint(retailer_ids=("retailer-1",), hardness=ConstraintHardness.SOFT),
+            RetailerPreferenceConstraint(retailer_ids=("retailer-2",), hardness=ConstraintHardness.SOFT),
+        ),
+        (
+            MaximumCheckoutGroupsConstraint(maximum_checkout_groups=1, hardness=ConstraintHardness.HARD),
+            MaximumCheckoutGroupsConstraint(maximum_checkout_groups=2, hardness=ConstraintHardness.HARD),
+        ),
+        (
+            InconveniencePenaltyConstraint(penalty_units=1, hardness=ConstraintHardness.SOFT),
+            InconveniencePenaltyConstraint(penalty_units=2, hardness=ConstraintHardness.SOFT),
+        ),
+        (
+            DeliveryPreferenceConstraint(preference="fast", hardness=ConstraintHardness.SOFT),
+            DeliveryPreferenceConstraint(preference="standard", hardness=ConstraintHardness.SOFT),
+        ),
+        (
+            SubstitutionPolicyConstraint(allow_substitutions=False, hardness=ConstraintHardness.HARD),
+            SubstitutionPolicyConstraint(allow_substitutions=True, hardness=ConstraintHardness.HARD),
+        ),
+        (
+            MembershipPreferenceConstraint(preference="none", hardness=ConstraintHardness.SOFT),
+            MembershipPreferenceConstraint(preference="preferred", hardness=ConstraintHardness.SOFT),
+        ),
+    ),
+)
+def test_each_constraint_variant_value_changes_request_identity(original, changed) -> None:
+    request = _request(
+        candidate_plans=(_plan("plan-1", "eval-1"),),
+        evaluations=(_evaluation("eval-1", 1000),),
+    ).model_copy(update={"constraints": (original,)})
+    changed_request = request.model_copy(update={"constraints": (changed,)})
+    service = CartOptimizationService()
+
+    assert service.optimize(request).optimization_id != service.optimize(changed_request).optimization_id
+
+
+def test_each_candidate_plan_identity_component_changes_plan_identity() -> None:
+    builder = CandidatePlanIdentityBuilder()
+    base = CandidatePlan(
+        plan_id="plan-1",
+        inconvenience_penalty_units=1,
+        retailer_preference_priority=1,
+        retailer_allocations=(RetailerAllocation(retailer_id="retailer-1", checkout_group_id="group-1"),),
+        item_allocations=(
+            ItemAllocation(
+                item_id="item-1",
+                canonical_variant_id="variant-1",
+                quantity=1,
+                retailer_id="retailer-1",
+                checkout_group_id="group-1",
+            ),
+        ),
+        checkout_groups=(
+            CheckoutGroup(
+                checkout_group_id="group-1",
+                retailer_id="retailer-1",
+                effective_cost_evaluation_id="eval-1",
+            ),
+        ),
+        effective_cost_evaluation_reference=EffectiveCostEvaluationReference(
+            effective_cost_evaluation_id="eval-1"
+        ),
+        constraint_references=(OptimizationConstraintReference(optimization_constraint_id="constraint-1"),),
+        feasibility=PlanFeasibility.FEASIBLE,
+    )
+    changes = (
+        {"plan_id": "plan-2"},
+        {"inconvenience_penalty_units": 2},
+        {"retailer_preference_priority": 2},
+        {"retailer_allocations": (RetailerAllocation(retailer_id="retailer-2", checkout_group_id="group-1"),)},
+        {"item_allocations": (base.item_allocations[0].model_copy(update={"quantity": 2}),)},
+        {"checkout_groups": (base.checkout_groups[0].model_copy(update={"checkout_group_id": "group-2"}),)},
+        {"effective_cost_evaluation_reference": EffectiveCostEvaluationReference(effective_cost_evaluation_id="eval-2")},
+        {"constraint_references": (OptimizationConstraintReference(optimization_constraint_id="constraint-2"),)},
+    )
+    original = builder.build(base)
+
+    for change in changes:
+        assert builder.build(base.model_copy(update=change)) != original
+
+
+def test_single_allocation_exactly_fulfills_request_item() -> None:
+    request = _request(
+        candidate_plans=(_plan("plan-1", "eval-1"),),
+        evaluations=(_evaluation("eval-1", 1000),),
+    )
+
+    result = CartOptimizationService().optimize(request)
+
+    assert result.outcome is OptimizationOutcome.SELECTED
+    assert result.chosen_plan_id == "plan-1"
+
+
+def test_split_allocations_exactly_fulfill_request_item() -> None:
+    plan = _plan("plan-1", "eval-1", checkout_groups=2).model_copy(
+        update={
+            "item_allocations": (
+                ItemAllocation(
+                    item_id="item-1",
+                    canonical_variant_id="variant-1",
+                    quantity=1,
+                    retailer_id="retailer-0",
+                    checkout_group_id="plan-1-checkout-0",
+                ),
+                ItemAllocation(
+                    item_id="item-1",
+                    canonical_variant_id="variant-1",
+                    quantity=1,
+                    retailer_id="retailer-1",
+                    checkout_group_id="plan-1-checkout-1",
+                ),
+            )
+        }
+    )
+    request = _request(
+        candidate_plans=(plan,),
+        evaluations=(_evaluation("eval-1", 1000),),
+    ).model_copy(
+        update={
+            "cart_items": (
+                CartItemRequest(item_id="item-1", canonical_variant_id="variant-1", quantity=2),
+            )
+        }
+    )
+
+    assert CartOptimizationService().optimize(request).outcome is OptimizationOutcome.SELECTED
+
+
+def test_split_allocation_order_does_not_change_result() -> None:
+    plan = _plan("plan-1", "eval-1", checkout_groups=2).model_copy(
+        update={
+            "item_allocations": (
+                ItemAllocation(
+                    item_id="item-1",
+                    canonical_variant_id="variant-1",
+                    quantity=1,
+                    retailer_id="retailer-0",
+                    checkout_group_id="plan-1-checkout-0",
+                ),
+                ItemAllocation(
+                    item_id="item-1",
+                    canonical_variant_id="variant-1",
+                    quantity=1,
+                    retailer_id="retailer-1",
+                    checkout_group_id="plan-1-checkout-1",
+                ),
+            )
+        }
+    )
+    request = _request(
+        candidate_plans=(plan,),
+        evaluations=(_evaluation("eval-1", 1000),),
+    ).model_copy(
+        update={
+            "cart_items": (
+                CartItemRequest(item_id="item-1", canonical_variant_id="variant-1", quantity=2),
+            )
+        }
+    )
+    reordered = request.model_copy(
+        update={
+            "candidate_plans": (
+                plan.model_copy(update={"item_allocations": tuple(reversed(plan.item_allocations))}),
+            )
+        }
+    )
+    service = CartOptimizationService()
+
+    first = service.optimize(request)
+    second = service.optimize(reordered)
+    assert first.outcome is OptimizationOutcome.SELECTED
+    assert first.optimization_id == second.optimization_id
+
+
+@pytest.mark.parametrize("requested_quantity", (2, 3))
+def test_missing_or_under_allocated_item_is_infeasible(requested_quantity: int) -> None:
+    request = _request(
+        candidate_plans=(_plan("plan-1", "eval-1"),),
+        evaluations=(_evaluation("eval-1", 1000),),
+    ).model_copy(
+        update={
+            "cart_items": (
+                CartItemRequest(
+                    item_id="item-1",
+                    canonical_variant_id="variant-1",
+                    quantity=requested_quantity,
+                ),
+            )
+        }
+    )
+
+    result = CartOptimizationService().optimize(request)
+
+    assert result.outcome is OptimizationOutcome.INFEASIBLE
+    assert result.chosen_plan is None
+
+
+def test_over_allocated_item_is_infeasible() -> None:
+    plan = _plan("plan-1", "eval-1").model_copy(
+        update={
+            "item_allocations": (
+                _plan("plan-1", "eval-1").item_allocations[0].model_copy(update={"quantity": 2}),
+            )
+        }
+    )
+    request = _request(
+        candidate_plans=(plan,),
+        evaluations=(_evaluation("eval-1", 1000),),
+    )
+
+    result = CartOptimizationService().optimize(request)
+
+    assert result.outcome is OptimizationOutcome.INFEASIBLE
+    assert result.chosen_plan is None
+
+
+@pytest.mark.parametrize("quantity", (0, -1))
+def test_non_positive_allocation_quantity_is_invalid(quantity: int) -> None:
+    plan = _plan("plan-1", "eval-1").model_copy(
+        update={
+            "item_allocations": (
+                _plan("plan-1", "eval-1").item_allocations[0].model_copy(update={"quantity": quantity}),
+            )
+        }
+    )
+    request = _request(
+        candidate_plans=(plan,),
+        evaluations=(_evaluation("eval-1", 1000),),
+    )
+
+    with pytest.raises(ValueError, match="non-positive allocation quantity"):
+        CartOptimizationService().optimize(request)
+
+
+def test_exact_duplicate_allocation_is_invalid() -> None:
+    allocation = _plan("plan-1", "eval-1").item_allocations[0]
+    plan = _plan("plan-1", "eval-1").model_copy(
+        update={"item_allocations": (allocation, allocation)}
+    )
+    request = _request(
+        candidate_plans=(plan,),
+        evaluations=(_evaluation("eval-1", 1000),),
+    )
+
+    with pytest.raises(ValueError, match="duplicate item allocation"):
+        CartOptimizationService().optimize(request)
+
+
+@pytest.mark.parametrize(
+    "allocation",
+    (
+        ItemAllocation(
+            item_id="unknown-item",
+            canonical_variant_id="variant-1",
+            quantity=1,
+            retailer_id="retailer-0",
+            checkout_group_id="plan-1-checkout-0",
+        ),
+        ItemAllocation(
+            item_id="item-1",
+            canonical_variant_id="unknown-variant",
+            quantity=1,
+            retailer_id="retailer-0",
+            checkout_group_id="plan-1-checkout-0",
+        ),
+    ),
+)
+def test_allocation_for_unknown_logical_item_is_invalid(allocation: ItemAllocation) -> None:
+    plan = _plan("plan-1", "eval-1").model_copy(update={"item_allocations": (allocation,)})
+    request = _request(
+        candidate_plans=(plan,),
+        evaluations=(_evaluation("eval-1", 1000),),
+    )
+
+    with pytest.raises(ValueError, match="unknown cart item"):
+        CartOptimizationService().optimize(request)
+
+
+def test_multiple_requested_items_are_fulfilled_independently() -> None:
+    first = _plan("plan-1", "eval-1").item_allocations[0]
+    second = first.model_copy(
+        update={
+            "item_id": "item-2",
+            "canonical_variant_id": "variant-2",
+            "quantity": 2,
+        }
+    )
+    plan = _plan("plan-1", "eval-1").model_copy(
+        update={"item_allocations": (first, second)}
+    )
+    request = _request(
+        candidate_plans=(plan,),
+        evaluations=(_evaluation("eval-1", 1000),),
+    ).model_copy(
+        update={
+            "cart_items": (
+                CartItemRequest(item_id="item-1", canonical_variant_id="variant-1", quantity=1),
+                CartItemRequest(item_id="item-2", canonical_variant_id="variant-2", quantity=2),
+            )
+        }
+    )
+
+    assert CartOptimizationService().optimize(request).outcome is OptimizationOutcome.SELECTED
+
+
+def test_structurally_infeasible_cheaper_plan_cannot_be_selected() -> None:
+    cheap = _plan("cheap", "eval-cheap").model_copy(
+        update={
+            "item_allocations": (
+                _plan("cheap", "eval-cheap").item_allocations[0].model_copy(update={"quantity": 1}),
+            )
+        }
+    )
+    expensive = _plan("expensive", "eval-expensive").model_copy(
+        update={
+            "item_allocations": (
+                _plan("expensive", "eval-expensive").item_allocations[0].model_copy(update={"quantity": 2}),
+            )
+        }
+    )
+    request = _request(
+        candidate_plans=(cheap, expensive),
+        evaluations=(_evaluation("eval-cheap", 100), _evaluation("eval-expensive", 1000)),
+    ).model_copy(
+        update={
+            "cart_items": (
+                CartItemRequest(item_id="item-1", canonical_variant_id="variant-1", quantity=2),
+            )
+        }
+    )
+
+    result = CartOptimizationService().optimize(request)
+
+    assert result.outcome is OptimizationOutcome.SELECTED
+    assert result.chosen_plan_id == "expensive"
+    assert result.rejected_plans[0].plan_id == "cheap"
