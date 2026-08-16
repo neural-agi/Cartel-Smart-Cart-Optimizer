@@ -274,11 +274,15 @@ class CandidatePlan(BaseModel):
         allocations = data.get("item_allocations")
         if allocations is None:
             return data
+        try:
+            iterator = iter(allocations)
+        except TypeError:
+            return data
         normalized = tuple(
             allocation.to_item_allocation()
             if isinstance(allocation, CandidateItemAllocation)
             else allocation
-            for allocation in allocations
+            for allocation in iterator
         )
         return {**data, "item_allocations": normalized}
 

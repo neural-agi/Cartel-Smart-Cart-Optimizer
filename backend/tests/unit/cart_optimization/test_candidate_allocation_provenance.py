@@ -1,4 +1,5 @@
 import pytest
+from pydantic import ValidationError
 
 from app.cart_optimization import CandidateItemAllocation, CandidatePlan
 from app.cart_optimization.enums import PlanFeasibility
@@ -119,6 +120,20 @@ def test_candidate_plan_accepts_candidate_allocation_without_dropping_provenance
     )
 
     assert plan.item_allocations[0].listing_provenance == candidate.listing_provenance
+
+
+def test_candidate_plan_rejects_non_iterable_item_allocations_through_pydantic() -> None:
+    with pytest.raises(ValidationError):
+        CandidatePlan(
+            plan_id="plan-1",
+            inconvenience_penalty_units=0,
+            retailer_preference_priority=0,
+            item_allocations=123,  # type: ignore[arg-type]
+            effective_cost_evaluation_reference=EffectiveCostEvaluationReference(
+                effective_cost_evaluation_id="eval-1"
+            ),
+            feasibility=PlanFeasibility.FEASIBLE,
+        )
 
 
 def test_listing_provenance_is_excluded_from_candidate_plan_identity() -> None:

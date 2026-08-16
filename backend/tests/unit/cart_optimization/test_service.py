@@ -299,6 +299,142 @@ def test_optimizer_accepts_candidate_allocation_and_preserves_listing_provenance
     assert provenance.platform_listing_id == "listing-1"
     assert provenance.observation_id == "observation-1"
     assert provenance.observed_selling_price == Money(currency="INR", minor_units=10000)
+    assert all(reference.source_id != "observation-1" for reference in result.provenance_references)
+
+
+def test_rejected_plan_listing_provenance_is_not_added_to_result_provenance() -> None:
+    candidate = CandidateItemAllocation.from_comparable_observation(
+        item_id="item-1",
+        canonical_variant_id="variant-1",
+        quantity=2,
+        retailer_id="BLINKIT",
+        checkout_group_id="plan-1-checkout-0",
+        observation=ComparableRetailObservation(
+            observation_id="rejected-observation",
+            platform="BLINKIT",
+            platform_listing_id="listing-1",
+            canonical_product_id="product-1",
+            canonical_variant_id="variant-1",
+            observed_selling_price=Money(currency="INR", minor_units=10000),
+            tax_status=TaxStatus.INCLUDED,
+        ),
+    )
+    plan = _plan("plan-1", "eval-1").model_copy(update={"item_allocations": (candidate,)})
+    request = _request(
+        candidate_plans=(plan,),
+        evaluations=(_evaluation("eval-1", 1000),),
+    )
+
+    result = CartOptimizationService().optimize(request)
+
+    assert result.chosen_plan is None
+    assert all(
+        reference.source_id != "rejected-observation"
+        for reference in result.provenance_references
+    )
+
+
+def test_unresolved_group_ece_is_accepted_without_affecting_optimization() -> None:
+    plan = _plan("plan-1", "eval-1").model_copy(
+        update={
+            "checkout_groups": (
+                _plan("plan-1", "eval-1").checkout_groups[0].model_copy(
+                    update={"effective_cost_evaluation_id": "missing-group-ece"}
+                ),
+            )
+        }
+    )
+    request = _request(
+        candidate_plans=(plan,),
+        evaluations=(_evaluation("eval-1", 1000),),
+    )
+
+    result = CartOptimizationService().optimize(request)
+
+    assert result.chosen_plan_id == "plan-1"
+
+
+def test_multiple_checkout_groups_may_share_group_ece_id() -> None:
+    plan = _plan("plan-1", "eval-1", checkout_groups=2).model_copy(
+        update={
+            "checkout_groups": tuple(
+                group.model_copy(update={"effective_cost_evaluation_id": "shared-group-ece"})
+                for group in _plan("plan-1", "eval-1", checkout_groups=2).checkout_groups
+            ),
+            "item_allocations": (
+                ItemAllocation(
+                    item_id="item-1",
+                    canonical_variant_id="variant-1",
+                    quantity=1,
+                    retailer_id="retailer-0",
+                    checkout_group_id="plan-1-checkout-0",
+                ),
+                ItemAllocation(
+                    item_id="item-1",
+                    canonical_variant_id="variant-1",
+                    quantity=1,
+                    retailer_id="retailer-1",
+                    checkout_group_id="plan-1-checkout-1",
+                ),
+            ),
+        }
+    )
+    request = _request(
+        candidate_plans=(plan,),
+        evaluations=(_evaluation("eval-1", 1000),),
+    ).model_copy(
+        update={
+            "cart_items": (
+                CartItemRequest(item_id="item-1", canonical_variant_id="variant-1", quantity=2),
+            )
+        }
+    )
+
+    result = CartOptimizationService().optimize(request)
+
+    assert result.chosen_plan_id == "plan-1"
+
+
+def test_group_ece_may_differ_from_plan_level_ece() -> None:
+    plan = _plan("plan-1", "eval-1").model_copy(
+        update={
+            "checkout_groups": (
+                _plan("plan-1", "eval-1").checkout_groups[0].model_copy(
+                    update={"effective_cost_evaluation_id": "different-group-ece"}
+                ),
+            )
+        }
+    )
+    result = CartOptimizationService().optimize(
+        _request(candidate_plans=(plan,), evaluations=(_evaluation("eval-1", 1000),))
+    )
+
+    assert result.chosen_plan_id == "plan-1"
+
+
+def test_group_ece_does_not_affect_plan_level_ranking_or_result_provenance() -> None:
+    cheap = _plan("cheap", "eval-cheap").model_copy(
+        update={
+            "checkout_groups": (
+                _plan("cheap", "eval-cheap").checkout_groups[0].model_copy(
+                    update={"effective_cost_evaluation_id": "unresolved-group-ece"}
+                ),
+            )
+        }
+    )
+    request = _request(
+        candidate_plans=(cheap, _plan("expensive", "eval-expensive")),
+        evaluations=(_evaluation("eval-cheap", 900), _evaluation("eval-expensive", 1000)),
+    )
+
+    result = CartOptimizationService().optimize(request)
+
+    assert result.ranked_plan_ids == ("cheap", "expensive")
+    assert result.chosen_plan_id == "cheap"
+    assert all(
+        reference.source_id != "unresolved-group-ece"
+        for reference in result.provenance_references
+    )
 
 
 def test_unresolved_plan_blocks_recommendation_and_preserves_unknowns() -> None:
@@ -323,6 +459,75 @@ def test_unresolved_plan_blocks_recommendation_and_preserves_unknowns() -> None:
     assert result.chosen_plan_id is None
     assert result.ranked_plan_ids == ("plan-feasible",)
     assert result.unknowns == ("availability", "effective_cost")
+    assert result.rejected_plans == ()
+    assert result.rejection_reasons == ()
+    assert result.rationale == (
+        "unresolved candidate plans block recommendation",
+        "plan-unresolved",
+    )
+
+
+def test_constraint_references_remain_opaque_and_unresolved() -> None:
+    plan = _plan("plan-1", "eval-1").model_copy(
+        update={
+            "constraint_references": (
+                OptimizationConstraintReference(optimization_constraint_id="missing-constraint"),
+            )
+        }
+    )
+    request = _request(
+        candidate_plans=(plan,),
+        evaluations=(_evaluation("eval-1", 1000),),
+    ).model_copy(
+        update={
+            "constraints": (
+                BudgetConstraint(
+                    amount=Money(currency="INR", minor_units=1),
+                    hardness=ConstraintHardness.HARD,
+                ),
+            )
+        }
+    )
+
+    result = CartOptimizationService().optimize(request)
+
+    assert result.outcome is OptimizationOutcome.SELECTED
+    assert result.chosen_plan_id == "plan-1"
+
+
+def test_supplied_unresolved_feasibility_remains_authoritative() -> None:
+    request = _request(
+        candidate_plans=(
+            _plan("plan-1", "eval-1", feasibility=PlanFeasibility.UNRESOLVED),
+        ),
+        evaluations=(_evaluation("eval-1", 1000),),
+    )
+
+    result = CartOptimizationService().optimize(request)
+
+    assert result.outcome is OptimizationOutcome.UNRESOLVED
+    assert result.chosen_plan is None
+
+
+def test_cart_optimization_does_not_evaluate_hard_constraint_values() -> None:
+    request = _request(
+        candidate_plans=(_plan("plan-1", "eval-1"),),
+        evaluations=(_evaluation("eval-1", 1000),),
+    ).model_copy(
+        update={
+            "constraints": (
+                BudgetConstraint(
+                    amount=Money(currency="INR", minor_units=1),
+                    hardness=ConstraintHardness.HARD,
+                ),
+            )
+        }
+    )
+
+    result = CartOptimizationService().optimize(request)
+
+    assert result.outcome is OptimizationOutcome.SELECTED
+    assert result.chosen_plan_id == "plan-1"
 
 
 def test_invalid_plan_blocks_optimization() -> None:
