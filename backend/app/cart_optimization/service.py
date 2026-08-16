@@ -35,30 +35,26 @@ class CartOptimizationService:
 
     def optimize(self, request: CartOptimizationRequest) -> CartOptimizationResult:
         evaluations_by_id = self._validate_request(request)
-        structurally_infeasible_plan_ids = self._validate_fulfillment_structure(request)
-        linked_evaluations = self._resolve_linked_evaluations(request, evaluations_by_id)
+        effective_feasibility_by_plan_id = self._validate_fulfillment_structure(request)
+        linked_evaluations = self._resolve_linked_evaluations(
+            request, evaluations_by_id, effective_feasibility_by_plan_id
+        )
         effective_cost_by_plan_id = self._extract_effective_costs(linked_evaluations)
 
         feasible_plans = tuple(
             plan
             for plan in request.candidate_plans
-            if (
-                plan.feasibility is PlanFeasibility.FEASIBLE
-                and plan.plan_id not in structurally_infeasible_plan_ids
-            )
+            if effective_feasibility_by_plan_id[plan.plan_id] is PlanFeasibility.FEASIBLE
         )
         unresolved_plans = tuple(
             plan
             for plan in request.candidate_plans
-            if plan.feasibility is PlanFeasibility.UNRESOLVED
+            if effective_feasibility_by_plan_id[plan.plan_id] is PlanFeasibility.UNRESOLVED
         )
         infeasible_plans = tuple(
             plan
             for plan in request.candidate_plans
-            if (
-                plan.feasibility is PlanFeasibility.INFEASIBLE
-                or plan.plan_id in structurally_infeasible_plan_ids
-            )
+            if effective_feasibility_by_plan_id[plan.plan_id] is PlanFeasibility.INFEASIBLE
         )
 
         ranked_plans = self._rank_feasible_plans(feasible_plans, effective_cost_by_plan_id)
@@ -90,17 +86,26 @@ class CartOptimizationService:
 
     def _validate_fulfillment_structure(
         self, request: CartOptimizationRequest
-    ) -> tuple[str, ...]:
+    ) -> dict[str, PlanFeasibility]:
         requested_quantities = {
             (item.item_id, item.canonical_variant_id): item.quantity
             for item in request.cart_items
         }
-        structurally_infeasible_plan_ids: list[str] = []
+        effective_feasibility_by_plan_id: dict[str, PlanFeasibility] = {}
 
         for plan in request.candidate_plans:
             allocation_totals: dict[tuple[str, str], int] = {}
             seen_allocations: set[str] = set()
+            declared_checkout_group_ids = {
+                group.checkout_group_id for group in plan.checkout_groups
+            }
+            populated_checkout_group_ids: set[str] = set()
             for allocation in plan.item_allocations:
+                if allocation.checkout_group_id not in declared_checkout_group_ids:
+                    raise ValueError(
+                        f"candidate plan {plan.plan_id} references undeclared checkout group"
+                    )
+                populated_checkout_group_ids.add(allocation.checkout_group_id)
                 allocation_key = json.dumps(
                     allocation.model_dump(mode="json"),
                     sort_keys=True,
@@ -126,16 +131,21 @@ class CartOptimizationService:
                     allocation_totals.get(logical_key, 0) + allocation.quantity
                 )
 
-            if plan.feasibility is not PlanFeasibility.FEASIBLE:
-                continue
+            if declared_checkout_group_ids - populated_checkout_group_ids:
+                raise ValueError(
+                    f"candidate plan {plan.plan_id} contains an empty checkout group"
+                )
 
-            if any(
+            fulfillment_matches = not any(
                 allocation_totals.get(logical_key, 0) != requested_quantity
                 for logical_key, requested_quantity in requested_quantities.items()
-            ):
-                structurally_infeasible_plan_ids.append(plan.plan_id)
+            )
+            if not fulfillment_matches:
+                effective_feasibility_by_plan_id[plan.plan_id] = PlanFeasibility.INFEASIBLE
+            else:
+                effective_feasibility_by_plan_id[plan.plan_id] = plan.feasibility
 
-        return tuple(structurally_infeasible_plan_ids)
+        return effective_feasibility_by_plan_id
 
     def _validate_request(
         self, request: CartOptimizationRequest
@@ -190,6 +200,7 @@ class CartOptimizationService:
         self,
         request: CartOptimizationRequest,
         evaluations_by_id: dict[str, EffectiveCostEvaluationResult],
+        effective_feasibility_by_plan_id: dict[str, PlanFeasibility],
     ) -> dict[str, EffectiveCostEvaluationResult]:
         linked: dict[str, EffectiveCostEvaluationResult] = {}
         for plan in request.candidate_plans:
@@ -198,7 +209,7 @@ class CartOptimizationService:
             if evaluation is None:
                 raise ValueError("candidate plan references missing effective-cost evaluation")
             if (
-                plan.feasibility is PlanFeasibility.FEASIBLE
+                effective_feasibility_by_plan_id[plan.plan_id] is PlanFeasibility.FEASIBLE
                 and (evaluation.effective_cost is None or evaluation.unknown_components)
             ):
                 raise ValueError(
