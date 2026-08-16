@@ -9,6 +9,7 @@ import { useCartStore } from "@/store/cartStore";
 export default function ResultsPage() {
   const items = useCartStore((state) => state.items);
   const resolution = useCartStore((state) => state.resolution);
+  const candidateDiscovery = useCartStore((state) => state.candidateDiscovery);
 
   return (
     <AppShell>
@@ -33,6 +34,9 @@ export default function ResultsPage() {
               {resolution.items.map((item) => {
                 const product = items.find((cartItem) => cartItem.itemId === item.item_id)?.product;
                 const resolved = item.status === "resolved";
+                const candidateItem = candidateDiscovery?.items.find(
+                  (candidate) => candidate.item_id === item.item_id,
+                );
                 return (
                   <article key={item.item_id} className="flex items-start justify-between gap-4 py-5">
                     <div className="min-w-0">
@@ -44,6 +48,33 @@ export default function ResultsPage() {
                           <p>Variant: {item.canonical_variant_id}</p>
                           {item.platform && <p>Listing: {item.platform} / {item.platform_listing_id}</p>}
                           {item.observation_id && <p>Observation: {item.observation_id}</p>}
+                          {candidateItem && (
+                            <div className="mt-3 space-y-2">
+                              <p>
+                                Persisted candidates: {candidateItem.candidates.length} ({candidateItem.status.replaceAll("_", " ")})
+                              </p>
+                              {candidateItem.reason && (
+                                <p className="text-amber-600">{candidateItem.reason}</p>
+                              )}
+                              {candidateItem.candidates.length > 0 && (
+                                <div className="space-y-2 border-l border-border pl-3">
+                                  {candidateItem.candidates.map((candidate, candidateIndex) => (
+                                    <div key={`${candidate.platform}:${candidate.platform_listing_id}:${candidate.observation_id}:${candidateIndex}`}>
+                                      <p className="font-medium text-foreground">
+                                        {candidate.platform} / {candidate.platform_listing_id}
+                                      </p>
+                                      <p>
+                                        Observation: {candidate.observation_id} · {candidate.readiness.replaceAll("_", " ")}
+                                      </p>
+                                      {candidate.readiness_reason && (
+                                        <p className="text-amber-600">{candidate.readiness_reason}</p>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
                       ) : (
                         <p className="mt-3 text-sm text-destructive">{item.reason ?? "Item could not be resolved."}</p>
