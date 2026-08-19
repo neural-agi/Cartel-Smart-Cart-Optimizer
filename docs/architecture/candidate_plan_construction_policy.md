@@ -250,9 +250,9 @@ resolved cart
 
 ## Owner-Decision Matrix
 
-The following matrix is the approval record for the nine unresolved decisions.
-Each row requires an explicit owner decision; no choice in the “Available
-policy choices” column is selected by this document.
+The following matrix is the original decision matrix. Its unresolved-question
+wording is retained as historical evidence; the explicit approval records
+below supersede it for all eleven decisions.
 
 | Decision ID | Current frozen contract | Question requiring approval | Available policy choices | Required upstream data | Owning component/team | Required deterministic behavior | Unavailable-data behavior | Downstream contract unlocked | Blocked until approval |
 |---|---|---|---|---|---|---|---|---|---|
@@ -270,7 +270,9 @@ policy choices” column is selected by this document.
 
 This analysis separates repository evidence from owner approval. Existing
 runtime behavior is not approval unless the Cart Optimization contract marks
-it frozen.
+it frozen. The Batch 1 and Batch 2 approval records now supersede the
+historical `OWNER DECISION REQUIRED` classifications in this evidence section;
+the classifications remain preserved as historical evidence.
 
 ### CP-01: Retailer identity
 
@@ -433,17 +435,16 @@ it frozen.
 
 ## Recommended Approval Order
 
-1. Approve CP-01 and CP-02 without deriving grouping from retailer identity.
-2. Approve CP-04 independently of feasibility assignment.
-3. Approve CP-07 and CP-08 sources and numeric meanings.
-4. Approve CP-03 enumeration using the approved prerequisite inputs.
-5. Approve CP-05 ID assignment against actual enumerated plan shapes.
-6. Approve CP-06 feasibility evidence and ownership; assign state only after a
-   concrete plan exists.
-7. Approve CP-09 creator, inputs, coverage, failure, and reference attachment.
+1. Supply CP-01/CP-02 retailer and grouping inputs without deriving either
+   from incidental fields.
+2. Supply CP-04 readiness inputs and CP-07/CP-08 plan values.
+3. Implement CP-03 enumeration using the approved prerequisite inputs.
+4. Validate CP-05 supplied plan IDs against final plan shapes.
+5. Supply CP-06 feasibility evidence/state and CP-09 Cost Intelligence
+   references.
 
-Each item remains OWNER DECISION REQUIRED until explicitly approved. This
-order does not approve downstream semantics by implication.
+This is runtime sequencing, not an additional approval requirement. It does
+not authorize implementation by itself.
 
 ## Decision Dependencies
 
@@ -529,7 +530,7 @@ shape.
 
 ## Approval and Implementation Unlock Criteria
 
-CandidatePlan construction is unlocked only when:
+CandidatePlan implementation is authorized only when:
 
 - CP-01 through CP-09 each has an approved owner decision, not merely a
   selected implementation convenience;
@@ -545,15 +546,17 @@ CandidatePlan construction is unlocked only when:
   attachment are explicit;
 - focused contract/regression tests can be written for each approved rule.
 
-Until these criteria are met, the only supported runtime boundary is persisted
-candidate discovery and readiness/provenance. No Python, API, model, or
-frontend implementation may cross the policy gate.
+All policy approvals are now recorded. Until the remaining source, data, and
+runtime handoff criteria are met, the only supported runtime boundary remains
+persisted candidate discovery and readiness/provenance. No Python, API, model,
+or frontend implementation may cross the policy gate in this batch.
 
 ## Owner Approval Record
 
-This section is the explicit approval record for CP-01 through CP-09. It is a
-blank owner-input template. No policy, owner, source, default, or unavailable-
-data behavior is approved by the presence of this template.
+This section is the explicit approval record for CP-01 through CP-09. The
+records below contain the approved Batch 1 and Batch 2 policies. Concrete
+upstream owners and source/data contracts remain implementation prerequisites
+where the records explicitly say so.
 
 An approval is valid only when the owner has explicitly supplied the policy and
 the required source/data behavior. Presence of an implementation, model
@@ -568,144 +571,282 @@ explicit owner approval record.
 
 - **Decision ID:** CP-01
 - **Decision:** Retailer identity source, ownership, scope, lifecycle, and unavailable-data behavior.
-- **Approved policy:**
+- **Approved policy:** `retailer_id` must come from an authoritative upstream
+  retailer source. `platform` is never equivalent to `retailer_id`.
+  `retailer_id` remains opaque. Missing authoritative retailer identity blocks
+  allocation construction rather than being guessed or derived.
 - **Owner:**
 - **Authoritative source:**
 - **Required input/data:**
-- **Deterministic behavior:**
-- **Unavailable-data behavior:**
-- **Effective date/version:**
-- **Approval status:** `PENDING OWNER APPROVAL`
+- **Deterministic behavior:** The same approved upstream retailer input yields
+  the same opaque identifier; platform, listing IDs, ordering, and counts are
+  never used as substitutes.
+- **Unavailable-data behavior:** Allocation construction is blocked.
+- **Effective date/version:** Owner-approved policy batch; implementation data
+  contract remains required before construction.
+- **Approval status:** `APPROVED`
 
 ### CP-02: Checkout-group construction
 
 - **Decision ID:** CP-02
 - **Decision:** Checkout-group dimension, grouping key, cross-entity rules, ID derivation, and unavailable-data behavior.
-- **Approved policy:**
+- **Approved policy:** Checkout groups are constructed only from explicit
+  upstream grouping context. Membership is authoritative through
+  `checkout_group_id`; every allocation belongs to one declared group and
+  every declared group contains an allocation. Group IDs must be deterministic
+  from approved grouping inputs. Cross-platform or cross-retailer grouping is
+  permitted only when supported by that context.
 - **Owner:**
 - **Authoritative source:**
 - **Required input/data:**
-- **Deterministic behavior:**
-- **Unavailable-data behavior:**
-- **Effective date/version:**
-- **Approval status:** `PENDING OWNER APPROVAL`
+- **Deterministic behavior:** Equivalent approved grouping inputs yield the
+  same group ID independent of allocation or collection order.
+- **Unavailable-data behavior:** Group construction is blocked; no arbitrary
+  or default group is selected.
+- **Effective date/version:** Owner-approved policy batch; grouping source and
+  inputs remain required before construction.
+- **Approval status:** `APPROVED`
 
 ### CP-03: Candidate-to-plan enumeration
 
 - **Decision ID:** CP-03
 - **Decision:** Zero, one, and multiple candidate behavior, alternatives, splits, combinations, equivalence, and ordering.
-- **Approved policy:**
+- **Approved policy:** For a finite candidate set, enumerate the exhaustive
+  Cartesian product of one allocation-ready candidate per requested logical
+  item. Zero candidates for any requested item produce no complete plan and an
+  explicit no-plan/unavailable preparation outcome. One candidate produces one
+  alternative for that item but does not imply FEASIBLE. Multiple candidates
+  produce deterministic alternatives; split allocations are not generated
+  from arbitrary quantity partitions unless explicit allocation quantities are
+  supplied by an approved upstream source. Cross-platform, cross-retailer, and
+  cross-checkout-group combinations are retained when approved CP-01/CP-02
+  inputs support them. D-02 governs preservation/equivalence; enumeration does
+  not rank, calculate ECE, or assign feasibility.
 - **Owner:**
 - **Authoritative source:**
 - **Required input/data:**
-- **Deterministic behavior:**
-- **Unavailable-data behavior:**
-- **Effective date/version:**
-- **Approval status:** `PENDING OWNER APPROVAL`
+- **Deterministic behavior:** Candidate inputs are canonically ordered before
+  enumeration. Reordered equivalent inputs produce the same complete plan set,
+  allocation ordering, and plan ordering. Enumeration is exhaustive over the
+  supplied finite candidate set; it does not apply an arbitrary bound.
+- **Unavailable-data behavior:** A missing candidate, required approved input,
+  or required grouping/retailer context prevents a complete plan from being
+  emitted. Alternatives are not silently dropped.
+- **Effective date/version:** Owner-approved Batch 2 policy.
+- **Approval status:** `APPROVED`
 
 ### CP-04: Typed-price eligibility
 
 - **Decision ID:** CP-04
 - **Decision:** Treatment of candidates with missing, malformed, or unsupported typed observed selling prices.
-- **Approved policy:**
+- **Approved policy:** Only valid supported typed `Money` is allocation-ready.
+  Missing, malformed, unsupported, or otherwise invalid observed prices remain
+  explicit not-ready preparation data. No fabrication, defaulting, or silent
+  reparsing is permitted. Not-ready candidates cannot create a normal
+  allocation-ready economically evaluated plan.
 - **Owner:**
 - **Authoritative source:**
 - **Required input/data:**
-- **Deterministic behavior:**
-- **Unavailable-data behavior:**
-- **Effective date/version:**
-- **Approval status:** `PENDING OWNER APPROVAL`
+- **Deterministic behavior:** Identical persisted price data and governed
+  currency configuration produce the same readiness state and reason.
+- **Unavailable-data behavior:** Preserve readiness/provenance and block the
+  normal allocation-ready economic path; unresolved-plan treatment remains
+  outside this batch.
+- **Effective date/version:** Owner-approved policy batch.
+- **Approval status:** `APPROVED`
 
 ### CP-05: CandidatePlan plan ID
 
 - **Decision ID:** CP-05
 - **Decision:** Ownership, convention, deterministic generation, and collision behavior for newly assigned `plan_id` values.
-- **Approved policy:**
+- **Approved policy:** CandidatePlan IDs are supplied by the authoritative
+  upstream plan-enumeration boundary and must be non-empty and unique within a
+  request. `CandidatePlanIdentityBuilder` remains authoritative for canonical
+  identity validation and serialization. The supplied ID is not generated from
+  a payload containing itself; no new hashing scheme is introduced. Existing
+  identity-bearing fields and canonical collection ordering remain unchanged,
+  and listing provenance remains excluded from plan identity. IDs are assigned
+  after all identity-bearing plan fields, including the plan-level ECE
+  reference, are available and before feasibility-state consumption. Collision
+  or duplicate IDs fail closed.
 - **Owner:**
 - **Authoritative source:**
 - **Required input/data:**
-- **Deterministic behavior:**
-- **Unavailable-data behavior:**
-- **Effective date/version:**
-- **Approval status:** `PENDING OWNER APPROVAL`
+- **Deterministic behavior:** The upstream plan boundary supplies the same ID
+  for the same approved plan identity, independent of input ordering.
+- **Unavailable-data behavior:** CandidatePlan construction is blocked when an
+  authoritative non-empty unique ID is unavailable or collides.
+- **Effective date/version:** Owner-approved Batch 2 policy.
+- **Approval status:** `APPROVED`
 
 ### CP-06: Feasibility assignment and handoff
 
 - **Decision ID:** CP-06
 - **Decision:** Feasibility owner, evidence for all four states, assignment timing, missing-data treatment, and hard-constraint ownership.
-- **Approved policy:**
+- **Approved policy:** Feasibility is assigned upstream after the CandidatePlan
+  shape and required evidence exist. `FEASIBLE` requires explicit evidence
+  satisfying the approved feasibility contract. `INFEASIBLE` requires explicit
+  evidence of infeasibility. `UNRESOLVED` represents unavailable or
+  contradictory required evidence and remains distinct from `INFEASIBLE`.
+  `INVALID` is reserved for structural contract violations. Structural
+  completeness alone never creates `FEASIBLE`; Cart Optimization consumes and
+  validates the supplied state and does not independently evaluate hard
+  constraints.
 - **Owner:**
 - **Authoritative source:**
 - **Required input/data:**
-- **Deterministic behavior:**
-- **Unavailable-data behavior:**
-- **Effective date/version:**
-- **Approval status:** `PENDING OWNER APPROVAL`
+- **Deterministic behavior:** The same plan and evidence produce the same
+  feasibility state. Conflicting semantic evidence is `UNRESOLVED` unless an
+  already-frozen structural rule requires `INVALID` or known fulfillment
+  mismatch requires effective `INFEASIBLE`.
+- **Unavailable-data behavior:** Missing evidence cannot become FEASIBLE or
+  silently become INFEASIBLE; the plan remains UNRESOLVED or is blocked under
+  the upstream evidence contract. CP-04 not-ready candidates cannot support a
+  normal FEASIBLE allocation-ready plan. Missing ECE is handled independently
+  under CP-09 and does not redefine feasibility.
+- **Effective date/version:** Owner-approved Batch 2 policy.
+- **Approval status:** `APPROVED`
 
 ### CP-07: Inconvenience penalty
 
 - **Decision ID:** CP-07
 - **Decision:** Source, owner, units, default, zero policy, scope, and availability timing for `inconvenience_penalty_units`.
-- **Approved policy:**
+- **Approved policy:** `inconvenience_penalty_units` must come from an explicit
+  upstream source. It must not be derived from checkout count, platform count,
+  retailer count, allocation count, plan shape, or collection ordering. The
+  source must define units, scope, default behavior, unavailable behavior, and
+  timing.
 - **Owner:**
 - **Authoritative source:**
 - **Required input/data:**
-- **Deterministic behavior:**
-- **Unavailable-data behavior:**
-- **Effective date/version:**
-- **Approval status:** `PENDING OWNER APPROVAL`
+- **Deterministic behavior:** The same approved upstream inputs yield the same
+  integer value.
+- **Unavailable-data behavior:** Construction is blocked unless an explicitly
+  owner-approved default exists.
+- **Effective date/version:** Owner-approved policy batch; no producer or
+  default is created by this approval.
+- **Approval status:** `APPROVED`
 
 ### CP-08: Retailer preference
 
 - **Decision ID:** CP-08
 - **Decision:** Source, owner, numeric meaning, preference direction, default, scope, and availability timing for `retailer_preference_priority`.
-- **Approved policy:**
+- **Approved policy:** `retailer_preference_priority` must come from an
+  explicit approved upstream source. Higher priority values remain preferred.
+  Preference must not be derived from retailer IDs, platform names, lexical or
+  collection ordering, or retailer counts. The source must define scope,
+  default, unavailable behavior, direction, and timing.
 - **Owner:**
 - **Authoritative source:**
 - **Required input/data:**
-- **Deterministic behavior:**
-- **Unavailable-data behavior:**
-- **Effective date/version:**
-- **Approval status:** `PENDING OWNER APPROVAL`
+- **Deterministic behavior:** The same approved upstream inputs yield the same
+  priority value and ranking direction.
+- **Unavailable-data behavior:** Construction is blocked unless an explicitly
+  owner-approved default exists.
+- **Effective date/version:** Owner-approved policy batch; no producer or
+  default is created by this approval.
+- **Approval status:** `APPROVED`
 
 ### CP-09: Plan-level Effective Cost Evaluation
 
 - **Decision ID:** CP-09
 - **Decision:** ECE creator, required inputs, per-plan coverage, infeasible-plan treatment, failure behavior, and reference attachment.
-- **Approved policy:**
+- **Approved policy:** Cost Intelligence is the sole creator and economic
+  authority. After CandidatePlan construction and upstream feasibility
+  assignment, the designated application handoff requests one authoritative
+  plan-level ECE per CandidatePlan and attaches its reference. Every plan that
+  crosses into CartOptimizationRequest requires a linked plan-level ECE
+  reference/result. ECE creation failure or a missing reference blocks normal
+  request handoff and does not fabricate a cost or alter feasibility. Group
+  ECEs remain contextual, are never aggregated into plan-level cost, and are
+  not created or mutated by CandidatePlan construction. Linked currencies must
+  remain consistent under existing Cart Optimization validation. Invalid plans
+  do not cross the request boundary; coverage for infeasible and unresolved
+  plans is supplied by the same approved ECE handoff rather than inferred by
+  the optimizer.
 - **Owner:**
 - **Authoritative source:**
 - **Required input/data:**
-- **Deterministic behavior:**
-- **Unavailable-data behavior:**
-- **Effective date/version:**
-- **Approval status:** `PENDING OWNER APPROVAL`
+- **Deterministic behavior:** The same finalized plan and governed economic
+  inputs produce one stable ECE reference/result association independent of
+  collection ordering.
+- **Unavailable-data behavior:** Missing or failed plan-level ECE blocks
+  CartOptimizationRequest handoff; no implicit ECE, group aggregation, or
+  fallback cost is created.
+- **Effective date/version:** Owner-approved Batch 2 policy.
+- **Approval status:** `APPROVED`
+
+## Cross-Cutting Approval Record
+
+The following cross-cutting input/admissibility decisions are approved by the
+same owner policy batch. This approval does not authorize CandidatePlan
+construction and does not supply the still-required upstream owner/source data.
+
+### D-01: Dual-identity mismatch
+
+- **Decision ID:** D-01
+- **Approved policy:** When canonical variant identity and persisted
+  listing/association identity are both available, they must resolve to the
+  same canonical Variant. Disagreement fails closed at the earliest boundary
+  where both identities are available. Neither identity is silently rewritten,
+  and no alternative canonical Variant is inferred. Single-identity paths are
+  unchanged. The mismatch representation must be deterministic and explicit.
+- **Authoritative source:** The approved identity-consistency policy plus the
+  existing canonical catalog and persisted association resolution paths.
+- **Required input/data:** Both identities and their resolved canonical
+  results, when both are supplied.
+- **Deterministic behavior:** Identical inputs and authoritative persisted data
+  produce the same agreement or mismatch result.
+- **Unavailable-data behavior:** A mismatch is a fail-closed identity
+  violation; it is not converted to `UNRESOLVED` merely for convenience.
+- **Effective date/version:** Owner-approved policy batch.
+- **Approval status:** `APPROVED`
+
+### D-02: Candidate duplicate/equivalence
+
+- **Decision ID:** D-02
+- **Approved policy:** Association-level conflict handling remains distinct
+  from candidate-level equivalence. Distinct candidate evidence is preserved
+  unless an already-established association conflict applies. Candidates are
+  not deduplicated merely because they share logical variant identity,
+  platform, observed price, commercial attributes, or apparent marketplace
+  equivalence. Same-listing observations, different observed prices,
+  cross-platform candidates, cross-retailer candidates, and provenance-only
+  differences remain distinct evidence until a future enumeration stage applies
+  explicitly approved identity dimensions. No new candidate identity is
+  introduced by this decision.
+- **Authoritative source:** The existing association conflict rules and this
+  approved candidate-evidence preservation policy.
+- **Required input/data:** Persisted candidate and association identities,
+  observation identity, and provenance sufficient to preserve distinct records.
+- **Deterministic behavior:** Identical persisted records produce the same
+  preserved candidate set and ordering; no collection-order deduplication is
+  performed.
+- **Unavailable-data behavior:** Preserve the evidence until enumeration has
+  an approved equivalence rule; do not silently drop or collapse candidates.
+- **Effective date/version:** Owner-approved policy batch.
+- **Approval status:** `APPROVED`
 
 ### Approval-state summary
 
 ```text
-CP-01: PENDING
-CP-02: PENDING
-CP-03: PENDING
-CP-04: PENDING
-CP-05: PENDING
-CP-06: PENDING
-CP-07: PENDING
-CP-08: PENDING
-CP-09: PENDING
+CP-01: APPROVED
+CP-02: APPROVED
+CP-03: APPROVED
+CP-04: APPROVED
+CP-05: APPROVED
+CP-06: APPROVED
+CP-07: APPROVED
+CP-08: APPROVED
+CP-09: APPROVED
 ```
 
 ### Approval-gated implementation rule
 
-CandidatePlan construction remains blocked unless CP-01 through CP-09 each
-has:
-
-- an explicit approved policy;
-- a named owner;
-- an authoritative source;
-- a required input/data definition;
-- deterministic behavior;
-- unavailable-data behavior.
+All CP-01 through CP-09 policy decisions and D-01/D-02 are approved. The
+runtime implementation gate remains closed until the required upstream owners,
+authoritative sources, input data, and handoff components are supplied and
+validated. Policy approval alone does not authorize CandidatePlan construction.
 
 No runtime component may infer a missing value or treat an unfilled approval
 record as authorization to construct CandidatePlan objects.
@@ -914,9 +1055,351 @@ above.
 
 ### Evidence limitations
 
-The repository provides enough evidence to preserve the existing Cart
-Optimization boundaries, but it does not provide authoritative answers for the
-owner fields in CP-01 through CP-09. In particular, no inspected field,
-fixture, test helper, or permissive constructor is evidence of a missing
-retailer source, grouping rule, plan enumeration policy, plan-ID convention,
-feasibility assignment policy, ranking-input source, or ECE coverage policy.
+The owner-approved batch above establishes policy for CP-01, CP-02, CP-04,
+CP-07, CP-08, D-01, and D-02. It does not supply the upstream owners, sources,
+or runtime data required to implement those policies. CP-03, CP-05, CP-06,
+and CP-09 remain pending; no inspected field, fixture, test helper, or
+permissive constructor is evidence of approval for those decisions.
+
+## Owner Decision Package
+
+This section is the repository evidence package that preceded the approved
+batch. For CP-01, CP-02, CP-04, CP-07, CP-08, D-01, and D-02, the approved
+records above supersede the historical unresolved-question wording below.
+All CP-01 through CP-09 and D-01/D-02 are now approved. This section does not
+open the CandidatePlan implementation gate.
+
+| Decision ID | Exact unresolved question | Repository evidence | What remains undecided | Required owner decision | Required authoritative source | Required upstream data | Downstream implementation blocked |
+|---|---|---|---|---|---|---|---|
+| CP-01 | What authoritative source owns `retailer_id`; what does it identify; what namespace/scope and immutability apply; what happens when unavailable? | **FROZEN CONTRACT:** `retailer_id` is opaque and `platform` is not equivalent. **EXISTING IMPLEMENTATION:** Cart Optimization models require the field, while candidate discovery supplies no retailer ID. | Entity meaning, source, namespace, cross-platform scope, lifecycle, and unavailable behavior. | Select the owner, source, identifier meaning/scope, immutability, and unavailable-data outcome. | Named upstream retailer-domain source or approved persisted association. | One approved opaque `retailer_id` per candidate/group input. | `CandidateItemAllocation`, `CheckoutGroup`, and CandidatePlan construction. |
+| CP-02 | What defines a checkout group; which allocations belong together; can groups cross retailers/platforms; how is `checkout_group_id` derived; what happens when grouping data is unavailable? | **FROZEN CONTRACT:** declared-group membership and completeness are enforced; group ECEs are contextual. **EXISTING IMPLEMENTATION:** `CheckoutGroup` requires group ID, retailer ID, and group ECE ID. | Grouping dimension, grouping key, cross-entity rules, deterministic derivation, and missing-context behavior. | Approve grouping semantics and deterministic ID derivation without inferring from field names. | Named grouping/planning component and its approved input contract. | Grouping context plus approved retailer/group inputs where applicable. | `CheckoutGroup`, allocation membership, and CandidatePlan construction. |
+| CP-03 | What candidate combinations must be enumerated; are splits permitted; what are zero/one/multiple behaviors; are combinations exhaustive or bounded; what equivalence and ordering rules apply? | **FROZEN CONTRACT:** split allocations are permitted and fulfillment is deterministic once plans are supplied. **EXISTING IMPLEMENTATION:** discovery returns ordered candidates; Cart Optimization does not enumerate plans. **TEST EVIDENCE:** item/candidate ordering is tested. | Candidate-to-plan cardinality, split distribution, combination scope, completeness bounds, equivalence, and ordering beyond discovery. | Select enumeration scope, candidate-count behavior, split/combinations policy, equivalence handling, and ordering. | Named candidate-planning component and enumeration specification. | Complete candidate set, quantities, readiness states, grouping/retailer inputs, and equivalence inputs. | CandidatePlan enumeration and CandidatePlanCoverage construction. |
+| CP-04 | What happens to candidates with missing, malformed, or unsupported observed selling prices: exclude, retain as preparation data, permit unresolved plans, or another state? | **FROZEN CONTRACT:** prices are not fabricated, defaulted, or silently reparsed. **EXISTING IMPLEMENTATION:** readiness is explicit. **TEST EVIDENCE:** missing and unsupported prices remain represented as not-ready candidates. | Plan-level treatment of each readiness state and whether price-ineligible candidates can enter any plan state. | Approve exact behavior for `ready_for_allocation` and `not_ready_for_allocation` candidates. | Named readiness/planning owner and typed-price contract. | Readiness status, readiness reason, and typed price/currency when available. | Allocation eligibility, CandidatePlan construction, and feasibility handoff. |
+| CP-05 | Who assigns `plan_id`; is it supplied or generated; what exact identity inputs and collision behavior apply; must `CandidatePlanIdentityBuilder` remain authoritative? | **FROZEN CONTRACT:** the existing identity builder and identity-bearing fields are authoritative; canonical ordering is required. **EXISTING IMPLEMENTATION / TEST EVIDENCE:** builder behavior and nested identity fields are directly tested. | Assignment ownership, generation convention, and collision behavior for newly enumerated plans. | Approve the assignment source/convention and collision rule while retaining or explicitly replacing builder authority. | Named plan-generation owner and identity specification. | Final plan shape and all approved identity-bearing values. | CandidatePlan construction, request identity, and replayability. |
+| CP-06 | Who assigns `PlanFeasibility`; what evidence supports each state; when is state assigned; who owns hard constraints; what happens with incomplete evidence? | **FROZEN CONTRACT:** states are `FEASIBLE`, `INFEASIBLE`, `UNRESOLVED`, and `INVALID`; feasibility is upstream-owned. **EXISTING IMPLEMENTATION:** Cart Optimization consumes supplied feasibility and applies established structural/ECE checks. | Evidence, assigning component, timing, incomplete-evidence behavior, and hard-constraint ownership. | Approve state ownership, evidence requirements, assignment timing, and incomplete-evidence outcomes. | Named feasibility/constraint owner and evidence contract. | Concrete CandidatePlan plus evidence sufficient for its assigned state. | Feasibility assignment, plan handoff, recommendation semantics, and ECE coverage decisions. |
+| CP-07 | What produces `inconvenience_penalty_units`; what are its units and numeric meaning; is zero valid; is there a default; who owns it and when must it exist? | **FROZEN CONTRACT:** it is a required explicit identity/ranking input and is not derived from plan shape. **EXISTING IMPLEMENTATION:** the model, identity builder, and ranking key consume it. | Source, owner, units, zero/default policy, scope, and availability timing. | Approve the producer, numeric contract, zero/default behavior, ownership, and timing. | Named configuration, user-preference, planner, or other approved source. | One approved value per CandidatePlan. | Complete CandidatePlan identity and ranking. |
+| CP-08 | What produces `retailer_preference_priority`; what numeric direction and zero meaning apply; what is its scope/default; who owns it and when must it exist? | **FROZEN CONTRACT:** it is an explicit identity/ranking input and is not derived from platform names or lexical order. **EXISTING IMPLEMENTATION:** the model, identity builder, and ranking key consume it. | Source, owner, direction, zero/default meaning, scope, and timing. | Approve the producer, numeric meaning/direction, scope, default, ownership, and timing. | Named user/global/planner/metadata source and preference contract. | One approved priority per CandidatePlan. | Complete CandidatePlan identity and ranking. |
+| CP-09 | Who creates plan-level ECEs; what inputs are required; does every plan receive one; what happens for infeasible/unresolved/invalid plans; what happens on failure; when is the reference attached? | **FROZEN CONTRACT:** Cost Intelligence owns calculation; CandidatePlan stores a reference; plan-level ECE is economic authority. **EXISTING IMPLEMENTATION:** Cost Intelligence produces results and Cart Optimization resolves/ranks linked references. | Creator handoff, required inputs, coverage by feasibility state, failure behavior, and attachment timing. | Approve creator, input contract, per-plan coverage, state-specific treatment, failure behavior, and reference attachment. | Cost Intelligence plus the explicitly named application handoff owner. | Final CandidatePlan, governed cost inputs, required observations/checkout inputs, result identity, and reference. | ECE handoff, `CartOptimizationRequest`, and Cart Optimization execution. |
+
+### Cross-cutting: dual-identity consistency
+
+- **Evidence:** **EXISTING IMPLEMENTATION:** `CartItemResolutionRequest`
+  accepts canonical variant identity together with platform/listing identity;
+  `_resolve_item` does not compare the association mapping with the requested
+  canonical mapping. **TEST EVIDENCE:** existing tests exercise the identity
+  forms independently.
+- **APPROVED POLICY:** Both identities must agree; mismatch fails closed at
+  the earliest boundary where both are available, without silent rewriting or
+  convenient reinterpretation as `UNRESOLVED`.
+- **Required source/data:** An explicit resolution consistency rule and
+  mismatch outcome.
+- **Blocked:** The resolution-to-discovery handoff and any later candidate
+  preparation that relies on the resolved association.
+
+### Cross-cutting: candidate duplicate/equivalence semantics
+
+- **Evidence:** **EXISTING IMPLEMENTATION / TEST EVIDENCE:** association
+  storage is idempotent for identical registration, rejects listing
+  reassignment and observation-ID conflicts, and candidate discovery preserves
+  matching records in deterministic order.
+- **APPROVED POLICY:** Preserve distinct candidate evidence except for
+  already-established association conflicts. Future enumeration alone may
+  apply explicitly approved equivalence dimensions.
+- **Required source/data:** An explicit candidate equivalence key and handling
+  rule, if any.
+- **Blocked:** Candidate enumeration, equivalence elimination, and any later
+  CandidatePlan construction. No choice is made here.
+
+### Dependency and gating summary
+
+- **Blocks enumeration:** CP-03; approved D-01, D-02, CP-01, CP-02, and CP-04
+  are prerequisites, not remaining approvals.
+- **Blocks plan identity:** CP-03 and CP-05, using approved CP-01, CP-02,
+  CP-07, and CP-08 inputs.
+- **Blocks feasibility:** CP-03 and CP-06, using approved D-01 and CP-04
+  admissibility rules.
+- **Blocks ranking:** CP-05, CP-07, CP-08, and CP-09's cost handoff.
+- **Blocks ECE handoff:** CP-03, CP-05, CP-06, and CP-09, using approved CP-02
+  grouping policy.
+- **Collectively opens CandidatePlan construction:** CP-03, CP-05, CP-06, and
+  CP-09 must also be approved, with required source/data behavior supplied;
+  the approved batch alone does not open the gate.
+
+Approval of one CP item does not implicitly approve another item or either
+cross-cutting prerequisite.
+
+## Owner Decision Draft — Proposed Defaults for Explicit Approval
+
+This section records the proposed defaults now approved for D-01, D-02, CP-01,
+CP-02, CP-04, CP-07, CP-08, CP-03, CP-05, CP-06, and CP-09. It remains
+non-runtime documentation and does not open the CandidatePlan implementation
+gate.
+
+### D-01 — Dual-identity mismatch
+
+- **Proposed default:** Require `canonical_variant_id` and the persisted
+  listing/association identity to resolve to the same canonical Variant. If
+  they disagree, fail closed at the earliest boundary where both identities
+  are available. Do not rewrite either identity or infer an alternative
+  canonical Variant.
+- **What is already frozen:** Canonical request identity is
+  `(item_id, canonical_variant_id)`; listing and observation provenance remain
+  distinct evidence; no silent identity reconciliation is authorized.
+- **What is already implemented:** Resolution accepts canonical identity and
+  platform/listing identity, but the current boundary does not establish an
+  agreement rule for conflicting results.
+- **What this decision does NOT authorize:** It does not select canonical or
+  listing authority independently, define retailer semantics, or construct a
+  CandidatePlan.
+- **Dependencies:** Precedes candidate readiness handoff and CP-03; informs
+  CP-04 and feasibility evidence.
+- **Failure/unavailable behavior:** Fail closed when both identities are
+  present but resolve differently; preserve the existing single-identity
+  paths unless separately changed by approved policy.
+- **Owner approval required:** Approved in this policy batch.
+
+### D-02 — Candidate duplicate/equivalence
+
+- **Proposed default:** Preserve distinct candidate evidence unless an
+  already-established association-level conflict rule applies. Do not
+  deduplicate candidates merely because logical variant, platform, price, or
+  commercial attributes appear equivalent. Apply candidate equivalence only
+  at enumeration using explicitly approved identity dimensions.
+- **What is already frozen:** Association-level conflict handling is distinct
+  from candidate-level equivalence; commercial equivalence is not inferred.
+- **What is already implemented:** Identical association registration is
+  idempotent; conflicting listing reassignment and observation conflicts are
+  rejected; discovery preserves matching records deterministically.
+- **What this decision does NOT authorize:** It does not define a new
+  candidate identity, commercial equivalence, ranking rule, or plan identity.
+- **Dependencies:** Required by CP-03 before candidate combinations or
+  equivalent-plan elimination.
+- **Failure/unavailable behavior:** Preserve records until an approved
+  enumeration rule classifies them; do not silently drop or collapse them.
+- **Owner approval required:** Approved in this policy batch.
+
+### CP-01 — Retailer identity
+
+- **Proposed default:** `retailer_id` must come from an authoritative upstream
+  retailer source. `platform` is never `retailer_id`. Missing retailer
+  identity makes a candidate unavailable for allocation rather than guessed;
+  `retailer_id` remains opaque.
+- **What is already frozen:** `retailer_id` is opaque and platform identity
+  must not be treated as retailer identity. Retailer relationships are not
+  validated by the current contract.
+- **What is already implemented:** The allocation and checkout-group models
+  require retailer fields; candidate discovery does not produce a retailer
+  identifier.
+- **What this decision does NOT authorize:** It does not define platform,
+  seller, marketplace, execution, or retailer capability semantics.
+- **Dependencies:** Required by CP-02 and CandidateItemAllocation
+  construction.
+- **Failure/unavailable behavior:** Block allocation construction when the
+  authoritative retailer ID is unavailable; never derive it from platform.
+- **Owner approval required:** Approved in this policy batch; eventual upstream
+  source and data-contract details remain required implementation inputs.
+
+### CP-02 — Checkout-group construction
+
+- **Proposed default:** Construct groups only from explicit upstream grouping
+  context. Never derive grouping from platform name, retailer count, checkout
+  count, or allocation order. Each allocation belongs to exactly one declared
+  group; each declared group contains at least one allocation; group IDs are
+  deterministic from approved grouping inputs. Cross-platform or
+  cross-retailer grouping requires explicit upstream approval.
+- **What is already frozen:** Allocation membership is authoritative through
+  `checkout_group_id`; references must resolve to declared groups; declared
+  groups cannot be empty; group ECEs are contextual.
+- **What is already implemented:** `CheckoutGroup` requires group ID, retailer
+  ID, and group ECE ID; service validation enforces membership and
+  completeness.
+- **What this decision does NOT authorize:** It does not introduce checkout
+  execution, platform adapters, retailer authority, or group ECE economics.
+- **Dependencies:** Requires CP-01 and approved grouping context; feeds CP-03
+  and CP-09.
+- **Failure/unavailable behavior:** Block group construction when required
+  grouping context is unavailable; never choose a first allocation or derive a
+  group from ordering.
+- **Owner approval required:** Approved in this policy batch; eventual grouping
+  source and derivation inputs remain required implementation data.
+
+### CP-03 — Candidate enumeration
+
+- **Proposed default:** Enumerate the exhaustive Cartesian product of one
+  allocation-ready candidate per requested logical item over the finite
+  candidate set. Zero candidates produce no complete plan and an explicit
+  no-plan/unavailable preparation outcome. One candidate produces one
+  alternative but does not imply FEASIBLE. Splits are not generated from
+  arbitrary quantity partitions without explicit upstream allocation inputs.
+  Enumeration is deterministic, does not rank or calculate ECE, and uses D-02
+  for candidate preservation/equivalence.
+- **What is already frozen:** Split fulfillment is supported once plans are
+  supplied; Cart Optimization does not generate combinations or rank during
+  discovery.
+- **What is already implemented:** Candidate discovery preserves deterministic
+  candidate ordering; no CandidatePlan enumeration exists.
+- **What this decision does NOT authorize:** It does not define retailer,
+  checkout, feasibility, plan-ID, or economic semantics by itself.
+- **Dependencies:** Requires D-02, CP-01, CP-02, CP-04, CP-07, and CP-08
+  inputs.
+- **Failure/unavailable behavior:** Do not silently omit zero-candidate or
+  incomplete combinations; use only the explicitly approved outcome.
+- **Owner approval required:** Approved in Batch 2.
+
+### CP-04 — Typed-price treatment
+
+- **Proposed default:** Only valid supported `Money` is allocation-ready.
+  Missing, malformed, or unsupported observed price remains explicit
+  not-ready metadata. No fabrication, defaulting, or silent reparsing is
+  permitted. Not-ready candidates cannot create an economically evaluated
+  allocation-ready plan unless an explicitly approved unresolved-plan policy
+  permits it.
+- **What is already frozen:** Observed price is evidence/provenance; invalid
+  values are never fabricated or silently repaired; plan-level ECE remains
+  economic authority.
+- **What is already implemented:** Candidate discovery exposes readiness and
+  readiness reasons; `CandidateListingProvenance` requires typed `Money`.
+- **What this decision does NOT authorize:** It does not recalculate prices,
+  create ECEs, or introduce quantity or pack semantics.
+- **Dependencies:** Feeds CP-03 and CP-09; interacts with CP-06 evidence.
+- **Failure/unavailable behavior:** Preserve not-ready preparation data, but
+  block allocation-ready economic plans unless the owner approves another
+  explicit state.
+- **Owner approval required:** Approved in this policy batch; unresolved-plan
+  treatment remains outside this batch.
+
+### CP-05 — Plan ID
+
+- **Proposed default:** Plan IDs are supplied by the authoritative upstream
+  plan boundary and are non-empty and unique within a request.
+  `CandidatePlanIdentityBuilder` remains authoritative; the supplied ID is not
+  generated from a payload containing itself. Existing identity fields,
+  canonical ordering, and provenance exclusion remain unchanged. IDs are
+  available after identity-bearing plan fields, including plan-level ECE, are
+  finalized.
+- **What is already frozen:** The existing identity builder and its current
+  identity-bearing fields are authoritative; listing provenance is preserved
+  but excluded from current plan identity serialization.
+- **What is already implemented:** Supplied plan IDs must be non-empty and
+  unique; the builder canonicalizes collection ordering; no plan-ID generator
+  exists.
+- **What this decision does NOT authorize:** It does not change identity
+  fields, add observation identity, or introduce a new hashing scheme without
+  approval.
+- **Dependencies:** Depends on final plan shape from CP-03 and inputs from
+  CP-01, CP-02, CP-07, and CP-08.
+- **Failure/unavailable behavior:** Do not construct a plan without an
+  approved ID convention; collision or ambiguous identity fails closed.
+- **Owner approval required:** Approved in Batch 2.
+
+### CP-06 — Feasibility
+
+- **Proposed default:** Feasibility is assigned upstream after plan shape and
+  evidence exist. FEASIBLE and INFEASIBLE require explicit evidence;
+  UNRESOLVED represents unavailable or contradictory evidence; INVALID is a
+  structural violation. Structural completeness never creates FEASIBLE, and
+  Cart Optimization remains a consumer/validator rather than a hard-constraint
+  evaluator.
+- **What is already frozen:** The four states and upstream ownership are
+  established; the optimizer applies only established structural fulfillment
+  and plan-level ECE checks.
+- **What is already implemented:** The service partitions supplied states,
+  rejects invalid plans, and prevents structurally infeasible plans from
+  ranking as FEASIBLE.
+- **What this decision does NOT authorize:** It does not add independent hard
+  constraint evaluation or reinterpret opaque constraint references.
+- **Dependencies:** Depends on CP-03 plan shapes and interacts with CP-04 and
+  CP-09 evidence/coverage.
+- **Failure/unavailable behavior:** Missing evidence cannot become FEASIBLE or
+  silently become INFEASIBLE. The upstream feasibility owner assigns
+  `UNRESOLVED` or blocks handoff under this evidence policy. Structural
+  violations remain `INVALID`, and established fulfillment mismatch handling
+  remains effective `INFEASIBLE`.
+- **Owner approval required:** Approved in Batch 2.
+
+### CP-07 — Inconvenience penalty
+
+- **Proposed default:** `inconvenience_penalty_units` comes from an explicit
+  upstream source. It is never derived from checkout count, platform count,
+  retailer count, allocation count, or plan shape. The source defines units,
+  scope, default, unavailable behavior, and timing. If required and
+  unavailable, construction fails closed unless an explicit default is
+  approved.
+- **What is already frozen:** The field is a required identity/ranking input;
+  the optimizer does not derive it from plan shape.
+- **What is already implemented:** The model, identity builder, and ranking
+  key consume the supplied integer.
+- **What this decision does NOT authorize:** It does not create scoring logic
+  or infer inconvenience from checkout/execution behavior.
+- **Dependencies:** Required before CP-03 can produce complete plans and CP-05
+  can produce complete identity inputs.
+- **Failure/unavailable behavior:** Block construction unless an approved
+  source or default supplies the value.
+- **Owner approval required:** Approved in this policy batch; no producer or
+  default value is created by this documentation change.
+
+### CP-08 — Retailer preference
+
+- **Proposed default:** `retailer_preference_priority` comes from an explicit
+  approved source. Preserve current ranking direction of higher priority first
+  unless the owner explicitly changes it. Never derive preference from retailer
+  IDs, platform names, lexical ordering, or collection order. The source must
+  define scope, default, unavailable behavior, and timing.
+- **What is already frozen:** The field is explicit and identity/ranking
+  bearing; lexical/platform inference is prohibited.
+- **What is already implemented:** Current ranking prefers higher priority
+  values through its ranking key; no producer exists in the candidate flow.
+- **What this decision does NOT authorize:** It does not create retailer
+  semantics, platform ordering, or execution behavior.
+- **Dependencies:** Required before CP-03 and CP-05 can produce complete plan
+  inputs.
+- **Failure/unavailable behavior:** Block construction unless an approved
+  source or default supplies the value.
+- **Owner approval required:** Approved in this policy batch; no producer or
+  default value is created by this documentation change.
+
+### CP-09 — Plan-level ECE
+
+- **Proposed default:** Cost Intelligence is the sole creator. After plan
+  construction and feasibility assignment, one plan-level ECE reference/result
+  is required for every plan crossing into CartOptimizationRequest. Missing or
+  failed ECE creation blocks handoff. Group ECEs remain contextual and are
+  never aggregated; CandidatePlan construction does not create ECEs.
+- **What is already frozen:** Cost Intelligence owns calculation; plan-level
+  ECE is authoritative; group ECEs are contextual and non-aggregated.
+- **What is already implemented:** The service resolves linked references,
+  rejects missing evaluations, validates currencies, and ranks using plan-level
+  effective cost.
+- **What this decision does NOT authorize:** It does not add ECE calculation
+  to CandidatePlan construction, interpret group ECEs economically, or change
+  ECE identity semantics.
+- **Dependencies:** Depends on CP-02, CP-03, CP-05, and CP-06 outputs.
+- **Failure/unavailable behavior:** Block normal economic handoff when the
+  required plan-level reference/result is unavailable for any non-`INVALID`
+  plan. No state-specific implicit ECE or fallback cost exists; changing this
+  rule requires an explicit policy amendment.
+- **Owner approval required:** Approved in Batch 2.
+
+## Approval Checklist
+
+Checking or approving an item below is an explicit OWNER DECISION. An
+unchecked item is not approved, and this document must not interpret it as
+approved merely because a recommendation is written above.
+
+- [x] D-01 — Dual-identity mismatch (approved owner decision)
+- [x] D-02 — Candidate duplicate/equivalence (approved owner decision)
+- [x] CP-01 — Retailer identity (approved owner decision)
+- [x] CP-02 — Checkout-group construction (approved owner decision)
+- [x] CP-03 — Candidate enumeration (approved owner decision)
+- [x] CP-04 — Typed-price treatment (approved owner decision)
+- [x] CP-05 — Plan ID (approved owner decision)
+- [x] CP-06 — Feasibility (approved owner decision)
+- [x] CP-07 — Inconvenience penalty (approved owner decision)
+- [x] CP-08 — Retailer preference (approved owner decision)
+- [x] CP-09 — Plan-level ECE (approved owner decision)
+
+All CP-01 through CP-09 and D-01/D-02 policy decisions are now approved.
+CandidatePlan implementation remains blocked until the required upstream
+owners, authoritative sources, input data, and runtime handoff components are
+actually supplied. Policy approval does not authorize fabricating those
+inputs or implementing them in this documentation-only batch.

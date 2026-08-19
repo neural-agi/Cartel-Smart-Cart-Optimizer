@@ -163,6 +163,11 @@ class CartOptimizationService:
             raise ValueError("request_id is required")
         if request.optimization_policy_version not in self._supported_policy_versions:
             raise ValueError("unsupported optimization policy version")
+        logical_item_ids = [
+            (item.item_id, item.canonical_variant_id) for item in request.cart_items
+        ]
+        if len(logical_item_ids) != len(set(logical_item_ids)):
+            raise ValueError("duplicate cart item identities are invalid")
 
     def _validate_candidate_plans(self, plans: tuple[CandidatePlan, ...]) -> None:
         plan_ids = [plan.plan_id for plan in plans]

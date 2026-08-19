@@ -1,6 +1,18 @@
 """Immutable Cart Optimization contract models."""
 
 from app.cart_optimization.orchestrator import CartOptimizationOrchestrator
+from app.cart_optimization.construction import (
+    CandidateAllocationSet,
+    CandidateEnumerationResult,
+    CandidateEnumerationStatus,
+    CandidatePlanConstructionInput,
+    CandidatePlanConstructionService,
+)
+from app.cart_optimization.candidate_enrichment import (
+    CandidateAllocationEnrichment,
+    CandidateAllocationEnrichmentService,
+    EnrichedCandidateAllocation,
+)
 from app.cart_optimization.request_builder import CartOptimizationRequestBuilder
 from app.cart_optimization.service import CartOptimizationService
 
@@ -37,6 +49,14 @@ from app.cart_optimization.types import (
 __all__ = [
     "BudgetConstraint",
     "CandidatePlan",
+    "CandidateAllocationSet",
+    "CandidateEnumerationResult",
+    "CandidateEnumerationStatus",
+    "CandidatePlanConstructionInput",
+    "CandidatePlanConstructionService",
+    "CandidateAllocationEnrichment",
+    "CandidateAllocationEnrichmentService",
+    "EnrichedCandidateAllocation",
     "CandidatePlanCoverage",
     "CartItemRequest",
     "CartOptimizationRequest",

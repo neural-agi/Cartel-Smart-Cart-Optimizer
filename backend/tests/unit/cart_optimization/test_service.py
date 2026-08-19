@@ -548,6 +548,23 @@ def test_duplicate_plan_ids_fail_closed() -> None:
         CartOptimizationService().optimize(request)
 
 
+def test_duplicate_cart_item_identities_fail_closed() -> None:
+    request = _request(
+        candidate_plans=(_plan("plan-1", "eval-1"),),
+        evaluations=(_evaluation("eval-1", 1000),),
+    ).model_copy(
+        update={
+            "cart_items": (
+                CartItemRequest(item_id="item-1", canonical_variant_id="variant-1", quantity=1),
+                CartItemRequest(item_id="item-1", canonical_variant_id="variant-1", quantity=2),
+            )
+        }
+    )
+
+    with pytest.raises(ValueError, match="duplicate cart item identities"):
+        CartOptimizationService().optimize(request)
+
+
 def test_unsupported_policy_version_fails_closed() -> None:
     request = _request(
         candidate_plans=(_plan("plan-1", "eval-1"),),
