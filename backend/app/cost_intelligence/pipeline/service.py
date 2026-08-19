@@ -94,3 +94,15 @@ class CostIntelligencePipelineService:
             effective_cost_result=effective_cost_result,
             optimization_result=optimization_result,
         )
+
+    def evaluate_observation(
+        self, observation: CheckoutObservation
+    ) -> EffectiveCostEvaluationResult:
+        """Evaluate checkout evidence without invoking Cart Optimization."""
+        context = self._context_builder.build(observation)
+        offer_results = self._offer_orchestrator.evaluate(context)
+        fee_results = self._fee_orchestrator.evaluate(context)
+        membership_results = self._membership_orchestrator.evaluate(context)
+        return self._effective_cost_orchestrator.evaluate(
+            context, offer_results, fee_results, membership_results
+        )

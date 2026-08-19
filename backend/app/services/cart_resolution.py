@@ -100,6 +100,11 @@ class CartResolutionService:
                     canonical_product_id=product.canonical_product_id,
                     canonical_variant_id=variant.canonical_variant_id,
                 )
+            if association.canonical_variant_id != variant.canonical_variant_id:
+                return self._unresolved(
+                    item,
+                    "canonical Variant identity conflicts with listing association",
+                )
         else:
             association = self._association(item)
             if association is None:
