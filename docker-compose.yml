@@ -5,29 +5,20 @@ services:
       dockerfile: backend/Dockerfile
     environment:
       APP_NAME: Cartel
-      APP_ENV: development
-      APP_DEBUG: "true"
+      APP_ENV: production
+      APP_DEBUG: "false"
       APP_VERSION: 0.1.0
       API_V1_PREFIX: /api/v1
       LOG_LEVEL: INFO
       LOG_JSON: "true"
-      DOCS_ENABLED: "true"
+      DOCS_ENABLED: "false"
+      CORS_ALLOWED_ORIGINS: http://localhost:3000
       DATA_DIR: /app/data
-      POSTGRES_HOST: postgres
-      POSTGRES_PORT: 5432
-      POSTGRES_DB: cartel
-      POSTGRES_USER: cartel
-      POSTGRES_PASSWORD: cartel
-      REDIS_URL: redis://redis:6379/0
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD for the deployment environment}
     ports:
       - "8000:8000"
     volumes:
       - ./data:/app/data
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
     networks:
       - cartel
     healthcheck:
@@ -35,39 +26,32 @@ services:
         - CMD
         - python
         - -c
-        - import urllib.request; urllib.request.urlopen('http://localhost:8000/health')
+        - import urllib.request; response=urllib.request.urlopen('http://localhost:8000/ready'); raise SystemExit(0 if response.status == 200 else 1)
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 10s
 
-  postgres:
-    image: postgres:16
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
     environment:
-      POSTGRES_DB: cartel
-      POSTGRES_USER: cartel
-      POSTGRES_PASSWORD: cartel
+      BACKEND_INTERNAL_URL: http://api:8000
+      NEXT_TELEMETRY_DISABLED: "1"
     ports:
-      - "5432:5432"
+      - "3000:3000"
+    depends_on:
+      api:
+        condition: service_healthy
     networks:
       - cartel
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U cartel -d cartel"]
-      interval: 5s
+      test: ["CMD", "wget", "--spider", "--quiet", "http://localhost:3000/home"]
+      interval: 10s
       timeout: 5s
       retries: 5
-
-  redis:
-    image: redis:7
-    ports:
-      - "6379:6379"
-    networks:
-      - cartel
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
+      start_period: 15s
 
 networks:
   cartel:

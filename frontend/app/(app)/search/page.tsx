@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Search as SearchIcon, X } from "lucide-react";
+import { Loader2, Search as SearchIcon, X } from "lucide-react";
 
 import AppShell from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/button";
@@ -11,12 +11,24 @@ import { useCartStore } from "@/store/cartStore";
 export default function SearchPage() {
   const [query, setQuery] = useState("");
   const [searchResult, setSearchResult] = useState<ProductSearchResult | null>(null);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [isSearching, setIsSearching] = useState(false);
   const addItem = useCartStore((state) => state.addItem);
 
   const hasQuery = query.trim().length > 0;
 
   const submitSearch = async () => {
-    setSearchResult(await productSearchService.search(query));
+    if (!hasQuery || isSearching) return;
+    setSearchError(null);
+    setIsSearching(true);
+    try {
+      setSearchResult(await productSearchService.search(query));
+    } catch (error) {
+      setSearchResult(null);
+      setSearchError(error instanceof Error ? error.message : "Product search failed.");
+    } finally {
+      setIsSearching(false);
+    }
   };
 
   return (
@@ -55,12 +67,15 @@ export default function SearchPage() {
               onClick={() => {
                 setQuery("");
                 setSearchResult(null);
+                setSearchError(null);
               }}
             >
               <X className="h-4 w-4" aria-hidden="true" />
             </Button>
           )}
-          <Button type="submit">Search</Button>
+          <Button type="submit" disabled={!hasQuery || isSearching}>
+            {isSearching ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : "Search"}
+          </Button>
         </form>
 
         <section aria-live="polite" aria-labelledby="results-heading" className="space-y-4">
@@ -71,23 +86,30 @@ export default function SearchPage() {
               </h2>
               <p className="mt-1 text-sm text-muted-foreground">
                 {hasQuery
-                  ? searchResult?.status === "unwired"
-                    ? "Search is not connected to a product endpoint yet."
-                    : "Product search results will appear here."
+                  ? "Results from the governed canonical catalog."
                   : "Search to begin building your cart."}
               </p>
             </div>
           </div>
 
-          {searchResult?.products.length === 0 || !searchResult ? (
+          {isSearching ? (
+            <div className="rounded-2xl border border-border bg-card px-6 py-16 text-center" aria-label="Searching">
+              <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" aria-hidden="true" />
+              <h3 className="mt-4 font-semibold">Searching governed products</h3>
+              <p className="mt-2 text-sm text-muted-foreground">Checking the supported catalog for an exact match.</p>
+            </div>
+          ) : searchError ? (
+            <div role="alert" className="rounded-2xl border border-destructive/40 bg-destructive/5 px-6 py-10 text-center">
+              <h3 className="font-semibold">Product search unavailable</h3>
+              <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted-foreground">{searchError}</p>
+            </div>
+          ) : searchResult?.products.length === 0 || !searchResult ? (
             <div className="rounded-2xl border border-dashed border-border bg-card/50 px-6 py-16 text-center">
               <SearchIcon className="mx-auto h-8 w-8 text-muted-foreground/60" aria-hidden="true" />
               <h3 className="mt-4 font-semibold">No products to show yet</h3>
               <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted-foreground">
                 {hasQuery
-                  ? searchResult?.status === "unwired"
-                    ? "The service boundary is ready; real Product Intelligence search is not wired yet."
-                    : "Your search is ready. Results will appear here once product data is available."
+                  ? "No governed product/listing observations matched this query."
                   : "Enter a grocery item above to search the catalog."}
               </p>
             </div>
@@ -98,7 +120,15 @@ export default function SearchPage() {
                   <p className="text-xs text-muted-foreground">{product.platform}</p>
                   <h3 className="mt-3 font-semibold">{product.name}</h3>
                   <p className="mt-1 text-sm text-muted-foreground">{product.pack ?? "Pack information unavailable"}</p>
-                  <Button className="mt-5 w-full" onClick={() => addItem(product)}>
+                  <div className="mt-4 flex items-center justify-between gap-3 text-sm">
+                    <span className="font-medium">
+                      {product.price ? `${product.price.currency} ${(product.price.minorUnits / 100).toFixed(2)}` : "Price unavailable"}
+                    </span>
+                    <span className={product.availability ? "text-emerald-600" : "text-muted-foreground"}>
+                      {product.availability ?? "Availability unavailable"}
+                    </span>
+                  </div>
+                  <Button className="mt-5 w-full" onClick={() => addItem(product)} disabled={product.availability === "unavailable"}>
                     Add to cart
                   </Button>
                 </article>

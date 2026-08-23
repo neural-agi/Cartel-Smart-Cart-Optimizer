@@ -5,7 +5,7 @@ import type {
   CartCandidateDiscoveryResult,
 } from "@/types/cartCandidates";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "";
 
 export class CartCandidateDiscoveryError extends Error {
   constructor(message: string, public readonly status?: number) {
