@@ -77,6 +77,9 @@ export default function CartPage() {
               <Button className="mt-5 w-full" onClick={() => router.push("/optimize")}>
                 Optimize cart
               </Button>
+              <p className="mt-3 text-xs leading-5 text-muted-foreground">
+                Optimization uses only governed candidate and checkout data. Missing authority is reported instead of estimated.
+              </p>
             </aside>
           </div>
         )}

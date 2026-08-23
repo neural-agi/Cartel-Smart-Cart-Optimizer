@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { AlertCircle, ArrowLeft, CheckCircle2, CircleHelp } from "lucide-react";
+import { AlertCircle, ArrowLeft, CheckCircle2, CircleHelp, ExternalLink } from "lucide-react";
 
 import AppShell from "@/components/layout/AppShell";
 import { useCartStore } from "@/store/cartStore";
@@ -10,6 +10,15 @@ export default function ResultsPage() {
   const items = useCartStore((state) => state.items);
   const resolution = useCartStore((state) => state.resolution);
   const candidateDiscovery = useCartStore((state) => state.candidateDiscovery);
+  const optimizationResult = useCartStore((state) => state.optimizationResult);
+
+  const plan = optimizationResult?.chosen_plan;
+  const allocationsByRetailer = plan?.item_allocations.reduce<Record<string, typeof plan.item_allocations>>(
+    (groups, allocation) => {
+      (groups[allocation.retailer_id] ??= []).push(allocation);
+      return groups;
+    },
+  ) ?? {};
 
   return (
     <AppShell>
@@ -17,8 +26,133 @@ export default function ResultsPage() {
         <header className="space-y-2">
           <p className="text-sm font-medium text-primary">Cart preparation result</p>
           <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Resolved cart identities.</h1>
-          <p className="max-w-2xl text-muted-foreground">This is a persisted data-resolution result. No cart optimization has run.</p>
+          <p className="max-w-2xl text-muted-foreground">
+            Review the governed result and its evidence. Costs are shown only when the optimization response contains an effective-cost value.
+          </p>
         </header>
+
+        {optimizationResult && (
+          <section aria-labelledby="optimization-result-heading" className="space-y-5">
+            <div className="flex flex-wrap items-start justify-between gap-4 rounded-2xl border border-border bg-card p-6 sm:p-8">
+              <div>
+                <p className="text-sm font-medium text-primary">Optimization result</p>
+                <h2 id="optimization-result-heading" className="mt-1 text-2xl font-bold">
+                  {optimizationResult.outcome === "selected"
+                    ? "Recommended plan"
+                    : optimizationResult.outcome === "infeasible"
+                      ? "No feasible plan"
+                      : "Optimization unresolved"}
+                </h2>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Request {optimizationResult.request_id} / Optimization {optimizationResult.optimization_id}
+                </p>
+              </div>
+              <div className={`rounded-full px-3 py-1 text-sm font-medium ${optimizationResult.outcome === "selected" ? "bg-green-500/10 text-green-700" : "bg-amber-500/10 text-amber-700"}`}>
+                {optimizationResult.outcome}
+              </div>
+            </div>
+
+            {plan ? (
+              <>
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <article className="rounded-2xl border border-border bg-card p-5">
+                    <p className="text-sm text-muted-foreground">Effective cost</p>
+                    <p className="mt-2 text-lg font-semibold">Unavailable</p>
+                    <p className="mt-1 text-xs text-muted-foreground">The result carries an ECE reference, not an amount.</p>
+                  </article>
+                  <article className="rounded-2xl border border-border bg-card p-5">
+                    <p className="text-sm text-muted-foreground">Checkouts</p>
+                    <p className="mt-2 text-lg font-semibold">{plan.checkout_groups.length}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Declared checkout groups in the selected plan.</p>
+                  </article>
+                  <article className="rounded-2xl border border-border bg-card p-5">
+                    <p className="text-sm text-muted-foreground">Feasibility</p>
+                    <p className="mt-2 text-lg font-semibold">{plan.feasibility}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Plan {plan.plan_id}</p>
+                  </article>
+                </div>
+
+                <section aria-labelledby="selected-plan-heading" className="rounded-2xl border border-border bg-card p-6 sm:p-8">
+                  <div className="flex flex-wrap items-start justify-between gap-4">
+                    <div>
+                      <h3 id="selected-plan-heading" className="text-lg font-semibold">Selected allocation</h3>
+                      <p className="mt-1 text-sm text-muted-foreground">{optimizationResult.rationale.join(" ") || "No rationale was provided."}</p>
+                    </div>
+                    <div className="text-right text-sm text-muted-foreground">
+                      <p>Inconvenience units: {plan.inconvenience_penalty_units}</p>
+                      <p>Preference priority: {plan.retailer_preference_priority}</p>
+                    </div>
+                  </div>
+
+                  <div className="mt-6 grid gap-4 lg:grid-cols-2">
+                    {Object.entries(allocationsByRetailer).map(([retailerId, allocations]) => (
+                      <article key={retailerId} className="rounded-xl border border-border p-4">
+                        <div className="flex items-center justify-between gap-3">
+                          <h4 className="font-semibold">Retailer {retailerId}</h4>
+                          <span className="text-xs text-muted-foreground">{allocations.length} allocation{allocations.length === 1 ? "" : "s"}</span>
+                        </div>
+                        <div className="mt-3 divide-y divide-border">
+                          {allocations.map((allocation) => (
+                            <div key={`${allocation.item_id}:${allocation.checkout_group_id}`} className="flex justify-between gap-4 py-3 text-sm">
+                              <div>
+                                <p className="font-medium">{allocation.item_id}</p>
+                                <p className="text-xs text-muted-foreground">Variant {allocation.canonical_variant_id}</p>
+                              </div>
+                              <div className="text-right">
+                                <p>Quantity {allocation.quantity}</p>
+                                <p className="text-xs text-muted-foreground">Group {allocation.checkout_group_id}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+
+                  <div className="mt-6 grid gap-4 sm:grid-cols-2">
+                    <div className="rounded-xl bg-muted/40 p-4">
+                      <h4 className="font-semibold">Cost comparison</h4>
+                      <p className="mt-2 text-sm text-muted-foreground">Savings and comparable baseline are unavailable because no effective-cost amounts are included in this result.</p>
+                    </div>
+                    <div className="rounded-xl bg-muted/40 p-4">
+                      <h4 className="font-semibold">Retailer handoff</h4>
+                      <p className="mt-2 flex items-start gap-2 text-sm text-muted-foreground"><ExternalLink className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" /> No supported listing URL or execution handoff is present in the result contract.</p>
+                    </div>
+                  </div>
+                </section>
+
+                {(optimizationResult.unknowns.length > 0 || optimizationResult.assumptions.length > 0) && (
+                  <section className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-6">
+                    <h3 className="font-semibold">Important limitations</h3>
+                    <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+                      {[...optimizationResult.unknowns, ...optimizationResult.assumptions].map((entry) => <li key={entry}>{entry}</li>)}
+                    </ul>
+                  </section>
+                )}
+              </>
+            ) : (
+              <section role="alert" className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-6">
+                <h3 className="font-semibold">No recommendation is available</h3>
+                <p className="mt-2 text-sm text-muted-foreground">{optimizationResult.rationale.join(" ") || "The optimizer did not select a plan."}</p>
+              </section>
+            )}
+
+            {optimizationResult.alternative_plans.length > 0 && (
+              <section aria-labelledby="alternatives-heading" className="rounded-2xl border border-border bg-card p-6">
+                <h3 id="alternatives-heading" className="font-semibold">Alternatives</h3>
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  {optimizationResult.alternative_plans.map((alternative) => (
+                    <article key={alternative.plan_id} className="rounded-xl border border-border p-4 text-sm">
+                      <p className="font-medium">Plan {alternative.plan_id}</p>
+                      <p className="mt-1 text-muted-foreground">Feasibility: {alternative.feasibility}</p>
+                      <p className="text-muted-foreground">Checkouts: {alternative.checkout_groups.length}</p>
+                    </article>
+                  ))}
+                </div>
+              </section>
+            )}
+          </section>
+        )}
 
         {!resolution ? (
           <section className="rounded-2xl border border-dashed border-border bg-card/50 px-6 py-20 text-center">

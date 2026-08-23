@@ -4,11 +4,13 @@ import type { CartItem } from "@/types/cart";
 import type { Product } from "@/types/product";
 import type { CartResolutionResult } from "@/types/cartResolution";
 import type { CartCandidateDiscoveryResult } from "@/types/cartCandidates";
+import type { CartOptimizationResult } from "@/types/cartOptimization";
 
 interface CartStore {
   items: CartItem[];
   resolution: CartResolutionResult | null;
   candidateDiscovery: CartCandidateDiscoveryResult | null;
+  optimizationResult: CartOptimizationResult | null;
   addItem: (product: Product) => void;
   removeItem: (itemId: string) => void;
   increaseQuantity: (itemId: string) => void;
@@ -16,6 +18,7 @@ interface CartStore {
   clearCart: () => void;
   setResolution: (resolution: CartResolutionResult | null) => void;
   setCandidateDiscovery: (result: CartCandidateDiscoveryResult | null) => void;
+  setOptimizationResult: (result: CartOptimizationResult | null) => void;
 }
 
 function itemIdForProduct(product: Product): string {
@@ -26,6 +29,7 @@ export const useCartStore = create<CartStore>((set) => ({
   items: [],
   resolution: null,
   candidateDiscovery: null,
+  optimizationResult: null,
 
   addItem: (product) =>
     set((state) => {
@@ -39,6 +43,7 @@ export const useCartStore = create<CartStore>((set) => ({
           ),
           resolution: null,
           candidateDiscovery: null,
+          optimizationResult: null,
         };
       }
 
@@ -46,6 +51,7 @@ export const useCartStore = create<CartStore>((set) => ({
         items: [...state.items, { itemId, product, quantity: 1 }],
         resolution: null,
         candidateDiscovery: null,
+        optimizationResult: null,
       };
     }),
 
@@ -54,6 +60,7 @@ export const useCartStore = create<CartStore>((set) => ({
       items: state.items.filter((item) => item.itemId !== itemId),
       resolution: null,
       candidateDiscovery: null,
+      optimizationResult: null,
     })),
 
   increaseQuantity: (itemId) =>
@@ -63,6 +70,7 @@ export const useCartStore = create<CartStore>((set) => ({
       ),
       resolution: null,
       candidateDiscovery: null,
+      optimizationResult: null,
     })),
 
   decreaseQuantity: (itemId) =>
@@ -74,9 +82,11 @@ export const useCartStore = create<CartStore>((set) => ({
         .filter((item) => item.quantity > 0),
       resolution: null,
       candidateDiscovery: null,
+      optimizationResult: null,
     })),
 
-  clearCart: () => set({ items: [], resolution: null, candidateDiscovery: null }),
-  setResolution: (resolution) => set({ resolution, candidateDiscovery: null }),
+  clearCart: () => set({ items: [], resolution: null, candidateDiscovery: null, optimizationResult: null }),
+  setResolution: (resolution) => set({ resolution, candidateDiscovery: null, optimizationResult: null }),
   setCandidateDiscovery: (candidateDiscovery) => set({ candidateDiscovery }),
+  setOptimizationResult: (optimizationResult) => set({ optimizationResult }),
 }));
