@@ -1,17 +1,10 @@
 """Immutable Cart Optimization contract models."""
 
 from app.cart_optimization.orchestrator import CartOptimizationOrchestrator
-from app.cart_optimization.construction import (
-    CandidateAllocationSet,
-    CandidateEnumerationResult,
-    CandidateEnumerationStatus,
-    CandidatePlanConstructionInput,
-    CandidatePlanConstructionService,
-)
-from app.cart_optimization.candidate_enrichment import (
-    CandidateAllocationEnrichment,
-    CandidateAllocationEnrichmentService,
-    EnrichedCandidateAllocation,
+from app.cart_optimization.quantity_semantics import (
+    QuantityResolutionStatus,
+    VariantQuantityResolutionService,
+    VariantQuantitySemantics,
 )
 from app.cart_optimization.request_builder import CartOptimizationRequestBuilder
 from app.cart_optimization.service import CartOptimizationService
@@ -37,9 +30,11 @@ from app.cart_optimization.types import (
     ItemAllocation,
     CandidateItemAllocation,
     CandidateListingProvenance,
+    LogicalCart,
     MaximumCheckoutGroupsConstraint,
     MembershipPreferenceConstraint,
     OptimizationConstraintReference,
+    PlatformCartGroup,
     RejectedPlan,
     RetailerAllocation,
     RetailerPreferenceConstraint,
@@ -49,14 +44,6 @@ from app.cart_optimization.types import (
 __all__ = [
     "BudgetConstraint",
     "CandidatePlan",
-    "CandidateAllocationSet",
-    "CandidateEnumerationResult",
-    "CandidateEnumerationStatus",
-    "CandidatePlanConstructionInput",
-    "CandidatePlanConstructionService",
-    "CandidateAllocationEnrichment",
-    "CandidateAllocationEnrichmentService",
-    "EnrichedCandidateAllocation",
     "CandidatePlanCoverage",
     "CartItemRequest",
     "CartOptimizationRequest",
@@ -73,14 +60,19 @@ __all__ = [
     "ItemAllocation",
     "CandidateItemAllocation",
     "CandidateListingProvenance",
+    "LogicalCart",
     "MaximumCheckoutGroupsConstraint",
     "MembershipPreferenceConstraint",
     "OptimizationConstraintReference",
     "OptimizationOutcome",
     "PlanRejectionCode",
     "PlanFeasibility",
+    "PlatformCartGroup",
+    "QuantityResolutionStatus",
     "RejectedPlan",
     "RetailerAllocation",
     "RetailerPreferenceConstraint",
     "SubstitutionPolicyConstraint",
+    "VariantQuantityResolutionService",
+    "VariantQuantitySemantics",
 ]

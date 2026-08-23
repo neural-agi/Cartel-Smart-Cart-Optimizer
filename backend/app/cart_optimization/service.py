@@ -11,6 +11,7 @@ from app.cart_optimization.enums import (
     PlanRejectionCode,
 )
 from app.cart_optimization.identity import CandidatePlanIdentityBuilder
+from app.cart_optimization.quantity_semantics import QuantityResolutionStatus
 from app.cart_optimization.types import (
     CandidatePlan,
     CartOptimizationRequest,
@@ -35,26 +36,23 @@ class CartOptimizationService:
 
     def optimize(self, request: CartOptimizationRequest) -> CartOptimizationResult:
         evaluations_by_id = self._validate_request(request)
-        effective_feasibility_by_plan_id = self._validate_fulfillment_structure(request)
-        linked_evaluations = self._resolve_linked_evaluations(
-            request, evaluations_by_id, effective_feasibility_by_plan_id
-        )
+        linked_evaluations = self._resolve_linked_evaluations(request, evaluations_by_id)
         effective_cost_by_plan_id = self._extract_effective_costs(linked_evaluations)
 
         feasible_plans = tuple(
             plan
             for plan in request.candidate_plans
-            if effective_feasibility_by_plan_id[plan.plan_id] is PlanFeasibility.FEASIBLE
+            if self._effective_feasibility(plan) is PlanFeasibility.FEASIBLE
         )
         unresolved_plans = tuple(
             plan
             for plan in request.candidate_plans
-            if effective_feasibility_by_plan_id[plan.plan_id] is PlanFeasibility.UNRESOLVED
+            if self._effective_feasibility(plan) is PlanFeasibility.UNRESOLVED
         )
         infeasible_plans = tuple(
             plan
             for plan in request.candidate_plans
-            if effective_feasibility_by_plan_id[plan.plan_id] is PlanFeasibility.INFEASIBLE
+            if self._effective_feasibility(plan) is PlanFeasibility.INFEASIBLE
         )
 
         ranked_plans = self._rank_feasible_plans(feasible_plans, effective_cost_by_plan_id)
@@ -84,69 +82,6 @@ class CartOptimizationService:
             rejection_reasons=self._build_rejection_reasons(infeasible_plans),
         )
 
-    def _validate_fulfillment_structure(
-        self, request: CartOptimizationRequest
-    ) -> dict[str, PlanFeasibility]:
-        requested_quantities = {
-            (item.item_id, item.canonical_variant_id): item.quantity
-            for item in request.cart_items
-        }
-        effective_feasibility_by_plan_id: dict[str, PlanFeasibility] = {}
-
-        for plan in request.candidate_plans:
-            allocation_totals: dict[tuple[str, str], int] = {}
-            seen_allocations: set[str] = set()
-            declared_checkout_group_ids = {
-                group.checkout_group_id for group in plan.checkout_groups
-            }
-            populated_checkout_group_ids: set[str] = set()
-            for allocation in plan.item_allocations:
-                if allocation.checkout_group_id not in declared_checkout_group_ids:
-                    raise ValueError(
-                        f"candidate plan {plan.plan_id} references undeclared checkout group"
-                    )
-                populated_checkout_group_ids.add(allocation.checkout_group_id)
-                allocation_key = json.dumps(
-                    allocation.model_dump(mode="json"),
-                    sort_keys=True,
-                    separators=(",", ":"),
-                )
-                if allocation_key in seen_allocations:
-                    raise ValueError(
-                        f"candidate plan {plan.plan_id} contains duplicate item allocation"
-                    )
-                seen_allocations.add(allocation_key)
-
-                if allocation.quantity <= 0:
-                    raise ValueError(
-                        f"candidate plan {plan.plan_id} contains non-positive allocation quantity"
-                    )
-
-                logical_key = (allocation.item_id, allocation.canonical_variant_id)
-                if logical_key not in requested_quantities:
-                    raise ValueError(
-                        f"candidate plan {plan.plan_id} contains allocation for unknown cart item"
-                    )
-                allocation_totals[logical_key] = (
-                    allocation_totals.get(logical_key, 0) + allocation.quantity
-                )
-
-            if declared_checkout_group_ids - populated_checkout_group_ids:
-                raise ValueError(
-                    f"candidate plan {plan.plan_id} contains an empty checkout group"
-                )
-
-            fulfillment_matches = not any(
-                allocation_totals.get(logical_key, 0) != requested_quantity
-                for logical_key, requested_quantity in requested_quantities.items()
-            )
-            if not fulfillment_matches:
-                effective_feasibility_by_plan_id[plan.plan_id] = PlanFeasibility.INFEASIBLE
-            else:
-                effective_feasibility_by_plan_id[plan.plan_id] = plan.feasibility
-
-        return effective_feasibility_by_plan_id
-
     def _validate_request(
         self, request: CartOptimizationRequest
     ) -> dict[str, EffectiveCostEvaluationResult]:
@@ -163,11 +98,6 @@ class CartOptimizationService:
             raise ValueError("request_id is required")
         if request.optimization_policy_version not in self._supported_policy_versions:
             raise ValueError("unsupported optimization policy version")
-        logical_item_ids = [
-            (item.item_id, item.canonical_variant_id) for item in request.cart_items
-        ]
-        if len(logical_item_ids) != len(set(logical_item_ids)):
-            raise ValueError("duplicate cart item identities are invalid")
 
     def _validate_candidate_plans(self, plans: tuple[CandidatePlan, ...]) -> None:
         plan_ids = [plan.plan_id for plan in plans]
@@ -177,6 +107,34 @@ class CartOptimizationService:
             raise ValueError("duplicate candidate plan IDs are invalid")
         if any(plan.feasibility is PlanFeasibility.INVALID for plan in plans):
             raise ValueError("invalid candidate plan blocks optimization")
+
+    def _effective_feasibility(self, plan: CandidatePlan) -> PlanFeasibility:
+        """Determine effective feasibility for ranking and selection.
+
+        Quantity-resolution semantics can only **downgrade** a plan
+        that was declared ``FEASIBLE``:
+
+        * ``UNSUPPORTED`` quantity → ``INFEASIBLE`` — the listing-unit
+          mapping is deterministically impossible (e.g. combo/assortment).
+        * ``UNRESOLVED`` quantity → ``UNRESOLVED`` — the listing-unit
+          mapping cannot be proven because required pack information
+          is unknown or incomplete.
+
+        Plans without ``quantity_semantics`` (the backward-compatible
+        path) and plans already declared non-``FEASIBLE`` are returned
+        unchanged.
+        """
+        if plan.feasibility is not PlanFeasibility.FEASIBLE:
+            return plan.feasibility
+        semantics = plan.quantity_semantics
+        if not semantics:
+            return plan.feasibility
+        statuses = {sem.status for sem in semantics}
+        if QuantityResolutionStatus.UNSUPPORTED in statuses:
+            return PlanFeasibility.INFEASIBLE
+        if QuantityResolutionStatus.UNRESOLVED in statuses:
+            return PlanFeasibility.UNRESOLVED
+        return plan.feasibility
 
     def _index_effective_cost_evaluations(
         self, evaluations: tuple[EffectiveCostEvaluationResult, ...]
@@ -205,7 +163,6 @@ class CartOptimizationService:
         self,
         request: CartOptimizationRequest,
         evaluations_by_id: dict[str, EffectiveCostEvaluationResult],
-        effective_feasibility_by_plan_id: dict[str, PlanFeasibility],
     ) -> dict[str, EffectiveCostEvaluationResult]:
         linked: dict[str, EffectiveCostEvaluationResult] = {}
         for plan in request.candidate_plans:
@@ -214,7 +171,7 @@ class CartOptimizationService:
             if evaluation is None:
                 raise ValueError("candidate plan references missing effective-cost evaluation")
             if (
-                effective_feasibility_by_plan_id[plan.plan_id] is PlanFeasibility.FEASIBLE
+                self._effective_feasibility(plan) is PlanFeasibility.FEASIBLE
                 and (evaluation.effective_cost is None or evaluation.unknown_components)
             ):
                 raise ValueError(
@@ -286,7 +243,14 @@ class CartOptimizationService:
         return None
 
     def _build_optimization_id(self, request: CartOptimizationRequest) -> str:
-        payload = self._identity_builder.build_request_identity(request)
+        payload = {
+            "request_id": request.request_id,
+            "optimization_policy_version": request.optimization_policy_version,
+            "candidate_plans": sorted(
+                (self._identity_builder.build(plan) for plan in request.candidate_plans),
+                key=lambda item: item["plan_id"],
+            ),
+        }
         serialized = json.dumps(payload, sort_keys=True, separators=(",", ":"))
         return "cartopt_" + hashlib.sha256(serialized.encode("utf-8")).hexdigest()
 
