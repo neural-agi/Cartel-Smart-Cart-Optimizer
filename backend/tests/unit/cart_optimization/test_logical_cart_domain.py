@@ -706,7 +706,7 @@ def test_existing_plan_with_provenance_remains_unchanged() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_service_behavior_unchanged_without_quantity_semantics() -> None:
+def test_allocation_free_feasible_plan_is_infeasible_without_quantity_semantics() -> None:
     plan = CandidatePlan(
         plan_id="plan-1",
         inconvenience_penalty_units=0,
@@ -723,8 +723,8 @@ def test_service_behavior_unchanged_without_quantity_semantics() -> None:
 
     result = CartOptimizationService().optimize(request)
 
-    assert result.outcome.value == "selected"
-    assert result.chosen_plan_id == "plan-1"
+    assert result.outcome.value == "infeasible"
+    assert result.chosen_plan_id is None
 
 
 def test_service_unresolved_plan_still_blocks_recommendation() -> None:

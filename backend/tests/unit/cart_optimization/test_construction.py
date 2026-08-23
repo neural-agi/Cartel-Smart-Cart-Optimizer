@@ -178,7 +178,7 @@ def test_construction_consumes_supplied_inputs_and_preserves_provenance() -> Non
     assert plan.plan_id == "plan-1"
     assert plan.inconvenience_penalty_units == 7
     assert plan.retailer_preference_priority == 3
-    assert plan.item_allocations[0].listing_provenance == candidate.listing_provenance
+    assert plan.candidate_item_allocations[0].listing_provenance == candidate.listing_provenance
 
 
 def test_construction_rejects_missing_feasibility_evidence() -> None:

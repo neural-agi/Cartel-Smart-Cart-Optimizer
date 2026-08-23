@@ -32,6 +32,23 @@ class Settings(BaseSettings):
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
     log_json: bool = Field(default=True, alias="LOG_JSON")
     docs_enabled: bool = Field(default=True, alias="DOCS_ENABLED")
+    checkout_observation_provider_mode: Literal["registry", "unavailable"] = Field(
+        default="unavailable",
+        alias="CHECKOUT_OBSERVATION_PROVIDER_MODE",
+    )
+    planning_max_cart_items: int = Field(default=20, alias="PLANNING_MAX_CART_ITEMS")
+    planning_max_candidates_per_item: int = Field(
+        default=20,
+        alias="PLANNING_MAX_CANDIDATES_PER_ITEM",
+    )
+    planning_max_combinations: int = Field(
+        default=10000,
+        alias="PLANNING_MAX_COMBINATIONS",
+    )
+    planning_max_supplied_plans: int = Field(
+        default=100,
+        alias="PLANNING_MAX_SUPPLIED_PLANS",
+    )
     scraper_timeout_seconds: float = Field(
         default=15.0,
         alias="SCRAPER_TIMEOUT_SECONDS",

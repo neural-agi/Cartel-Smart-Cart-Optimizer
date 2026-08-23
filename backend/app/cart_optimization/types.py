@@ -537,6 +537,11 @@ class CartOptimizationRequest(BaseModel):
         evaluation_ids = [item.evaluation_id for item in self.effective_cost_evaluations]
         if len(evaluation_ids) != len(set(evaluation_ids)):
             raise ValueError("duplicate effective-cost evaluation IDs are invalid")
+        logical_item_ids = [
+            (item.item_id, item.canonical_variant_id) for item in self.cart_items
+        ]
+        if len(logical_item_ids) != len(set(logical_item_ids)):
+            raise ValueError("duplicate cart item identities are invalid")
         return self
 
 
@@ -558,3 +563,15 @@ class CartOptimizationResult(BaseModel):
     alternative_plans: tuple[CandidatePlan, ...] = Field(default_factory=tuple)
     rejected_plans: tuple[RejectedPlan, ...] = Field(default_factory=tuple)
     rejection_reasons: tuple[str, ...] = Field(default_factory=tuple)
+
+    @model_validator(mode="after")
+    def _validate_chosen_plan_consistency(self) -> "CartOptimizationResult":
+        if (self.chosen_plan_id is None) != (self.chosen_plan is None):
+            raise ValueError("chosen_plan_id and chosen_plan must be provided together")
+        if self.chosen_plan is not None and self.chosen_plan_id != self.chosen_plan.plan_id:
+            raise ValueError("chosen_plan_id must match chosen_plan.plan_id")
+        if self.outcome is OptimizationOutcome.SELECTED and self.chosen_plan is None:
+            raise ValueError("selected outcome requires a chosen plan")
+        if self.outcome is not OptimizationOutcome.SELECTED and self.chosen_plan is not None:
+            raise ValueError("non-selected outcome cannot contain a chosen plan")
+        return self
