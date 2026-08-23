@@ -1,7 +1,12 @@
 from contextlib import asynccontextmanager
+from time import monotonic
+from uuid import uuid4
 from urllib.parse import urlsplit
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from starlette.requests import Request
+from starlette.responses import Response
 
 from app.api.router import api_router
 from app.api.routes.health import router as health_router
@@ -12,6 +17,7 @@ from app.workers.product_intelligence_runtime import ProductIntelligenceRuntime
 from app.data_ingestion.observation_registry.query import RetailObservationQueryService
 from app.services.cart_resolution import CartResolutionService
 from app.services.cart_candidate_discovery import CartCandidateDiscoveryService
+from app.services.product_search import ProductSearchService
 from app.cart_optimization.planning import CartPlanningService
 from app.cart_optimization.providers import (
     RegistryCheckoutObservationProvider,
@@ -80,6 +86,45 @@ def create_application(
         openapi_url=openapi_url,
         lifespan=lifespan,
     )
+    if app_settings.cors_origins:
+        application.add_middleware(
+            CORSMiddleware,
+            allow_origins=list(app_settings.cors_origins),
+            allow_credentials=False,
+            allow_methods=["GET", "POST", "OPTIONS"],
+            allow_headers=["Content-Type", "X-Request-ID"],
+        )
+
+    @application.middleware("http")
+    async def request_context_middleware(request: Request, call_next) -> Response:
+        incoming = request.headers.get("X-Request-ID", "").strip()
+        request_id = incoming if 0 < len(incoming) <= 128 and incoming.isprintable() else str(uuid4())
+        request.state.request_id = request_id
+        started = monotonic()
+        try:
+            response = await call_next(request)
+        except Exception:
+            logger.exception(
+                "http_request_failed method=%s path=%s",
+                request.method,
+                request.url.path,
+                extra={"request_id": request_id},
+            )
+            raise
+        duration_ms = round((monotonic() - started) * 1000, 2)
+        response.headers["X-Request-ID"] = request_id
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "no-referrer"
+        logger.info(
+            "http_request_completed method=%s path=%s status=%s duration_ms=%s",
+            request.method,
+            request.url.path,
+            response.status_code,
+            duration_ms,
+            extra={"request_id": request_id},
+        )
+        return response
     application.include_router(health_router, tags=["health"])
     application.include_router(api_router, prefix=app_settings.api_v1_prefix)
     configured_runtime = runtime or build_product_intelligence_runtime(app_settings)
@@ -94,6 +139,11 @@ def create_application(
         observation_registry=configured_runtime.observation_registry,
     )
     application.state.cart_candidate_discovery = CartCandidateDiscoveryService(
+        catalog=configured_runtime.catalog,
+        association_registry=configured_runtime.association_registry,
+        observation_registry=configured_runtime.observation_registry,
+    )
+    application.state.product_search = ProductSearchService(
         catalog=configured_runtime.catalog,
         association_registry=configured_runtime.association_registry,
         observation_registry=configured_runtime.observation_registry,

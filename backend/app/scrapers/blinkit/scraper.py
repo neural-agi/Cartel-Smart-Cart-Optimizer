@@ -2,7 +2,8 @@ import asyncio
 from collections.abc import Mapping
 from urllib.parse import urlencode
 
-from app.scrapers.base.exceptions import ScraperRequestError
+from app.core.config import Settings
+from app.scrapers.base.exceptions import ScraperRequestError, ScraperUnavailableError
 from app.scrapers.base.scraper import BaseScraper
 from app.scrapers.base.types import RawHttpResponse
 from app.scrapers.blinkit.session import BlinkitBrowserSession
@@ -22,6 +23,7 @@ class BlinkitScraper(BaseScraper):
         headers: Mapping[str, str] | None = None,
         timeout_seconds: float | None = None,
         max_retries: int | None = None,
+        settings: Settings | None = None,
     ) -> None:
         blinkit_headers = {
             "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
@@ -33,21 +35,36 @@ class BlinkitScraper(BaseScraper):
             headers=blinkit_headers,
             timeout_seconds=timeout_seconds,
             max_retries=max_retries,
+            settings=settings,
         )
 
     async def acquire_search(self, query: str) -> RawHttpResponse:
+        if not query.strip():
+            raise ValueError("Blinkit search query must be non-empty")
         try:
             response = await self.fetch_raw(
                 method="GET",
                 url=f"{self.base_url}{self.search_path}",
                 params={"q": query},
             )
-        except ScraperRequestError:
+        except ScraperRequestError as exc:
             self.logger.warning(
-                "blinkit_http_blocked query=%s falling_back=playwright",
+                "blinkit_http_blocked query=%s status_code=%s falling_back=playwright",
                 query,
+                exc.status_code,
             )
-            response = await self._fetch_via_browser(query)
+            try:
+                response = await self._fetch_via_browser(query)
+            except Exception as exc:
+                self.logger.exception(
+                    "blinkit_acquisition_unavailable query=%s reason=browser_fallback_failed error=%s",
+                    query,
+                    exc.__class__.__name__,
+                )
+                raise ScraperUnavailableError(
+                    f"Blinkit acquisition unavailable after HTTP and browser attempts for query={query!r}",
+                    reason_code="browser_fallback_failed",
+                ) from exc
         return response
 
     async def search_products(self, query: str) -> bytes:
@@ -55,7 +72,13 @@ class BlinkitScraper(BaseScraper):
         response = await self.acquire_search(query)
         return response.body
 
-    async def _fetch_via_browser(self, query: str) -> RawHttpResponse:
+    async def _fetch_via_browser(
+        self,
+        query: str,
+        *,
+        executable_path: str | None = None,
+        headless: bool = True,
+    ) -> RawHttpResponse:
         from playwright.async_api import Error as PlaywrightError
         from playwright.async_api import TimeoutError as PlaywrightTimeoutError
         from playwright.async_api import async_playwright
@@ -69,16 +92,21 @@ class BlinkitScraper(BaseScraper):
         session = BlinkitBrowserSession(
             headers=self.default_headers,
             timeout_seconds=self.timeout_seconds,
+            settings=self.settings,
         )
 
         try:
             self.logger.info("blinkit_browser_start query=%s", query)
             async with async_playwright() as playwright:
                 self.logger.info("blinkit_browser_launch_start query=%s", query)
-                browser = await playwright.chromium.launch(
-                    headless=True,
-                    timeout=int(self.timeout_seconds * 1000),
-                )
+                launch_kwargs = {
+                    "headless": headless,
+                    "timeout": int(self.timeout_seconds * 1000),
+                }
+                selected_executable = executable_path or self.settings.blinkit_browser_executable_path
+                if selected_executable is not None:
+                    launch_kwargs["executable_path"] = str(selected_executable)
+                browser = await playwright.chromium.launch(**launch_kwargs)
                 self.logger.info("blinkit_browser_launch_complete query=%s", query)
 
                 context = await session.new_context(browser)

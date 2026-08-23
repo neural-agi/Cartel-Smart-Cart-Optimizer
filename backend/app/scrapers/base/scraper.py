@@ -3,7 +3,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
-from app.core.config import get_settings
+from app.core.config import Settings, get_settings
 from app.core.logging import get_logger
 from app.scrapers.base.types import RawHttpResponse
 from app.scrapers.utils.http import AsyncHttpClient
@@ -21,21 +21,21 @@ class BaseScraper(ABC):
         headers: Mapping[str, str] | None = None,
         timeout_seconds: float | None = None,
         max_retries: int | None = None,
+        settings: Settings | None = None,
     ) -> None:
-        settings = get_settings()
+        self.settings = settings or get_settings()
         self.logger = get_logger(f"{__name__}.{self.platform}")
         self.default_headers = self.build_headers(headers)
-        self.timeout_seconds = timeout_seconds or settings.scraper_timeout_seconds
-        self.max_retries = max_retries or settings.scraper_max_retries
-        self.retry_backoff_seconds = settings.scraper_retry_backoff_seconds
+        self.timeout_seconds = self.settings.scraper_timeout_seconds if timeout_seconds is None else timeout_seconds
+        self.max_retries = self.settings.scraper_max_retries if max_retries is None else max_retries
+        self.retry_backoff_seconds = self.settings.scraper_retry_backoff_seconds
 
     def build_headers(
         self,
         headers: Mapping[str, str] | None = None,
     ) -> dict[str, str]:
-        settings = get_settings()
         base_headers = {
-            "user-agent": settings.scraper_user_agent,
+            "user-agent": self.settings.scraper_user_agent,
             "accept": "*/*",
             "accept-language": "en-IN,en;q=0.9",
         }
@@ -56,6 +56,7 @@ class BaseScraper(ABC):
             max_retries=self.max_retries,
             retry_backoff_seconds=self.retry_backoff_seconds,
             default_headers=self.default_headers,
+            settings=self.settings,
         ) as client:
             return await client.request(
                 method=method,

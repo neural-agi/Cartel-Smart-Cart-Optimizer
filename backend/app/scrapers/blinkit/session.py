@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Any
 
 from playwright.async_api import Browser, BrowserContext
 from playwright.async_api import Error as PlaywrightError
@@ -14,8 +15,14 @@ from app.scrapers.utils.storage import persist_debug_artifact
 class BlinkitBrowserSession:
     """Creates and maintains a reusable Blinkit delivery-location browser session."""
 
-    def __init__(self, *, headers: dict[str, str], timeout_seconds: float) -> None:
-        self.settings: Settings = get_settings()
+    def __init__(
+        self,
+        *,
+        headers: dict[str, str],
+        timeout_seconds: float,
+        settings: Settings | None = None,
+    ) -> None:
+        self.settings: Settings = settings or get_settings()
         self.headers = headers
         self.timeout_ms = int(timeout_seconds * 1000)
         self.logger = get_logger(__name__)
@@ -58,7 +65,7 @@ class BlinkitBrowserSession:
             self.settings.blinkit_delivery_longitude,
         )
 
-        if await self._has_product_results(page):
+        if await self._wait_for_product_results(page, query):
             self.logger.info("blinkit_location_products_already_visible query=%s", query)
             return
 
@@ -76,9 +83,49 @@ class BlinkitBrowserSession:
             f"Blinkit delivery location could not be established for query={query!r}"
         )
 
+    async def has_product_results(self, *, page: Page) -> bool:
+        """Return whether the rendered page contains observable product cards."""
+        return await self._has_product_results(page)
+
+    async def wait_for_product_results(self, *, page: Page, query: str) -> bool:
+        """Wait for asynchronously hydrated product cards."""
+        return await self._wait_for_product_results(page, query)
+
+    async def safe_location_metadata(self, *, page: Page) -> dict[str, Any]:
+        """Extract non-secret location metadata for operator diagnostics."""
+        try:
+            value = await page.evaluate(
+                """
+                () => {
+                    const raw = window.localStorage.getItem("location");
+                    if (!raw) return null;
+                    try {
+                        const parsed = JSON.parse(raw);
+                        const coords = parsed?.coords || {};
+                        return {
+                            locality: coords.locality ?? null,
+                            locality_id: coords.id ?? null,
+                            city_name: coords.cityName ?? null,
+                            latitude: coords.lat ?? null,
+                            longitude: coords.lon ?? null,
+                        };
+                    } catch (_) {
+                        return null;
+                    }
+                }
+                """
+            )
+        except PlaywrightError:
+            return {}
+        return value if isinstance(value, dict) else {}
+
     async def persist_state(self, context: BrowserContext) -> None:
         self.state_path.parent.mkdir(parents=True, exist_ok=True)
         await context.storage_state(path=str(self.state_path))
+        try:
+            self.state_path.chmod(0o600)
+        except OSError:
+            self.logger.warning("blinkit_session_state_permissions_unset path=%s", str(self.state_path))
         self.logger.info("blinkit_session_state_persisted path=%s", str(self.state_path))
 
     async def capture_failure_artifacts(
