@@ -35,6 +35,12 @@ def test_valid_configuration_loads() -> None:
     assert settings.checkout_observation_provider_mode == "unavailable"
 
 
+def test_cors_origins_are_explicitly_parsed() -> None:
+    settings = _settings(cors_allowed_origins="https://app.example, https://admin.example/")
+
+    assert settings.cors_origins == ("https://app.example", "https://admin.example")
+
+
 @pytest.mark.parametrize("mode", ["registry", "unavailable"])
 def test_checkout_observation_provider_mode_is_explicit(mode: str) -> None:
     settings = _settings(checkout_observation_provider_mode=mode)
@@ -50,6 +56,7 @@ def test_checkout_observation_provider_mode_is_explicit(mode: str) -> None:
         {"app_debug": "not-a-boolean"},
         {"app_env": "invalid"},
         {"checkout_observation_provider_mode": "unsupported"},
+        {"planning_max_combinations": 0},
     ],
 )
 def test_invalid_configuration_fails_closed(overrides: dict[str, object]) -> None:

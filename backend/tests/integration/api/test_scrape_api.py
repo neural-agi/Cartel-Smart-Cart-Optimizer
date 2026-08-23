@@ -61,6 +61,44 @@ def test_health_endpoint_remains_unchanged() -> None:
     assert response.json()["status"] == "ok"
 
 
+def test_health_and_readiness_expose_safe_operational_headers(tmp_path) -> None:
+    application = create_application(Settings(_env_file=None, data_dir=tmp_path))
+
+    with TestClient(application) as client:
+        health = client.get("/health", headers={"X-Request-ID": "request-test-1"})
+        readiness = client.get("/ready")
+
+    assert health.status_code == 200
+    assert health.headers["X-Request-ID"] == "request-test-1"
+    assert health.headers["X-Content-Type-Options"] == "nosniff"
+    assert health.headers["X-Frame-Options"] == "DENY"
+    assert health.headers["Referrer-Policy"] == "no-referrer"
+    assert readiness.status_code == 200
+    assert readiness.json()["status"] == "ready"
+    assert readiness.json()["checks"]["product_search"] == "ready"
+
+
+def test_configured_cors_allows_only_declared_origin(tmp_path) -> None:
+    settings = Settings(
+        _env_file=None,
+        data_dir=tmp_path,
+        cors_allowed_origins="https://app.example",
+    )
+
+    with TestClient(create_application(settings)) as client:
+        allowed = client.options(
+            "/api/v1/health",
+            headers={
+                "Origin": "https://app.example",
+                "Access-Control-Request-Method": "GET",
+            },
+        )
+        denied = client.get("/api/v1/health", headers={"Origin": "https://other.example"})
+
+    assert allowed.headers["access-control-allow-origin"] == "https://app.example"
+    assert "access-control-allow-origin" not in denied.headers
+
+
 def test_create_application_bootstraps_runtime_from_configured_data_root(tmp_path) -> None:
     settings = Settings(_env_file=None, data_dir=tmp_path)
 
@@ -117,6 +155,38 @@ def test_observation_query_endpoint_returns_persisted_observation_with_associati
     assert [item["observation_id"] for item in filtered.json()] == [observation_id]
 
     assert associations.all()
+
+
+def test_product_search_returns_governed_catalog_listing_after_ingestion(tmp_path) -> None:
+    runtime, _catalog, _associations = _runtime(tmp_path, resolver=_resolver())
+    client = TestClient(create_application(runtime=runtime))
+
+    scrape = client.post("/api/v1/scrape", json=_job().model_dump(mode="json"))
+    assert scrape.status_code == 200
+
+    response = client.get("/api/v1/products/search", params={"query": "amul"})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["query"] == "amul"
+    assert len(body["items"]) == 1
+    item = body["items"][0]
+    assert item["canonical_product_id"] == "product-amul-taaza"
+    assert item["canonical_variant_id"] == "variant-amul-taaza-500ml"
+    assert item["platform"] == "BLINKIT"
+    assert item["platform_listing_id"]
+    assert item["observation_id"]
+    assert "price" in item
+
+
+def test_product_search_rejects_blank_query(tmp_path) -> None:
+    application = create_application(Settings(_env_file=None, data_dir=tmp_path))
+
+    response = TestClient(application).get(
+        "/api/v1/products/search", params={"query": "   "}
+    )
+
+    assert response.status_code == 422
 
 
 def test_observation_query_endpoint_returns_null_association_for_unresolved_observation(tmp_path) -> None:
