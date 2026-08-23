@@ -12,6 +12,7 @@ from app.cart_optimization.service import CartOptimizationService
 from app.cart_optimization.types import (
     CandidatePlanCoverage,
     CartOptimizationRequest,
+    CheckoutGroup,
     EffectiveCostEvaluationReference,
     ItemAllocation,
 )
@@ -161,6 +162,18 @@ def _provenance_bearing_plan(
         inconvenience_penalty_units=0,
         retailer_preference_priority=0,
         candidate_item_allocations=allocations,
+        checkout_groups=tuple(
+            CheckoutGroup(
+                checkout_group_id=group_id,
+                retailer_id=next(
+                    allocation.retailer_id
+                    for allocation in allocations
+                    if allocation.checkout_group_id == group_id
+                ),
+                effective_cost_evaluation_id=eval_id,
+            )
+            for group_id in sorted({allocation.checkout_group_id for allocation in allocations})
+        ),
         effective_cost_evaluation_reference=_eval_ref(eval_id),
         feasibility=PlanFeasibility.FEASIBLE,
     )

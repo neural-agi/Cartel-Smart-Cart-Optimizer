@@ -32,6 +32,13 @@ def test_valid_configuration_loads() -> None:
 
     assert settings.app_name == "Cartel"
     assert settings.redis_url == "redis://localhost:6379/0"
+    assert settings.checkout_observation_provider_mode == "unavailable"
+
+
+@pytest.mark.parametrize("mode", ["registry", "unavailable"])
+def test_checkout_observation_provider_mode_is_explicit(mode: str) -> None:
+    settings = _settings(checkout_observation_provider_mode=mode)
+    assert settings.checkout_observation_provider_mode == mode
 
 
 @pytest.mark.parametrize(
@@ -42,6 +49,7 @@ def test_valid_configuration_loads() -> None:
         {"postgres_port": 70000},
         {"app_debug": "not-a-boolean"},
         {"app_env": "invalid"},
+        {"checkout_observation_provider_mode": "unsupported"},
     ],
 )
 def test_invalid_configuration_fails_closed(overrides: dict[str, object]) -> None:

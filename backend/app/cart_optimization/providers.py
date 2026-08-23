@@ -48,3 +48,32 @@ class RegistryCheckoutObservationProvider:
     def get_observation(self, *, plan_id: str, request_id: str) -> CheckoutObservation | None:
         correlation = self._store.get(request_id, plan_id)
         return None if correlation is None else correlation.observation
+
+
+class UnavailableRetailerIdentityProvider:
+    """Fail-closed adapter until an authoritative retailer registry is wired."""
+
+    def retailer_id(self, *, item_id: str, platform: str, listing_id: str) -> str:
+        raise PlanningProviderUnavailable(
+            "retailer identity provider is unavailable for "
+            f"item {item_id}, platform {platform}, listing {listing_id}"
+        )
+
+
+class UnavailableCheckoutGroupProvider:
+    """Fail-closed adapter until explicit grouping context is available."""
+
+    def checkout_group_id(self, *, plan_id: str, item_id: str, retailer_id: str) -> str:
+        raise PlanningProviderUnavailable(
+            "checkout group provider is unavailable for "
+            f"plan {plan_id}, item {item_id}, retailer {retailer_id}"
+        )
+
+
+class UnavailablePlanPolicyProvider:
+    """Fail-closed adapter for upstream plan policy and feasibility inputs."""
+
+    def resolve(self, *, plan_id: str) -> tuple[int, int, PlanFeasibility, tuple[str, ...]]:
+        raise PlanningProviderUnavailable(
+            f"plan policy provider is unavailable for plan {plan_id}"
+        )

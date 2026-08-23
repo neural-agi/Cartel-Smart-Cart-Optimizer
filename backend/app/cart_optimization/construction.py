@@ -153,6 +153,7 @@ class CandidatePlanConstructionService:
                 candidate.to_item_allocation()
                 for candidate in supplied.candidate_item_allocations
             ),
+            candidate_item_allocations=supplied.candidate_item_allocations,
             checkout_groups=supplied.checkout_groups,
             effective_cost_evaluation_reference=supplied.effective_cost_evaluation_reference,
             constraint_references=supplied.constraint_references,

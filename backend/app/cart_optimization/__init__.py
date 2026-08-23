@@ -8,6 +8,22 @@ from app.cart_optimization.quantity_semantics import (
 )
 from app.cart_optimization.request_builder import CartOptimizationRequestBuilder
 from app.cart_optimization.service import CartOptimizationService
+from app.cart_optimization.serialization import CartPlanningSerialization
+from app.cart_optimization.persistence import (
+    FilesystemPlanningRequestRepository,
+    FilesystemPlanningResultRepository,
+    PlanningRecordConflict,
+    PlanningRecordMalformed,
+    PlanningRequestRepository,
+    PlanningResultRepository,
+)
+from app.cart_optimization.construction import (
+    CandidateAllocationSet,
+    CandidateEnumerationResult,
+    CandidateEnumerationStatus,
+    CandidatePlanConstructionInput,
+    CandidatePlanConstructionService,
+)
 
 from app.cart_optimization.enums import (
     ConstraintHardness,
@@ -43,14 +59,26 @@ from app.cart_optimization.types import (
 
 __all__ = [
     "BudgetConstraint",
+    "CandidateAllocationSet",
+    "CandidateEnumerationResult",
+    "CandidateEnumerationStatus",
     "CandidatePlan",
     "CandidatePlanCoverage",
+    "CandidatePlanConstructionInput",
+    "CandidatePlanConstructionService",
     "CartItemRequest",
     "CartOptimizationRequest",
     "CartOptimizationResult",
     "CartOptimizationOrchestrator",
     "CartOptimizationRequestBuilder",
     "CartOptimizationService",
+    "CartPlanningSerialization",
+    "FilesystemPlanningRequestRepository",
+    "FilesystemPlanningResultRepository",
+    "PlanningRecordConflict",
+    "PlanningRecordMalformed",
+    "PlanningRequestRepository",
+    "PlanningResultRepository",
     "CheckoutGroup",
     "ConstraintHardness",
     "CoverageState",
