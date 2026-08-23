@@ -27,6 +27,7 @@ from app.product_intelligence.ingestion import ProductIntelligenceEvidencePublis
 from app.product_intelligence.matching import DeterministicProductMatcher, DeterministicVariantMatcher
 from app.product_intelligence.orchestrator import DeterministicProductIntelligenceOrchestrator
 from app.product_intelligence.review import DeterministicReviewQueueManager
+from app.scrapers.blinkit.acquisition import BlinkitAcquisitionAdapter
 from app.workers.local_ingestion import LocalIngestionWorker
 from app.workers.product_intelligence_runtime import ProductIntelligenceRuntime
 from app.workers.job_execution_coordinator import JobExecutionCoordinator
@@ -68,6 +69,7 @@ def build_product_intelligence_runtime(settings: Settings) -> JobExecutionCoordi
     )
     runtime = ProductIntelligenceRuntime(
         ingestion_worker=LocalIngestionWorker(
+            acquisition=BlinkitAcquisitionAdapter(settings=settings),
             artifact_store=LocalFilesystemArtifactStore(
                 root=settings.raw_data_dir,
                 store_namespace="product-intelligence",

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
+from app.core.config import Settings
 from app.data_ingestion import AcquisitionResult, CaptureCoverage, CaptureType
 from app.scrapers.base.types import RawHttpResponse
 from app.scrapers.blinkit.scraper import BlinkitScraper
@@ -12,8 +13,13 @@ from app.scrapers.blinkit.scraper import BlinkitScraper
 class BlinkitAcquisitionAdapter:
     """Adapt concrete Blinkit response facts without storing or parsing them."""
 
-    def __init__(self, scraper: BlinkitScraper | None = None) -> None:
-        self._scraper = scraper or BlinkitScraper()
+    def __init__(
+        self,
+        scraper: BlinkitScraper | None = None,
+        *,
+        settings: Settings | None = None,
+    ) -> None:
+        self._scraper = scraper or BlinkitScraper(settings=settings)
 
     async def acquire_search(self, *, query: str, evaluation_scope: str) -> AcquisitionResult:
         response = await self._scraper.acquire_search(query)

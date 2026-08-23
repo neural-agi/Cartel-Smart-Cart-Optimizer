@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
     log_json: bool = Field(default=True, alias="LOG_JSON")
     docs_enabled: bool = Field(default=True, alias="DOCS_ENABLED")
+    cors_allowed_origins: str = Field(default="", alias="CORS_ALLOWED_ORIGINS")
     checkout_observation_provider_mode: Literal["registry", "unavailable"] = Field(
         default="unavailable",
         alias="CHECKOUT_OBSERVATION_PROVIDER_MODE",
@@ -86,6 +87,10 @@ class Settings(BaseSettings):
     blinkit_session_state_path: Path = Field(
         default=Path("../data/sessions/blinkit/browser_state.json"),
         alias="BLINKIT_SESSION_STATE_PATH",
+    )
+    blinkit_browser_executable_path: Path | None = Field(
+        default=None,
+        alias="BLINKIT_BROWSER_EXECUTABLE_PATH",
     )
 
     postgres_host: str = Field(default="localhost", alias="POSTGRES_HOST")
@@ -151,6 +156,18 @@ class Settings(BaseSettings):
             raise ValueError("SCRAPER_MAX_RETRIES must not be negative")
         return value
 
+    @field_validator(
+        "planning_max_cart_items",
+        "planning_max_candidates_per_item",
+        "planning_max_combinations",
+        "planning_max_supplied_plans",
+    )
+    @classmethod
+    def validate_planning_limits(cls, value: int) -> int:
+        if value < 1:
+            raise ValueError("planning limits must be positive")
+        return value
+
     @field_validator("blinkit_delivery_latitude")
     @classmethod
     def validate_latitude(cls, value: float) -> float:
@@ -178,19 +195,7 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def validate_runtime_configuration(self) -> "Settings":
         if self.app_env == "production":
-            required_production_fields = {
-                "postgres_host",
-                "postgres_port",
-                "postgres_db",
-                "postgres_user",
-                "postgres_password",
-                "redis_url",
-            }
-            missing_fields = required_production_fields.difference(self.model_fields_set)
-            if missing_fields:
-                missing = ", ".join(sorted(missing_fields))
-                raise ValueError(f"production configuration is missing: {missing}")
-            if self.postgres_password == "cartel":
+            if "postgres_password" not in self.model_fields_set or self.postgres_password == "cartel":
                 raise ValueError("POSTGRES_PASSWORD must be explicitly configured in production")
             if self.app_debug:
                 raise ValueError("APP_DEBUG must be false in production")
@@ -201,6 +206,14 @@ class Settings(BaseSettings):
     @property
     def is_production(self) -> bool:
         return self.app_env == "production"
+
+    @property
+    def cors_origins(self) -> tuple[str, ...]:
+        return tuple(
+            origin.strip().rstrip("/")
+            for origin in self.cors_allowed_origins.split(",")
+            if origin.strip()
+        )
 
     @property
     def raw_data_dir(self) -> Path:

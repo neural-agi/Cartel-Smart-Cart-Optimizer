@@ -34,6 +34,8 @@ data/sessions/*
 !data/sessions/.gitkeep
 !data/sessions/blinkit/
 !data/sessions/blinkit/.gitkeep
+data/sessions/blinkit/*
+!data/sessions/blinkit/.gitkeep
 
 # Logs
 *.log

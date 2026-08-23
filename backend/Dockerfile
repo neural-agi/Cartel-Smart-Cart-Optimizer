@@ -4,6 +4,7 @@ WORKDIR /app/backend
 
 COPY backend/requirements/base.txt /tmp/cartel-requirements.txt
 RUN python -m pip install --no-cache-dir -r /tmp/cartel-requirements.txt
+RUN playwright install --with-deps chromium
 
 COPY backend/app /app/backend/app
 
