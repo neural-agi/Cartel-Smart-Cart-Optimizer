@@ -231,6 +231,22 @@ class BlinkitBrowserSession:
         return """
         () => {
             const text = document.body?.innerText || "";
+            const isVisible = (element) => {
+                const style = window.getComputedStyle(element);
+                const rect = element.getBoundingClientRect();
+                return style.display !== "none"
+                    && style.visibility !== "hidden"
+                    && Number(style.opacity || 1) > 0
+                    && rect.width > 0
+                    && rect.height > 0;
+            };
+            const locationOverlayActive = [...document.querySelectorAll('body *')].some((element) => {
+                const elementText = (element.innerText || "").trim();
+                return isVisible(element)
+                    && /provide your delivery location/i.test(elementText)
+                    && /detect my location/i.test(elementText);
+            });
+            if (locationOverlayActive) return false;
             const hasAddAction = /\\bADD\\b/i.test(text);
             const hasPrice = /(?:\\u20B9|Rs\\.?|MRP)\\s*\\d/.test(text);
             return hasAddAction && hasPrice;

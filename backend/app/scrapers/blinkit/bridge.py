@@ -51,12 +51,15 @@ class BlinkitParserBridge:
             ObservationFieldReference(evidence_reference=evidence, locator=f"products[{source_id}].{name}")
             for name in ("product_name", "quantity", "raw_category", "displayed_price", "mrp", "offer_text", "stock_availability", "raw_text")
         )
+        identifiers = [("source_index", source_id)]
+        if product.retailer_product_id:
+            identifiers.append(("retailer_product_id", product.retailer_product_id))
         return ParsedRetailObservation(
             source_record_id=source_id,
             platform=Platform.BLINKIT,
             raw_title=product.product_name,
             raw_quantity=product.quantity,
-            platform_identifiers=(("source_index", source_id),),
+            platform_identifiers=tuple(sorted(identifiers)),
             raw_price_text=product.displayed_price,
             raw_mrp_text=product.mrp,
             offer_text=product.offer_text,
