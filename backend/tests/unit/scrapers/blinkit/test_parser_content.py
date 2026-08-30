@@ -27,3 +27,13 @@ def test_parse_html_remains_compatible_with_file_metadata() -> None:
     )
     assert result.source_path == Path("capture.html")
     assert result.source_reference is None
+
+
+def test_parse_html_preserves_blinkit_product_id_separately_from_source_index() -> None:
+    result = BlinkitProductParser().parse_html(
+        '<div role="button" id="637879"><span>Milk</span><span>500 ml</span><span>₹100</span><span>ADD</span></div>',
+        query="milk",
+        source_reference="https://blinkit.com/s/?q=milk",
+    )
+    assert result.products[0].source_index == 1
+    assert result.products[0].retailer_product_id == "637879"
