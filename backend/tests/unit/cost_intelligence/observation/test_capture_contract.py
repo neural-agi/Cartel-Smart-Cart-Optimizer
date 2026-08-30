@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 import pytest
 from unittest.mock import Mock
 
-from app.cart_optimization.types import CartItemRequest
+from app.cart_optimization.types import CartItemRequest, CandidateItemAllocation, CandidateListingProvenance
 from app.cost_intelligence.observation.capture import CheckoutCaptureRegistrationService
 from app.cost_intelligence.observation.capture_contract import (
     CheckoutCaptureArtifact,
@@ -19,6 +19,7 @@ from app.cost_intelligence.observation.capture_service import (
 from app.cost_intelligence.observation.checkout_capture import FilesystemCheckoutObservationCorrelationStore
 from app.data_ingestion.enums import CaptureType
 from app.product_intelligence.models import EvidenceReference
+from app.cost_intelligence.shared.money import Money
 from app.data_ingestion.artifact_store import LocalFilesystemArtifactStore
 from app.data_ingestion.artifact_store import ArtifactAlreadyExists
 from app.data_ingestion.artifact_store import StorageReference
@@ -284,3 +285,50 @@ def test_capture_request_requires_cart_items() -> None:
         CheckoutCaptureRequest(
             request_id="request-1", plan_id="plan-1", platform="test", cart_items=()
         )
+
+
+def _allocation(quantity: int = 2) -> CandidateItemAllocation:
+    return CandidateItemAllocation(
+        item_id="item-1", canonical_variant_id="variant-1", quantity=quantity,
+        retailer_id="retailer-1", checkout_group_id="group-1",
+        listing_provenance=CandidateListingProvenance(
+            platform="blinkit", platform_listing_id="listing-1", observation_id="observation-1",
+            observed_selling_price=Money(currency="INR", minor_units=100),
+        ),
+    )
+
+
+def test_capture_request_preserves_authoritative_allocation_identity() -> None:
+    request = CheckoutCaptureRequest(
+        request_id="request-1", plan_id="plan-1", platform="blinkit",
+        cart_items=(CartItemRequest(item_id="item-1", canonical_variant_id="variant-1", quantity=2),),
+        candidate_allocations=(_allocation(),),
+    )
+    assert request.candidate_allocations[0].listing_provenance.platform_listing_id == "listing-1"
+    assert request.candidate_allocations[0].checkout_group_id == "group-1"
+
+
+def test_capture_request_rejects_allocation_quantity_mismatch() -> None:
+    with pytest.raises(ValueError, match="fulfill cart quantities exactly"):
+        CheckoutCaptureRequest(
+            request_id="request-1", plan_id="plan-1", platform="blinkit",
+            cart_items=(CartItemRequest(item_id="item-1", canonical_variant_id="variant-1", quantity=2),),
+            candidate_allocations=(_allocation(1),),
+        )
+
+
+@pytest.mark.asyncio
+async def test_async_capture_adapter_is_invoked(tmp_path) -> None:
+    request = _request("request-async", "plan-async")
+    artifact = _artifact(request)
+
+    class AsyncAdapter:
+        async def acapture(self, received):
+            assert received == request
+            return artifact
+
+    result = await CheckoutCaptureService(
+        adapter=AsyncAdapter(), parser=JsonCheckoutCaptureParser(),
+        registration=CheckoutCaptureRegistrationService(FilesystemCheckoutObservationCorrelationStore(tmp_path)),
+    ).capture_async(request)
+    assert result.request_id == "request-async"
