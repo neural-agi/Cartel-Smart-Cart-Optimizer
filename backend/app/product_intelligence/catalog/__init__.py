@@ -20,6 +20,12 @@ from app.product_intelligence.catalog.types import (
     CatalogConflictError,
     CatalogValidationError,
 )
+from app.product_intelligence.catalog.population import (
+    CatalogPopulationManifest,
+    CatalogReviewItem,
+    CatalogReviewQueue,
+    GovernedCatalogPopulationService,
+)
 
 __all__ = [
     "CatalogConflictError",
@@ -36,4 +42,8 @@ __all__ = [
     "product_catalog_key",
     "variant_observation_key",
     "variant_catalog_key",
+    "CatalogPopulationManifest",
+    "CatalogReviewItem",
+    "CatalogReviewQueue",
+    "GovernedCatalogPopulationService",
 ]
