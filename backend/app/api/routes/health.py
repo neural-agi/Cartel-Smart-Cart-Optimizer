@@ -26,6 +26,10 @@ async def readiness_check(request: Request) -> ReadinessResponse:
         "product_search": "ready" if hasattr(request.app.state, "product_search") else "missing",
         "data_directory": "ready" if settings.data_dir.is_dir() else "missing",
         "checkout_capture": "configured" if hasattr(request.app.state, "checkout_capture") else "missing",
+        "authentication": (
+            "ready" if not settings.auth_required or settings.configured_auth_tokens else "missing"
+        ),
+        "rate_limiter": "ready" if hasattr(request.app.state, "rate_limiter") else "missing",
     }
     status = "ready" if all(value != "missing" for value in checks.values()) else "not_ready"
     return ReadinessResponse(
