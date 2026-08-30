@@ -38,7 +38,7 @@ export default function HomePage() {
           <p className="text-sm font-medium text-primary">Your workspace</p>
           <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Build a smarter cart.</h1>
           <p className="max-w-2xl text-muted-foreground">
-            Start with the groceries you need. Cartel will be ready to compare them when product data is connected.
+            Start with the groceries you need. Search the governed catalog, build your cart, and request an explicit comparison.
           </p>
         </header>
 

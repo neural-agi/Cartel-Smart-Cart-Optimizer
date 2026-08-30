@@ -21,7 +21,7 @@ export default function CTA() {
 
           <p className="mt-6 max-w-2xl text-lg leading-8 text-muted-foreground">
             Cartel compares prices, delivery fees, memberships and offers
-            across every major grocery platform so you don't have to.
+            across every major grocery platform so you don&apos;t have to.
           </p>
 
           <div className="mt-10 flex flex-wrap items-center justify-center gap-4">

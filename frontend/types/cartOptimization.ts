@@ -30,6 +30,14 @@ export interface CandidatePlan {
   retailer_preference_priority: number;
   retailer_allocations: RetailerAllocation[];
   item_allocations: ItemAllocation[];
+  candidate_item_allocations?: Array<ItemAllocation & {
+    listing_provenance?: {
+      platform: string;
+      platform_listing_id: string;
+      observation_id: string;
+      observed_selling_price?: { currency: string; minor_units: number };
+    };
+  }>;
   checkout_groups: CheckoutGroup[];
   effective_cost_evaluation_reference: {
     effective_cost_evaluation_id: string;

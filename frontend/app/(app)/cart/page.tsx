@@ -12,6 +12,7 @@ export default function CartPage() {
   const items = useCartStore((state) => state.items);
   const increaseQuantity = useCartStore((state) => state.increaseQuantity);
   const decreaseQuantity = useCartStore((state) => state.decreaseQuantity);
+  const updateQuantity = useCartStore((state) => state.updateQuantity);
   const removeItem = useCartStore((state) => state.removeItem);
   const clearCart = useCartStore((state) => state.clearCart);
 
@@ -52,7 +53,15 @@ export default function CartPage() {
                       <Button variant="outline" size="icon-sm" aria-label={`Decrease ${item.product.name} quantity`} onClick={() => decreaseQuantity(item.itemId)}>
                         <Minus className="h-4 w-4" aria-hidden="true" />
                       </Button>
-                      <span className="w-6 text-center text-sm font-medium">{item.quantity}</span>
+                      <input
+                        aria-label={`Quantity for ${item.product.name}`}
+                        type="number"
+                        min={1}
+                        step={1}
+                        value={item.quantity}
+                        onChange={(event) => updateQuantity(item.itemId, Number(event.target.value))}
+                        className="h-8 w-14 rounded-md border border-border bg-background text-center text-sm"
+                      />
                       <Button variant="outline" size="icon-sm" aria-label={`Increase ${item.product.name} quantity`} onClick={() => increaseQuantity(item.itemId)}>
                         <Plus className="h-4 w-4" aria-hidden="true" />
                       </Button>

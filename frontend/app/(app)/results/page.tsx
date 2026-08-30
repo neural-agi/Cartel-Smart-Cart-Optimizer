@@ -5,31 +5,44 @@ import { AlertCircle, ArrowLeft, CheckCircle2, CircleHelp, ExternalLink } from "
 
 import AppShell from "@/components/layout/AppShell";
 import { useCartStore } from "@/store/cartStore";
+import type { ItemAllocation } from "@/types/cartOptimization";
 
 export default function ResultsPage() {
   const items = useCartStore((state) => state.items);
   const resolution = useCartStore((state) => state.resolution);
   const candidateDiscovery = useCartStore((state) => state.candidateDiscovery);
   const optimizationResult = useCartStore((state) => state.optimizationResult);
+  const automaticPlanning = useCartStore((state) => state.automaticPlanning);
 
   const plan = optimizationResult?.chosen_plan;
-  const allocationsByRetailer = plan?.item_allocations.reduce<Record<string, typeof plan.item_allocations>>(
-    (groups, allocation) => {
-      (groups[allocation.retailer_id] ??= []).push(allocation);
-      return groups;
-    },
-  ) ?? {};
+  const allocationsByRetailer: Record<string, ItemAllocation[]> = plan
+    ? plan.item_allocations.reduce<Record<string, ItemAllocation[]>>((groups, allocation) => {
+        (groups[allocation.retailer_id] ??= []).push(allocation);
+        return groups;
+      }, {})
+    : {};
 
   return (
     <AppShell>
       <div className="space-y-8">
         <header className="space-y-2">
-          <p className="text-sm font-medium text-primary">Cart preparation result</p>
-          <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Resolved cart identities.</h1>
+          <p className="text-sm font-medium text-primary">Optimization result</p>
+          <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">A clearer way to buy this cart.</h1>
           <p className="max-w-2xl text-muted-foreground">
             Review the governed result and its evidence. Costs are shown only when the optimization response contains an effective-cost value.
           </p>
         </header>
+
+        {automaticPlanning?.status === "unresolved" && !optimizationResult && (
+          <section role="alert" className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-6">
+            <h2 className="font-semibold">Cartel could not safely build a plan</h2>
+            <p className="mt-2 text-sm text-muted-foreground">No estimates were substituted for missing governed data.</p>
+            <ul className="mt-4 list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+              {automaticPlanning.unresolved_reasons.map((reason) => <li key={reason}>{reason}</li>)}
+            </ul>
+            <Link href="/cart" className="mt-5 inline-flex text-sm font-medium text-primary hover:underline">Review cart</Link>
+          </section>
+        )}
 
         {optimizationResult && (
           <section aria-labelledby="optimization-result-heading" className="space-y-5">
@@ -57,8 +70,8 @@ export default function ResultsPage() {
                 <div className="grid gap-4 sm:grid-cols-3">
                   <article className="rounded-2xl border border-border bg-card p-5">
                     <p className="text-sm text-muted-foreground">Effective cost</p>
-                    <p className="mt-2 text-lg font-semibold">Unavailable</p>
-                    <p className="mt-1 text-xs text-muted-foreground">The result carries an ECE reference, not an amount.</p>
+                    <p className="mt-2 text-lg font-semibold">Checkout evidence linked</p>
+                    <p className="mt-1 text-xs text-muted-foreground">The optimizer uses checkout-derived evidence, not listing price alone. Amount details are unavailable in this result contract.</p>
                   </article>
                   <article className="rounded-2xl border border-border bg-card p-5">
                     <p className="text-sm text-muted-foreground">Checkouts</p>
@@ -68,7 +81,7 @@ export default function ResultsPage() {
                   <article className="rounded-2xl border border-border bg-card p-5">
                     <p className="text-sm text-muted-foreground">Feasibility</p>
                     <p className="mt-2 text-lg font-semibold">{plan.feasibility}</p>
-                    <p className="mt-1 text-xs text-muted-foreground">Plan {plan.plan_id}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Plan {plan.plan_id} · ECE {plan.effective_cost_evaluation_reference.effective_cost_evaluation_id}</p>
                   </article>
                 </div>
 
@@ -101,6 +114,11 @@ export default function ResultsPage() {
                               <div className="text-right">
                                 <p>Quantity {allocation.quantity}</p>
                                 <p className="text-xs text-muted-foreground">Group {allocation.checkout_group_id}</p>
+                                {plan.candidate_item_allocations?.find((candidate) => candidate.item_id === allocation.item_id)?.listing_provenance?.observed_selling_price && (
+                                  <p className="text-xs text-muted-foreground">
+                                    Listed {plan.candidate_item_allocations.find((candidate) => candidate.item_id === allocation.item_id)?.listing_provenance?.observed_selling_price?.currency} {(plan.candidate_item_allocations.find((candidate) => candidate.item_id === allocation.item_id)?.listing_provenance?.observed_selling_price?.minor_units ?? 0) / 100}
+                                  </p>
+                                )}
                               </div>
                             </div>
                           ))}
@@ -154,14 +172,14 @@ export default function ResultsPage() {
           </section>
         )}
 
-        {!resolution ? (
+        {!resolution && !automaticPlanning ? (
           <section className="rounded-2xl border border-dashed border-border bg-card/50 px-6 py-20 text-center">
             <CircleHelp className="mx-auto h-9 w-9 text-muted-foreground/60" aria-hidden="true" />
             <h2 className="mt-5 text-lg font-semibold">No resolution result yet</h2>
             <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-muted-foreground">Resolve a populated cart first.</p>
             <Link href="/optimize" className="mt-6 inline-flex text-sm font-medium text-primary hover:underline">Prepare cart</Link>
           </section>
-        ) : (
+        ) : resolution ? (
           <section aria-labelledby="resolved-items-heading" className="space-y-4">
             <h2 id="resolved-items-heading" className="text-lg font-semibold">Cart items</h2>
             <div className="divide-y divide-border rounded-2xl border border-border bg-card px-5">
@@ -223,7 +241,7 @@ export default function ResultsPage() {
               })}
             </div>
           </section>
-        )}
+        ) : null}
 
         <Link href="/cart" className="inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline">
           <ArrowLeft className="h-4 w-4" aria-hidden="true" /> Back to cart
