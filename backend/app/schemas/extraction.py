@@ -9,6 +9,7 @@ from app.data_ingestion.types import CaptureCoverage
 class RawExtractedProduct(BaseModel):
     source_index: int
     platform: str = "blinkit"
+    retailer_product_id: str | None = None
     product_name: str
     displayed_price: str | None = None
     mrp: str | None = None

@@ -21,6 +21,7 @@ class ComparableRetailObservation(BaseModel):
     observation_id: str
     platform: str
     platform_listing_id: str
+    retailer_product_id: str | None = None
     canonical_product_id: str
     canonical_variant_id: str
     observed_selling_price: Money
@@ -71,6 +72,7 @@ class RetailPriceComparisonQueryService:
                     observation_id=record.observation_id,
                     platform=association.platform,
                     platform_listing_id=association.platform_listing_id,
+                    retailer_product_id=dict(record.observation.platform_identifiers).get("retailer_product_id"),
                     canonical_product_id=association.canonical_product_id,
                     canonical_variant_id=association.canonical_variant_id,
                     observed_selling_price=price,
