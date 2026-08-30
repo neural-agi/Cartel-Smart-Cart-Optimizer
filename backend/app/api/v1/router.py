@@ -8,6 +8,7 @@ from app.api.routes.comparisons import router as comparisons_router
 from app.api.routes.cart import router as cart_router
 from app.api.routes.cart_candidates import router as cart_candidates_router
 from app.api.routes.cart_planning import router as cart_planning_router
+from app.api.routes.automatic_cart_planning import router as automatic_cart_planning_router
 from app.api.routes.cart_checkout_capture import router as cart_checkout_capture_router
 from app.api.routes.product_search import router as product_search_router
 
@@ -21,5 +22,6 @@ router.include_router(comparisons_router)
 router.include_router(cart_router)
 router.include_router(cart_candidates_router)
 router.include_router(cart_planning_router)
+router.include_router(automatic_cart_planning_router)
 router.include_router(cart_checkout_capture_router)
 router.include_router(product_search_router)

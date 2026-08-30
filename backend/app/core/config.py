@@ -33,9 +33,17 @@ class Settings(BaseSettings):
     log_json: bool = Field(default=True, alias="LOG_JSON")
     docs_enabled: bool = Field(default=True, alias="DOCS_ENABLED")
     cors_allowed_origins: str = Field(default="", alias="CORS_ALLOWED_ORIGINS")
+    auth_required: bool = Field(default=False, alias="AUTH_REQUIRED")
+    auth_tokens: str = Field(default="", alias="AUTH_TOKENS")
+    rate_limit_requests: int = Field(default=120, alias="RATE_LIMIT_REQUESTS")
+    rate_limit_window_seconds: int = Field(default=60, alias="RATE_LIMIT_WINDOW_SECONDS")
     checkout_observation_provider_mode: Literal["registry", "unavailable"] = Field(
         default="unavailable",
         alias="CHECKOUT_OBSERVATION_PROVIDER_MODE",
+    )
+    checkout_capture_adapter_mode: Literal["unavailable", "blinkit"] = Field(
+        default="unavailable",
+        alias="CHECKOUT_CAPTURE_ADAPTER_MODE",
     )
     planning_max_cart_items: int = Field(default=20, alias="PLANNING_MAX_CART_ITEMS")
     planning_max_candidates_per_item: int = Field(
@@ -50,6 +58,17 @@ class Settings(BaseSettings):
         default=100,
         alias="PLANNING_MAX_SUPPLIED_PLANS",
     )
+    planning_retailer_identity_map: str = Field(default="", alias="PLANNING_RETAILER_IDENTITY_MAP")
+    planning_checkout_group_map: str = Field(default="", alias="PLANNING_CHECKOUT_GROUP_MAP")
+    planning_inconvenience_penalty_units: int | None = Field(
+        default=None, alias="PLANNING_INCONVENIENCE_PENALTY_UNITS"
+    )
+    planning_retailer_preference_priority: int | None = Field(
+        default=None, alias="PLANNING_RETAILER_PREFERENCE_PRIORITY"
+    )
+    planning_feasibility: str | None = Field(default=None, alias="PLANNING_FEASIBILITY")
+    planning_feasibility_evidence: str = Field(default="", alias="PLANNING_FEASIBILITY_EVIDENCE")
+    optimization_policy_version: str = Field(default="policy-v1", alias="OPTIMIZATION_POLICY_VERSION")
     scraper_timeout_seconds: float = Field(
         default=15.0,
         alias="SCRAPER_TIMEOUT_SECONDS",
@@ -112,6 +131,7 @@ class Settings(BaseSettings):
         "postgres_user",
         "postgres_password",
         "redis_url",
+        "optimization_policy_version",
         mode="before",
     )
     @classmethod
@@ -156,6 +176,27 @@ class Settings(BaseSettings):
             raise ValueError("SCRAPER_MAX_RETRIES must not be negative")
         return value
 
+    @field_validator("rate_limit_requests", "rate_limit_window_seconds")
+    @classmethod
+    def validate_rate_limits(cls, value: int) -> int:
+        if value < 1:
+            raise ValueError("rate limit values must be positive")
+        return value
+
+    @property
+    def configured_auth_tokens(self) -> dict[str, str]:
+        tokens: dict[str, str] = {}
+        for entry in self.auth_tokens.split(","):
+            if not entry.strip():
+                continue
+            if "=" not in entry:
+                raise ValueError("AUTH_TOKENS entries must use user_id=token format")
+            user_id, token = (part.strip() for part in entry.split("=", 1))
+            if not user_id or not token:
+                raise ValueError("AUTH_TOKENS entries must contain user_id and token")
+            tokens[token] = user_id
+        return tokens
+
     @field_validator(
         "planning_max_cart_items",
         "planning_max_candidates_per_item",
@@ -167,6 +208,17 @@ class Settings(BaseSettings):
         if value < 1:
             raise ValueError("planning limits must be positive")
         return value
+
+    @field_validator("planning_feasibility")
+    @classmethod
+    def validate_optional_feasibility(cls, value: str | None) -> str | None:
+        if value is not None and not value.strip():
+            raise ValueError("PLANNING_FEASIBILITY must not be blank when provided")
+        return value.strip() if value is not None else None
+
+    @property
+    def configured_planning_feasibility_evidence(self) -> tuple[str, ...]:
+        return tuple(item.strip() for item in self.planning_feasibility_evidence.split(",") if item.strip())
 
     @field_validator("blinkit_delivery_latitude")
     @classmethod
@@ -194,6 +246,8 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_runtime_configuration(self) -> "Settings":
+        if self.auth_required and not self.configured_auth_tokens:
+            raise ValueError("AUTH_TOKENS must be configured when AUTH_REQUIRED is true")
         if self.app_env == "production":
             if "postgres_password" not in self.model_fields_set or self.postgres_password == "cartel":
                 raise ValueError("POSTGRES_PASSWORD must be explicitly configured in production")
