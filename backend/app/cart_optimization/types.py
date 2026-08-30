@@ -90,6 +90,7 @@ class CandidateListingProvenance(BaseModel):
     platform_listing_id: str
     observation_id: str
     observed_selling_price: Money
+    retailer_product_id: str | None = None
 
 
 class CandidateItemAllocation(BaseModel):
@@ -129,6 +130,7 @@ class CandidateItemAllocation(BaseModel):
                 platform_listing_id=observation.platform_listing_id,
                 observation_id=observation.observation_id,
                 observed_selling_price=observation.observed_selling_price,
+                retailer_product_id=observation.retailer_product_id,
             ),
         )
 
