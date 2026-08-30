@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import Protocol
+import inspect
 import hashlib
 
 from app.cost_intelligence.observation.capture import (
@@ -29,6 +30,8 @@ class CheckoutCaptureAdapterUnavailable(RuntimeError):
 
 class CheckoutCaptureAdapter(Protocol):
     def capture(self, request: CheckoutCaptureRequest) -> CheckoutCaptureArtifact: ...
+
+    async def acapture(self, request: CheckoutCaptureRequest) -> CheckoutCaptureArtifact: ...
 
 
 class UnavailableCheckoutCaptureAdapter:
@@ -160,3 +163,30 @@ class CheckoutCaptureService:
             artifact.artifact_id,
         )
         return result
+
+    async def capture_async(self, request: CheckoutCaptureRequest) -> CheckoutObservationCorrelation:
+        """Capture through an async retailer adapter without blocking an event loop.
+
+        Existing synchronous adapters remain supported for compatibility; an
+        async adapter exposes ``acapture`` and is awaited directly.
+        """
+        adapter_method = getattr(self._adapter, "acapture", None)
+        if adapter_method is None:
+            return self.capture(request)
+        artifact = adapter_method(request)
+        if not inspect.isawaitable(artifact):
+            raise TypeError("async checkout adapter acapture must return an awaitable")
+        # Keep the established validation, publication, parsing, and
+        # registration path in one place by using a temporary adapter.
+        captured_artifact = await artifact
+
+        class _CapturedAdapter:
+            def capture(self, _request):
+                return captured_artifact
+
+        return CheckoutCaptureService(
+            adapter=_CapturedAdapter(),
+            parser=self._parser,
+            registration=self._registration,
+            artifact_store=self._artifact_store,
+        ).capture(request)

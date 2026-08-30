@@ -6,9 +6,9 @@ import json
 from datetime import datetime
 from typing import Protocol
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from app.cart_optimization.types import CartItemRequest
+from app.cart_optimization.types import CartItemRequest, CandidateItemAllocation
 from app.data_ingestion.enums import CaptureType
 from app.product_intelligence.models import EvidenceReference
 from app.cost_intelligence.observation.types import CheckoutObservation
@@ -29,6 +29,9 @@ class CheckoutCaptureRequest(BaseModel):
     plan_id: str
     platform: str
     cart_items: tuple[CartItemRequest, ...]
+    # Optional for legacy callers; checkout-capable adapters require this
+    # authoritative allocation data to construct the retailer cart.
+    candidate_allocations: tuple[CandidateItemAllocation, ...] = Field(default_factory=tuple)
 
     _required = field_validator("request_id", "plan_id", "platform")(_text)
 
@@ -41,6 +44,22 @@ class CheckoutCaptureRequest(BaseModel):
         if len(identities) != len(set(identities)):
             raise ValueError("cart_items must have unique logical identities")
         return value
+
+    @model_validator(mode="after")
+    def _allocation_correspondence(self) -> "CheckoutCaptureRequest":
+        if not self.candidate_allocations:
+            return self
+        requested = {(item.item_id, item.canonical_variant_id, item.quantity) for item in self.cart_items}
+        allocated: dict[tuple[str, str], int] = {}
+        for allocation in self.candidate_allocations:
+            key = (allocation.item_id, allocation.canonical_variant_id)
+            if key not in {(item.item_id, item.canonical_variant_id) for item in self.cart_items}:
+                raise ValueError("checkout allocation does not belong to cart")
+            allocated[key] = allocated.get(key, 0) + allocation.quantity
+        for item in self.cart_items:
+            if allocated.get((item.item_id, item.canonical_variant_id)) != item.quantity:
+                raise ValueError("checkout allocations must fulfill cart quantities exactly")
+        return self
 
 class CheckoutCaptureArtifact(BaseModel):
     """Immutable raw checkout capture, distinct from listing observations."""
