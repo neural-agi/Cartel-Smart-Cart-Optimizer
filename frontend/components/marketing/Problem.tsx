@@ -45,7 +45,7 @@ export default function Problem() {
           </p>
 
           <h2 className="mt-4 text-3xl font-bold tracking-tight sm:text-5xl">
-            Grocery shopping shouldn't require
+            Grocery shopping shouldn&apos;t require
             <span className="text-muted-foreground">
               {" "}a spreadsheet.
             </span>

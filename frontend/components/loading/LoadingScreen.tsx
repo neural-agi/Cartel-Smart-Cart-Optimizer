@@ -27,13 +27,15 @@ export default function LoadingScreen({
       return;
     }
 
-    setShowSuccess(true);
-
+    const showTimeout = window.setTimeout(() => setShowSuccess(true), 0);
     const timeout = window.setTimeout(() => {
       router.push("/results");
     }, 1800);
 
-    return () => window.clearTimeout(timeout);
+    return () => {
+      window.clearTimeout(showTimeout);
+      window.clearTimeout(timeout);
+    };
   }, [isComplete, router]);
 
   return (

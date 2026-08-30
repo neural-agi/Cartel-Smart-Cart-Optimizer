@@ -5,13 +5,16 @@ import type { Product } from "@/types/product";
 import type { CartResolutionResult } from "@/types/cartResolution";
 import type { CartCandidateDiscoveryResult } from "@/types/cartCandidates";
 import type { CartOptimizationResult } from "@/types/cartOptimization";
+import type { AutomaticPlanningResult } from "@/types/automaticPlanning";
 
 interface CartStore {
   items: CartItem[];
   resolution: CartResolutionResult | null;
   candidateDiscovery: CartCandidateDiscoveryResult | null;
   optimizationResult: CartOptimizationResult | null;
+  automaticPlanning: AutomaticPlanningResult | null;
   addItem: (product: Product) => void;
+  updateQuantity: (itemId: string, quantity: number) => void;
   removeItem: (itemId: string) => void;
   increaseQuantity: (itemId: string) => void;
   decreaseQuantity: (itemId: string) => void;
@@ -19,6 +22,7 @@ interface CartStore {
   setResolution: (resolution: CartResolutionResult | null) => void;
   setCandidateDiscovery: (result: CartCandidateDiscoveryResult | null) => void;
   setOptimizationResult: (result: CartOptimizationResult | null) => void;
+  setAutomaticPlanning: (result: AutomaticPlanningResult | null) => void;
 }
 
 function itemIdForProduct(product: Product): string {
@@ -30,6 +34,7 @@ export const useCartStore = create<CartStore>((set) => ({
   resolution: null,
   candidateDiscovery: null,
   optimizationResult: null,
+  automaticPlanning: null,
 
   addItem: (product) =>
     set((state) => {
@@ -44,6 +49,7 @@ export const useCartStore = create<CartStore>((set) => ({
           resolution: null,
           candidateDiscovery: null,
           optimizationResult: null,
+          automaticPlanning: null,
         };
       }
 
@@ -52,6 +58,7 @@ export const useCartStore = create<CartStore>((set) => ({
         resolution: null,
         candidateDiscovery: null,
         optimizationResult: null,
+        automaticPlanning: null,
       };
     }),
 
@@ -61,6 +68,7 @@ export const useCartStore = create<CartStore>((set) => ({
       resolution: null,
       candidateDiscovery: null,
       optimizationResult: null,
+      automaticPlanning: null,
     })),
 
   increaseQuantity: (itemId) =>
@@ -71,6 +79,7 @@ export const useCartStore = create<CartStore>((set) => ({
       resolution: null,
       candidateDiscovery: null,
       optimizationResult: null,
+      automaticPlanning: null,
     })),
 
   decreaseQuantity: (itemId) =>
@@ -83,10 +92,23 @@ export const useCartStore = create<CartStore>((set) => ({
       resolution: null,
       candidateDiscovery: null,
       optimizationResult: null,
+      automaticPlanning: null,
     })),
 
-  clearCart: () => set({ items: [], resolution: null, candidateDiscovery: null, optimizationResult: null }),
-  setResolution: (resolution) => set({ resolution, candidateDiscovery: null, optimizationResult: null }),
+  updateQuantity: (itemId, quantity) =>
+    set((state) => ({
+      items: quantity > 0
+        ? state.items.map((item) => item.itemId === itemId ? { ...item, quantity: Math.floor(quantity) } : item)
+        : state.items.filter((item) => item.itemId !== itemId),
+      resolution: null,
+      candidateDiscovery: null,
+      optimizationResult: null,
+      automaticPlanning: null,
+    })),
+
+  clearCart: () => set({ items: [], resolution: null, candidateDiscovery: null, optimizationResult: null, automaticPlanning: null }),
+  setResolution: (resolution) => set({ resolution, candidateDiscovery: null, optimizationResult: null, automaticPlanning: null }),
   setCandidateDiscovery: (candidateDiscovery) => set({ candidateDiscovery }),
   setOptimizationResult: (optimizationResult) => set({ optimizationResult }),
+  setAutomaticPlanning: (automaticPlanning) => set({ automaticPlanning, optimizationResult: automaticPlanning?.optimization_result ?? null }),
 }));
