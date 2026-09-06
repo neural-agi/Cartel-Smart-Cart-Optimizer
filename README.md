@@ -14,7 +14,7 @@
 [![Version](https://img.shields.io/badge/version-0.2.0-blue?style=for-the-badge)](https://github.com/neural-agi/Cartel-Smart-Cart-Optimizer)
 [![Python](https://img.shields.io/badge/python-3.12-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
 [![License](https://img.shields.io/badge/license-MIT-green?style=for-the-badge)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-606%20passing-brightgreen?style=for-the-badge)](https://github.com/neural-agi/Cartel-Smart-Cart-Optimizer/tree/main/backend/tests)
+[![Tests](https://img.shields.io/badge/tests-627%20passing-brightgreen?style=for-the-badge)](https://github.com/neural-agi/Cartel-Smart-Cart-Optimizer/tree/main/backend/tests)
 [![Status](https://img.shields.io/badge/status-active%20development-yellow?style=for-the-badge)](https://github.com/neural-agi/Cartel-Smart-Cart-Optimizer)
 
 <!-- TODO: Add screenshot/GIF of demo pipeline -->
@@ -168,10 +168,10 @@ Replay & Audit Trail
 - Append-only lifecycle transition history
 - Observation registration and downstream Product Intelligence handoff
 
-**Implementation In Progress 🚧**
-- Lifecycle implementation
-- Storage implementation
-- Live Blinkit acquisition is operational; checkout capture remains limited by Blinkit cart/session behavior. BigBasket and Zepto remain incomplete.
+**Implementation Status**
+- Filesystem-backed lifecycle, storage, observation registration, catalog, planning, checkout-capture, and deterministic replay boundaries are implemented for the current MVP.
+- Live Blinkit acquisition is operational; live checkout capture remains blocked by Blinkit access control/cart evidence.
+- BigBasket and Zepto remain incomplete.
 
 ---
 
@@ -218,7 +218,7 @@ Product Intelligence Execution
 Cost Intelligence
 ```
 
-> The current MVP has a working ingestion → canonical catalog → candidate discovery → planning path, with governed catalog population and filesystem-backed persistence. Some production lifecycle and cross-platform integrations remain incomplete.
+> The current MVP has a working ingestion → canonical catalog → candidate discovery → automatic planning path, with governed catalog population, filesystem-backed persistence, checkout-capture integration, and deterministic replay. Remaining production gaps are concentrated in runtime/deployment validation and live retailer checkout evidence.
 
 The system processes scraped retail observations through ingestion, normalization, observation registration, canonical catalog resolution, and Product Intelligence execution. The current executable pipeline continues from normalized observations into canonical Product/ProductVariant resolution and Product Intelligence execution. Canonical catalog persistence and lifecycle governance are filesystem-backed MVP infrastructure.
 
@@ -437,11 +437,12 @@ pytest backend/tests/ -v
 
 The following demonstrations are the remaining MVP-facing verification targets:
 
-- Live Blinkit acquisition
-- Product matching
-- Live checkout-derived effective-cost computation
-- Cart optimization
-- Consumer web interface and automatic optimization flow
+- Live Blinkit acquisition ✅
+- Product matching ✅
+- Deterministic checkout/ECE path ✅
+- Live checkout-derived effective-cost computation 🚧 Blinkit access/cart evidence blocked
+- Cart optimization and automatic optimization flow ✅
+- Consumer web interface 🚧 production deployment/build validation remaining
 
 ---
 
@@ -457,7 +458,7 @@ Currently implemented endpoints:
 | `POST` | `/api/v1/cart/plan` | Explicit cart planning |
 | `POST` | `/api/v1/cart/optimize` | Automatic cart planning and optimization |
 
-Interactive API documentation (Swagger UI) will be available at `http://localhost:8000/docs` once the backend is running.
+Interactive API documentation (Swagger UI) is available at `http://localhost:8000/docs` once the backend is running.
 
 The current MVP exposes health, governed product search, explicit planning, and automatic cart optimization. Checkout/ECE-backed live retailer results depend on successful retailer checkout capture.
 
@@ -496,7 +497,7 @@ Cartel-Smart-Cart-Optimizer/
 │   │   ├── normalization/          # pricing / products / units normalization
 │   │   ├── schemas/                # shared pydantic models
 │   │   ├── scrapers/               # scraper infrastructure
-│   │   │   ├── blinkit/            # Blinkit scraper (live acquisition integrated; checkout integration in progress)
+│   │   │   ├── blinkit/            # Blinkit scraper (live acquisition integrated; checkout capture wired, live retailer verification externally blocked)
 │   │   │   ├── bigbasket/          # integration placeholder
 │   │   │   ├── zepto/              # integration placeholder
 │   │   │   ├── base/               # scraper base contracts
@@ -528,7 +529,7 @@ Cartel-Smart-Cart-Optimizer/
 - **Real Data Ingestion** live Blinkit acquisition, normalization, persistence, replay, and observation registration implemented for the MVP
 - **Deterministic identity system** across products, carts and operational entities
 - **Immutable value contracts** throughout implemented pipelines
-- **606 automated tests passing**
+- **627 automated tests passing**
 
 ---
 
@@ -586,9 +587,9 @@ With this many variables interacting, approximation is useless. You need reprodu
 
 ## 🎯 Current Focus
 
-**Live Blinkit Checkout Integration** — Completing safe cart ownership, checkout capture, and real checkout-derived ECE while preserving the fail-closed boundary.
+**Live Blinkit Checkout Integration** — Live cart/checkout evidence remains blocked by Blinkit access control; the checkout capture, cart-verification, ECE, and automatic-planning integration are implemented and fail closed.
 
-**Cost Intelligence** — Checkout observation → ECE is implemented with deterministic fixtures; live retailer checkout evidence remains the active integration boundary.
+**Cost Intelligence** — Checkout observation → ECE is implemented and integrated with automatic planning; live retailer checkout evidence remains blocked by the Blinkit retailer boundary.
 
 **Cart Optimization** — automatic planning, checkout-capture invocation, ECE integration, and deterministic result generation are implemented.
 
@@ -605,7 +606,7 @@ With this many variables interacting, approximation is useless. You need reprodu
 | 5 | Cost Intelligence Evaluation | ✅ Complete |
 | 6 | Effective Cost & Cart Optimization | ✅ Complete for deterministic MVP path |
 | — | Complete canonical catalog and lifecycle integration, including post-PARSED lifecycle transitions, restart/idempotency behavior, and durable catalog/runtime boundaries | 🚧 Active |
-| 7 | Live Scraper Integration | 🚧 Active — Blinkit acquisition complete, checkout integration remaining |
+| 7 | Live Scraper Integration | 🚧 Active — Blinkit acquisition and checkout integration implemented; live cart/checkout evidence remains blocked by Blinkit access control |
 | 8 | Consumer Experience (API, Web, Android) | 🚧 Active |
 
 ---
