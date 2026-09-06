@@ -59,9 +59,10 @@ def test_automatic_planning_invokes_fixture_capture_and_evaluates_ece(tmp_path) 
             retailer_id="fixture-retailer", request_id="cart-1", plan_id="plan-0",
             retailer_cart_id="fixture-cart-1", identity_available=True,
         ),
-        lines=(RetailerCartLine(
-            retailer_product_id="retailer-product-1", quantity=2,
-            retailer_id="fixture-retailer", request_id="cart-1", plan_id="plan-0",
+            lines=(RetailerCartLine(
+                retailer_product_id="retailer-product-1", quantity=2,
+                retailer_cart_line_id="fixture-line-1",
+                retailer_id="fixture-retailer", request_id="cart-1", plan_id="plan-0",
             source_reference="fixture://cart",
         ),),
     )

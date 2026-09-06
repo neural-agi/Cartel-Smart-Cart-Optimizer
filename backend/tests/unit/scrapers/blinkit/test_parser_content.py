@@ -37,3 +37,23 @@ def test_parse_html_preserves_blinkit_product_id_separately_from_source_index() 
     )
     assert result.products[0].source_index == 1
     assert result.products[0].retailer_product_id == "637879"
+
+
+def test_parse_content_extracts_retailer_product_id_from_product_jsonld() -> None:
+    html = """
+    <script type="application/ld+json">
+    {"@context":"https://schema.org","@type":"Product",
+     "name":"Country Delight Buffalo Fresh Milk","sku":"637879",
+     "url":"https://blinkit.com/prn/country-delight-buffalo-fresh-milk/prid/637879",
+     "offers":{"price":55,"priceCurrency":"INR",
+     "availability":"https://schema.org/OutOfStock"}}
+    </script>
+    """
+    result = BlinkitProductParser().parse_content(
+        html.encode(), query="637879", source_reference="fixture://product/637879"
+    )
+    assert result.product_count == 1
+    assert result.products[0].retailer_product_id == "637879"
+    assert result.products[0].stock_availability == "out_of_stock"
+    assert result.products[0].product_url.endswith("/prid/637879")
+    assert result.products[0].availability_status.value == "out_of_stock"
