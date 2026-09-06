@@ -91,6 +91,7 @@ class CandidateListingProvenance(BaseModel):
     observation_id: str
     observed_selling_price: Money
     retailer_product_id: str | None = None
+    retailer_product_url: str | None = None
 
 
 class CandidateItemAllocation(BaseModel):

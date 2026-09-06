@@ -8,12 +8,12 @@ router = APIRouter(prefix="/cart", tags=["cart"])
 
 
 @router.post("/checkout-capture")
-def capture_checkout(request: CheckoutCaptureRequest, http_request: Request):
+async def capture_checkout(request: CheckoutCaptureRequest, http_request: Request):
     service = getattr(http_request.app.state, "checkout_capture", None)
     if service is None:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="checkout capture is not configured")
     try:
-        return service.capture(request)
+        return await service.capture_async(request)
     except CheckoutCaptureAdapterUnavailable as exc:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
     except ArtifactStorageError as exc:

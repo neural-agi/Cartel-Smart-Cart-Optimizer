@@ -48,11 +48,13 @@ from app.services.cart_candidate_discovery import (
 from app.cart_optimization.candidate_enrichment import CandidateAllocationEnrichment, CandidateAllocationEnrichmentService
 from app.cost_intelligence.observation.types import CheckoutObservation
 from app.cost_intelligence.observation.capture_contract import CheckoutCaptureRequest
+from app.cost_intelligence.observation.capture_service import CheckoutCaptureAdapterUnavailable
 
 
 class AutomaticPlanningStatus(StrEnum):
     READY = "ready"
     UNRESOLVED = "unresolved"
+    UNAVAILABLE = "unavailable"
 
 
 class AutomaticCartItem(BaseModel):
@@ -270,6 +272,12 @@ class AutomaticCartPlanningService:
             attached = self._construction.attach_to_request(optimization_request, tuple(construction_inputs))
             result = CartOptimizationService().optimize(attached)
             return AutomaticPlanningResult(request_id=request_id, status=AutomaticPlanningStatus.READY, optimization_result=result)
+        except CheckoutCaptureAdapterUnavailable as exc:
+            return AutomaticPlanningResult(
+                request_id=request_id,
+                status=AutomaticPlanningStatus.UNAVAILABLE,
+                unresolved_reasons=(str(exc),),
+            )
         except (PlanningProviderUnavailable, ValueError) as exc:
             return self._unresolved(request_id, (str(exc),))
 
