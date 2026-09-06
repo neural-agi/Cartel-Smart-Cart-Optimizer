@@ -88,15 +88,15 @@ class Settings(BaseSettings):
     )
     data_dir: Path = Field(default=Path("../data"), alias="DATA_DIR")
     blinkit_delivery_location_name: str = Field(
-        default="New Delhi",
+        default="Gurugram",
         alias="BLINKIT_DELIVERY_LOCATION_NAME",
     )
     blinkit_delivery_latitude: float = Field(
-        default=28.6139,
+        default=28.413333,
         alias="BLINKIT_DELIVERY_LATITUDE",
     )
     blinkit_delivery_longitude: float = Field(
-        default=77.2090,
+        default=77.072833,
         alias="BLINKIT_DELIVERY_LONGITUDE",
     )
     blinkit_geolocation_accuracy: float = Field(
