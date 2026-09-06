@@ -31,9 +31,10 @@ def test_fixture_checkout_capture_registers_and_produces_genuine_ece(tmp_path) -
             retailer_id="fixture-retailer", request_id="request-1", plan_id="plan-1",
             retailer_cart_id="fixture-cart-1", identity_available=True,
         ),
-        lines=(RetailerCartLine(
-            retailer_product_id="retailer-product-1", quantity=2,
-            retailer_id="fixture-retailer", request_id="request-1", plan_id="plan-1",
+            lines=(RetailerCartLine(
+                retailer_product_id="retailer-product-1", quantity=2,
+                retailer_cart_line_id="fixture-line-1",
+                retailer_id="fixture-retailer", request_id="request-1", plan_id="plan-1",
             source_reference="fixture://cart",
         ),),
     )

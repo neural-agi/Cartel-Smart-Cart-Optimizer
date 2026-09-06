@@ -19,6 +19,7 @@ from app.cost_intelligence.observation.types import CheckoutObservation, Checkou
 from app.cost_intelligence.shared.money import Money
 from app.product_intelligence.models import EvidenceReference
 from app.main import create_application
+from app.scrapers.blinkit.checkout_capture import BlinkitCheckoutCaptureAdapter
 
 
 def _settings(tmp_path, **overrides):
@@ -108,6 +109,19 @@ def test_checkout_capture_api_is_unavailable_by_default(tmp_path) -> None:
 
     assert response.status_code == 503
     assert "unavailable" in response.json()["detail"]
+
+
+def test_blinkit_checkout_capture_adapter_requires_explicit_configuration(tmp_path) -> None:
+    application = create_application(
+        _settings(
+            tmp_path,
+            checkout_observation_provider_mode="registry",
+            checkout_capture_adapter_mode="blinkit",
+        )
+    )
+
+    assert isinstance(application.state.checkout_capture._adapter, BlinkitCheckoutCaptureAdapter)
+    assert application.state.automatic_cart_planning._checkout_capture is application.state.checkout_capture
 
 
 def test_checkout_capture_api_accepts_only_explicit_test_adapter(tmp_path) -> None:

@@ -38,6 +38,7 @@ def snapshot(*, product_id="637879", quantity=2, available=True, request_id="req
         lines=(RetailerCartLine(
             retailer_product_id=product_id,
             quantity=quantity,
+            retailer_cart_line_id="line-1" if available else None,
             retailer_id="blinkit-gurugram",
             request_id=request_id,
             plan_id=plan_id,
@@ -56,6 +57,15 @@ def test_exact_retailer_line_and_quantity_are_verified() -> None:
 def test_unavailable_cart_identity_is_not_verified() -> None:
     result = CartOwnershipVerifier().verify(
         request_id="request-1", plan_id="plan-1", allocations=(allocation(),), snapshot=snapshot(available=False)
+    )
+    assert result.status is CartVerificationStatus.UNVERIFIABLE
+
+
+def test_unavailable_cart_line_identity_is_not_verified() -> None:
+    observed = snapshot()
+    observed = observed.model_copy(update={"lines": (observed.lines[0].model_copy(update={"retailer_cart_line_id": None}),)})
+    result = CartOwnershipVerifier().verify(
+        request_id="request-1", plan_id="plan-1", allocations=(allocation(),), snapshot=observed
     )
     assert result.status is CartVerificationStatus.UNVERIFIABLE
 
