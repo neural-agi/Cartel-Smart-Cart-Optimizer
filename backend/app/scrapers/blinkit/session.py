@@ -85,7 +85,7 @@ class BlinkitBrowserSession:
 
     async def has_product_results(self, *, page: Page) -> bool:
         """Return whether the rendered page contains observable product cards."""
-        return await self._has_product_results(page)
+        return await self._has_verified_location(page) and await self._has_product_results(page)
 
     async def wait_for_product_results(self, *, page: Page, query: str) -> bool:
         """Wait for asynchronously hydrated product cards."""
@@ -118,6 +118,17 @@ class BlinkitBrowserSession:
         except PlaywrightError:
             return {}
         return value if isinstance(value, dict) else {}
+
+    async def _has_verified_location(self, page: Page) -> bool:
+        metadata = await self.safe_location_metadata(page=page)
+        locality = str(metadata.get("locality") or "").strip().casefold()
+        expected = self.settings.blinkit_delivery_location_name.strip().casefold()
+        try:
+            latitude_matches = abs(float(metadata["latitude"]) - self.settings.blinkit_delivery_latitude) < 0.01
+            longitude_matches = abs(float(metadata["longitude"]) - self.settings.blinkit_delivery_longitude) < 0.01
+        except (KeyError, TypeError, ValueError):
+            return False
+        return bool(locality and locality == expected and latitude_matches and longitude_matches)
 
     async def persist_state(self, context: BrowserContext) -> None:
         self.state_path.parent.mkdir(parents=True, exist_ok=True)
@@ -213,6 +224,9 @@ class BlinkitBrowserSession:
             return False
 
     async def _wait_for_product_results(self, page: Page, query: str) -> bool:
+        if not await self._has_verified_location(page):
+            self.logger.warning("blinkit_location_metadata_mismatch query=%s", query)
+            return False
         try:
             await page.wait_for_function(self._product_results_predicate(), timeout=10000)
             self.logger.info("blinkit_product_results_ready query=%s", query)
@@ -240,9 +254,14 @@ class BlinkitBrowserSession:
                     && rect.width > 0
                     && rect.height > 0;
             };
-            const locationOverlayActive = [...document.querySelectorAll('body *')].some((element) => {
+            const locationOverlayActive = [...document.querySelectorAll('[role="dialog"], body *')].some((element) => {
+                if (element === document.body || element === document.documentElement) return false;
                 const elementText = (element.innerText || "").trim();
-                return isVisible(element)
+                const style = window.getComputedStyle(element);
+                const isOverlaySurface = element.getAttribute("role") === "dialog"
+                    || style.position === "fixed"
+                    || style.position === "sticky";
+                return isOverlaySurface && elementText.length < 500 && isVisible(element)
                     && /provide your delivery location/i.test(elementText)
                     && /detect my location/i.test(elementText);
             });

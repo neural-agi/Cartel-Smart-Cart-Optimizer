@@ -8,7 +8,7 @@ from bs4.element import Tag
 
 from app.core.config import get_settings
 from app.core.logging import get_logger
-from app.schemas.extraction import RawExtractedProduct, RawExtractionResult
+from app.schemas.extraction import ProductAvailability, RawExtractedProduct, RawExtractionResult
 
 
 logger = get_logger(__name__)
@@ -78,6 +78,11 @@ class BlinkitProductParser:
             seen.add(key)
             products.append(extracted)
 
+        if not any(product.retailer_product_id for product in products):
+            structured = self._extract_jsonld_product(soup, source_index=len(products) + 1)
+            if structured is not None:
+                products.append(structured)
+
         logger.info("blinkit_parser_products_extracted count=%s", len(products))
         return RawExtractionResult(
             parser_version=self.parser_version,
@@ -88,6 +93,56 @@ class BlinkitProductParser:
             product_count=len(products),
             products=products,
         )
+
+    def _extract_jsonld_product(
+        self,
+        soup: BeautifulSoup,
+        *,
+        source_index: int,
+    ) -> RawExtractedProduct | None:
+        """Extract an explicitly identified Blinkit Product JSON-LD record."""
+        for script in soup.find_all("script", attrs={"type": "application/ld+json"}):
+            try:
+                payload = json.loads(script.string or script.get_text())
+            except (TypeError, json.JSONDecodeError):
+                continue
+            records = payload if isinstance(payload, list) else [payload]
+            for record in records:
+                if not isinstance(record, dict) or record.get("@type") != "Product":
+                    continue
+                product_id = record.get("sku")
+                name = record.get("name")
+                if not isinstance(product_id, str) or not product_id.strip():
+                    continue
+                if not isinstance(name, str) or not name.strip():
+                    continue
+                offer = record.get("offers")
+                if isinstance(offer, list):
+                    offer = offer[0] if offer else None
+                price = offer.get("price") if isinstance(offer, dict) else None
+                currency = offer.get("priceCurrency") if isinstance(offer, dict) else None
+                displayed_price = f"{currency} {price}" if price is not None and currency else None
+                availability = offer.get("availability") if isinstance(offer, dict) else None
+                stock = None
+                availability_status = ProductAvailability.UNKNOWN
+                if isinstance(availability, str):
+                    if availability.lower().endswith("outofstock"):
+                        stock = "out_of_stock"
+                        availability_status = ProductAvailability.OUT_OF_STOCK
+                    else:
+                        stock = "in_stock"
+                        availability_status = ProductAvailability.AVAILABLE
+                return RawExtractedProduct(
+                    source_index=source_index,
+                    retailer_product_id=product_id.strip(),
+                    product_url=record.get("url") if isinstance(record.get("url"), str) else None,
+                    product_name=name.strip(),
+                    displayed_price=displayed_price,
+                    stock_availability=stock,
+                    availability_status=availability_status,
+                    raw_text=json.dumps(record, sort_keys=True, separators=(",", ":")),
+                )
+        return None
 
     def save_result(self, result: RawExtractionResult) -> Path:
         settings = get_settings()

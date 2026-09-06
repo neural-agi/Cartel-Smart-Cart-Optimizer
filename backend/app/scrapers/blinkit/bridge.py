@@ -54,6 +54,8 @@ class BlinkitParserBridge:
         identifiers = [("source_index", source_id)]
         if product.retailer_product_id:
             identifiers.append(("retailer_product_id", product.retailer_product_id))
+        if product.product_url:
+            identifiers.append(("retailer_product_url", product.product_url))
         return ParsedRetailObservation(
             source_record_id=source_id,
             platform=Platform.BLINKIT,
