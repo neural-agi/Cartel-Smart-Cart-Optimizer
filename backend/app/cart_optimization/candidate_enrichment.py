@@ -90,6 +90,9 @@ class CandidateAllocationEnrichmentService:
         retailer_product_id = dict(candidate.observation.platform_identifiers).get(
             "retailer_product_id"
         )
+        retailer_product_url = dict(candidate.observation.platform_identifiers).get(
+            "retailer_product_url"
+        )
         allocation = CandidateItemAllocation(
             item_id=enrichment.item_id,
             canonical_variant_id=enrichment.canonical_variant_id,
@@ -102,6 +105,7 @@ class CandidateAllocationEnrichmentService:
                 observation_id=candidate.observation_id,
                 observed_selling_price=candidate.observation.observed_selling_price,
                 retailer_product_id=retailer_product_id,
+                retailer_product_url=retailer_product_url,
             ),
         )
         return EnrichedCandidateAllocation(
