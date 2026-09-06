@@ -104,8 +104,17 @@ class BlinkitCheckoutCaptureAdapter:
                 )
 
     async def _probe_request(self, request: CheckoutCaptureRequest) -> Mapping[str, Any]:
+        target_ids = tuple(
+            allocation.listing_provenance.retailer_product_id
+            for allocation in request.candidate_allocations
+        )
         if self._probe is not None:
-            return await self._probe.probe(request)
+            diagnostics = dict(await self._probe.probe(request))
+            diagnostics.setdefault("platform", self.platform)
+            diagnostics.setdefault("request_id", request.request_id)
+            diagnostics.setdefault("plan_id", request.plan_id)
+            diagnostics.setdefault("target_retailer_product_ids", target_ids)
+            return diagnostics
         # Reuse the existing browser/session implementation. The known live
         # blocker is after product/session readiness, at cart mutation and
         # authoritative cart-state verification.
@@ -115,16 +124,24 @@ class BlinkitCheckoutCaptureAdapter:
             "platform": self.platform,
             "request_id": request.request_id,
             "plan_id": request.plan_id,
-            "target_retailer_product_ids": tuple(
-                allocation.listing_provenance.retailer_product_id
-                for allocation in request.candidate_allocations
-            ),
+            "target_retailer_product_ids": target_ids,
             "reason_code": "blinkit_cart_identity_unverified",
         }
         try:
             # This intentionally stops at the existing acquisition/readiness
             # boundary. It does not mutate cart state or visit checkout.
             response = await scraper._fetch_via_browser(str(first_product))
+            if scraper._is_access_denied(response):
+                diagnostics.update(
+                    {
+                        "browser_session": "blocked",
+                        "navigation_status": response.status_code,
+                        "reason_code": "retailer_access_denied",
+                        "cart_identity_available": False,
+                        "cart_line_identity_available": False,
+                    }
+                )
+                return diagnostics
             diagnostics.update(
                 {
                     "browser_session": "available",

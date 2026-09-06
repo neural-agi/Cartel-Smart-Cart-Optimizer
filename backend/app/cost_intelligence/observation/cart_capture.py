@@ -108,6 +108,8 @@ class CartOwnershipVerifier:
             return self._result(request_id, plan_id, allocations, snapshot, CartVerificationStatus.MISMATCH, "cart correlation does not match capture")
         if not snapshot.identity.identity_available or not snapshot.identity.retailer_cart_id:
             return self._result(request_id, plan_id, allocations, snapshot, CartVerificationStatus.UNVERIFIABLE, "retailer cart identity is unavailable")
+        if any(not line.retailer_cart_line_id for line in snapshot.lines):
+            return self._result(request_id, plan_id, allocations, snapshot, CartVerificationStatus.UNVERIFIABLE, "retailer cart-line identity is unavailable")
 
         expected = sorted(
             (a.retailer_id, a.listing_provenance.retailer_product_id, a.quantity)

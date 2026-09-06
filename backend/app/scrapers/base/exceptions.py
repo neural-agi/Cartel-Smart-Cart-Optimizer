@@ -16,3 +16,11 @@ class ScraperUnavailableError(ScraperRequestError):
     def __init__(self, message: str, *, reason_code: str) -> None:
         super().__init__(message)
         self.reason_code = reason_code
+
+
+class ScraperAccessDeniedError(ScraperUnavailableError):
+    """Retailer access-control response; no product data may be inferred."""
+
+    def __init__(self, message: str, *, status_code: int | None = None) -> None:
+        super().__init__(message, reason_code="retailer_access_denied")
+        self.status_code = status_code

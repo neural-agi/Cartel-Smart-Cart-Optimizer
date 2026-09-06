@@ -1,9 +1,10 @@
 import asyncio
 from collections.abc import Mapping
-from urllib.parse import urlencode
+import re
+from urllib.parse import urlencode, urlsplit
 
 from app.core.config import Settings
-from app.scrapers.base.exceptions import ScraperRequestError, ScraperUnavailableError
+from app.scrapers.base.exceptions import ScraperAccessDeniedError, ScraperRequestError, ScraperUnavailableError
 from app.scrapers.base.scraper import BaseScraper
 from app.scrapers.base.types import RawHttpResponse
 from app.scrapers.blinkit.session import BlinkitBrowserSession
@@ -65,6 +66,11 @@ class BlinkitScraper(BaseScraper):
                     f"Blinkit acquisition unavailable after HTTP and browser attempts for query={query!r}",
                     reason_code="browser_fallback_failed",
                 ) from exc
+        if self._is_access_denied(response):
+            raise ScraperAccessDeniedError(
+                "Blinkit denied access before product readiness",
+                status_code=response.status_code,
+            )
         return response
 
     async def search_products(self, query: str) -> bytes:
@@ -72,18 +78,49 @@ class BlinkitScraper(BaseScraper):
         response = await self.acquire_search(query)
         return response.body
 
+    async def acquire_product(
+        self,
+        product_url: str,
+        *,
+        expected_retailer_product_id: str,
+    ) -> RawHttpResponse:
+        """Acquire one explicitly supplied Blinkit product reference."""
+        parsed = urlsplit(product_url)
+        if parsed.scheme != "https" or parsed.netloc not in {"blinkit.com", "www.blinkit.com"}:
+            raise ValueError("Blinkit product URL must use the https Blinkit host")
+        match = re.fullmatch(r"/prn/[^/]+/prid/([^/?#]+)", parsed.path)
+        if match is None or match.group(1) != expected_retailer_product_id:
+            raise ValueError("Blinkit product URL does not match the expected retailer product ID")
+        response = await self._fetch_via_browser(
+            expected_retailer_product_id,
+            target_url=product_url,
+        )
+        if self._is_access_denied(response):
+            raise ScraperAccessDeniedError(
+                "Blinkit denied access before product readiness",
+                status_code=response.status_code,
+            )
+        return response
+
+    @staticmethod
+    def _is_access_denied(response: RawHttpResponse) -> bool:
+        sample = response.body[:64_000].decode("utf-8", errors="ignore").casefold()
+        markers = ("access denied", "you have been blocked", "cloudflare ray id")
+        return response.status_code in {401, 403, 406, 429} or any(marker in sample for marker in markers)
+
     async def _fetch_via_browser(
         self,
         query: str,
         *,
         executable_path: str | None = None,
         headless: bool = True,
+        target_url: str | None = None,
     ) -> RawHttpResponse:
         from playwright.async_api import Error as PlaywrightError
         from playwright.async_api import TimeoutError as PlaywrightTimeoutError
         from playwright.async_api import async_playwright
 
-        search_url = f"{self.base_url}{self.search_path}?{urlencode({'q': query})}"
+        search_url = target_url or f"{self.base_url}{self.search_path}?{urlencode({'q': query})}"
         browser = None
         context = None
         page = None
