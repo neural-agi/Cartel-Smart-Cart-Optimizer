@@ -1,4 +1,5 @@
 from datetime import datetime
+from enum import StrEnum
 from pathlib import Path
 
 from pydantic import BaseModel, Field
@@ -6,15 +7,24 @@ from pydantic import BaseModel, Field
 from app.data_ingestion.types import CaptureCoverage
 
 
+class ProductAvailability(StrEnum):
+    PRODUCT_NOT_FOUND = "product_not_found"
+    OUT_OF_STOCK = "out_of_stock"
+    UNKNOWN = "unknown"
+    AVAILABLE = "available"
+
+
 class RawExtractedProduct(BaseModel):
     source_index: int
     platform: str = "blinkit"
     retailer_product_id: str | None = None
+    product_url: str | None = None
     product_name: str
     displayed_price: str | None = None
     mrp: str | None = None
     quantity: str | None = None
     stock_availability: str | None = None
+    availability_status: ProductAvailability | None = None
     offer_text: str | None = None
     raw_text: str
 

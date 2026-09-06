@@ -13,7 +13,7 @@ function parseResult(value: unknown): AutomaticPlanningResult {
   const body = value as Record<string, unknown>;
   if (
     typeof body.request_id !== "string" ||
-    (body.status !== "ready" && body.status !== "unresolved") ||
+    (body.status !== "ready" && body.status !== "unresolved" && body.status !== "unavailable") ||
     !Array.isArray(body.unresolved_reasons) ||
     (body.optimization_result !== null && typeof body.optimization_result !== "object")
   ) {

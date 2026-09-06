@@ -44,6 +44,16 @@ export default function ResultsPage() {
           </section>
         )}
 
+        {automaticPlanning?.status === "unavailable" && !optimizationResult && (
+          <section role="alert" className="rounded-2xl border border-orange-500/30 bg-orange-500/5 p-6">
+            <h2 className="font-semibold">Checkout provider unavailable</h2>
+            <p className="mt-2 text-sm text-muted-foreground">Cartel could not obtain authoritative retailer checkout evidence. No checkout cost was estimated.</p>
+            <ul className="mt-4 list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+              {automaticPlanning.unresolved_reasons.map((reason) => <li key={reason}>{reason}</li>)}
+            </ul>
+          </section>
+        )}
+
         {optimizationResult && (
           <section aria-labelledby="optimization-result-heading" className="space-y-5">
             <div className="flex flex-wrap items-start justify-between gap-4 rounded-2xl border border-border bg-card p-6 sm:p-8">

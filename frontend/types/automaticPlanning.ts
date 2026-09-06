@@ -12,7 +12,7 @@ export interface AutomaticPlanningRequest {
   items: AutomaticPlanningRequestItem[];
 }
 
-export type AutomaticPlanningStatus = "ready" | "unresolved";
+export type AutomaticPlanningStatus = "ready" | "unresolved" | "unavailable";
 
 export interface AutomaticPlanningResult {
   request_id: string;
