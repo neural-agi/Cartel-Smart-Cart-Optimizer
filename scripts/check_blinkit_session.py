@@ -58,6 +58,7 @@ async def validate(query: str, *, headed: bool = False) -> dict[str, object]:
                 query=query,
             )
             result["location_metadata"] = await session.safe_location_metadata(page=page)
+            result["verified_location"] = await session._has_verified_location(page)
             result["status"] = "usable" if result["product_cards_visible"] else "unavailable"
             if result["status"] == "unavailable":
                 result["reason"] = "location_or_product_results_unavailable"
