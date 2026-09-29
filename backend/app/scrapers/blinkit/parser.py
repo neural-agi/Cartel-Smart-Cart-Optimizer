@@ -221,6 +221,7 @@ class BlinkitProductParser:
 
         return RawExtractedProduct(
             source_index=source_index,
+            platform=self.platform,
             retailer_product_id=card.get("id") if (card.get("id") or "").strip() else None,
             product_name=product_name,
             displayed_price=displayed_price,

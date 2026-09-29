@@ -38,7 +38,7 @@ class FakeAcquisition:
 
 class FakeParser:
     def parse_content(self, payload: bytes, *, query: str | None, source_reference: str) -> RawExtractionResult:
-        return RawExtractionResult(platform="blinkit", query=query, source_reference=source_reference, extracted_at=datetime(2026, 1, 1, tzinfo=timezone.utc), product_count=1, products=[RawExtractedProduct(source_index=1, product_name="Milk", raw_text="Milk")])
+        return RawExtractionResult(platform="blinkit", query=query, source_reference=source_reference, extracted_at=datetime(2026, 1, 1, tzinfo=timezone.utc), product_count=1, products=[RawExtractedProduct(source_index=1, platform="blinkit", product_name="Milk", raw_text="Milk")])
 
 
 class FakeStore:

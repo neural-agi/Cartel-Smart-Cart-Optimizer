@@ -16,7 +16,7 @@ class ProductAvailability(StrEnum):
 
 class RawExtractedProduct(BaseModel):
     source_index: int
-    platform: str = "blinkit"
+    platform: str
     retailer_product_id: str | None = None
     product_url: str | None = None
     product_name: str

@@ -31,7 +31,7 @@ def _result(products: list[RawExtractedProduct], *, complete: bool | None = True
 
 
 def test_bridge_maps_raw_blinkit_fields_and_preserves_artifact() -> None:
-    product = RawExtractedProduct(source_index=1, retailer_product_id="637879", product_name="Milk", displayed_price="₹100", mrp="₹120", quantity="500 ml", stock_availability="in_stock", offer_text="₹20 OFF", raw_text="Milk 500 ml ₹100")
+    product = RawExtractedProduct(source_index=1, platform="blinkit", retailer_product_id="637879", product_name="Milk", displayed_price="₹100", mrp="₹120", quantity="500 ml", stock_availability="in_stock", offer_text="₹20 OFF", raw_text="Milk 500 ml ₹100")
     batch = BlinkitParserBridge().build_batch(_result([product]), _artifact())
     observation = batch.observations[0]
     assert batch.raw_artifact_reference == _artifact()
@@ -48,7 +48,7 @@ def test_bridge_maps_raw_blinkit_fields_and_preserves_artifact() -> None:
 
 def test_batch_identity_uses_artifact_and_parser_version_only() -> None:
     artifact = _artifact()
-    result = _result([RawExtractedProduct(source_index=1, product_name="Milk", raw_text="Milk")])
+    result = _result([RawExtractedProduct(source_index=1, platform="blinkit", product_name="Milk", raw_text="Milk")])
     bridge = BlinkitParserBridge()
     first = bridge.build_batch(result, artifact)
     second = bridge.build_batch(result, artifact)
@@ -57,7 +57,7 @@ def test_batch_identity_uses_artifact_and_parser_version_only() -> None:
 
 
 def test_duplicate_source_index_fails() -> None:
-    products = [RawExtractedProduct(source_index=1, product_name="A", raw_text="A"), RawExtractedProduct(source_index=1, product_name="B", raw_text="B")]
+    products = [RawExtractedProduct(source_index=1, platform="blinkit", product_name="A", raw_text="A"), RawExtractedProduct(source_index=1, platform="blinkit", product_name="B", raw_text="B")]
     with pytest.raises(ValueError, match="source record"):
         BlinkitParserBridge().build_batch(_result(products), _artifact())
 
@@ -73,6 +73,6 @@ def test_empty_complete_is_explicit() -> None:
 
 
 def test_partial_and_unknown_are_preserved() -> None:
-    product = RawExtractedProduct(source_index=1, product_name="A", raw_text="A")
+    product = RawExtractedProduct(source_index=1, platform="blinkit", product_name="A", raw_text="A")
     assert BlinkitParserBridge().build_batch(_result([product], complete=False), _artifact()).completeness.state.value == "PARTIAL"
     assert BlinkitParserBridge().build_batch(_result([product], complete=None), _artifact()).completeness.state.value == "UNKNOWN"
