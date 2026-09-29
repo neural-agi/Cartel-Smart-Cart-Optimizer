@@ -7,6 +7,7 @@ does not define lifecycle, retention, ownership, or request/result atomicity.
 from __future__ import annotations
 
 import os
+import tempfile
 from abc import ABC, abstractmethod
 from pathlib import Path
 from urllib.parse import quote
@@ -86,9 +87,14 @@ class FilesystemPlanningRequestRepository(PlanningRequestRepository):
 
     @staticmethod
     def _atomic_write(path: Path, payload: str) -> None:
-        temporary = path.with_suffix(".json.tmp")
-        temporary.write_text(payload, encoding="utf-8")
-        os.replace(temporary, path)
+        fd, temporary_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
+        temporary = Path(temporary_name)
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                handle.write(payload)
+            os.replace(temporary, path)
+        finally:
+            temporary.unlink(missing_ok=True)
 
 
 class FilesystemPlanningResultRepository(PlanningResultRepository):
@@ -106,9 +112,14 @@ class FilesystemPlanningResultRepository(PlanningResultRepository):
                     f"conflicting optimization result for optimization_id={result.optimization_id}"
                 )
             return existing
-        temporary = path.with_suffix(".json.tmp")
-        temporary.write_text(payload, encoding="utf-8")
-        os.replace(temporary, path)
+        fd, temporary_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
+        temporary = Path(temporary_name)
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                handle.write(payload)
+            os.replace(temporary, path)
+        finally:
+            temporary.unlink(missing_ok=True)
         return result.model_copy(deep=True)
 
     def get(self, optimization_id: str) -> CartOptimizationResult | None:

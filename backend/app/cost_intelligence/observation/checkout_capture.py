@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import tempfile
 from pathlib import Path
 from typing import Protocol
 
@@ -59,12 +60,14 @@ class FilesystemCheckoutObservationCorrelationStore:
             if existing != correlation:
                 raise ValueError(f"conflicting checkout observation correlation for plan_id={plan_id}")
             return existing
-        temporary = path.with_suffix(".json.tmp")
-        temporary.write_text(
-            json.dumps(correlation.model_dump(mode="json"), sort_keys=True, separators=(",", ":")),
-            encoding="utf-8",
-        )
-        os.replace(temporary, path)
+        fd, temporary_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
+        temporary = Path(temporary_name)
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                handle.write(json.dumps(correlation.model_dump(mode="json"), sort_keys=True, separators=(",", ":")))
+            os.replace(temporary, path)
+        finally:
+            temporary.unlink(missing_ok=True)
         return correlation
 
     def get(self, request_id: str, plan_id: str) -> CheckoutObservationCorrelation | None:
