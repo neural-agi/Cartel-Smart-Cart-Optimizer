@@ -174,6 +174,37 @@ def test_known_aggregation() -> None:
     assert result.unknown_components == ()
 
 
+@pytest.mark.parametrize(
+    "totals",
+    [
+        (
+            CheckoutTotalObservation(label="Total", amount=Money(currency="INR", minor_units=1300)),
+            CheckoutTotalObservation(label="Subtotal", amount=Money(currency="INR", minor_units=1000)),
+        ),
+        (
+            CheckoutTotalObservation(label="Grand total", amount=Money(currency="INR", minor_units=1300)),
+            CheckoutTotalObservation(label="Item total", amount=Money(currency="INR", minor_units=1000)),
+        ),
+    ],
+)
+def test_subtotal_is_selected_by_label_not_position(totals) -> None:
+    observation = _observation().model_copy(update={"totals": totals})
+    result = EffectiveCostEvaluationService().evaluate(
+        DeterministicCostContextBuilder().build(observation), (), (), ()
+    )
+    assert result.subtotal == Money(currency="INR", minor_units=1000)
+
+
+def test_grand_total_without_subtotal_remains_unknown() -> None:
+    observation = _observation().model_copy(update={
+        "totals": (CheckoutTotalObservation(label="Grand total", amount=Money(currency="INR", minor_units=1300)),)
+    })
+    result = EffectiveCostEvaluationService().evaluate(
+        DeterministicCostContextBuilder().build(observation), (), (), ()
+    )
+    assert result.subtotal is None
+
+
 def test_deferred_value_remains_separate() -> None:
     context, offers, fees, memberships, *_ = _build_inputs()
 
