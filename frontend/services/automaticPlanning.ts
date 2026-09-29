@@ -29,7 +29,7 @@ function parseResult(value: unknown): AutomaticPlanningResult {
 
 export function automaticPlanningPayload(items: CartItem[]): AutomaticPlanningRequest {
   return {
-    cart_id: "browser-cart",
+    cart_id: requestIdentity(),
     items: items.map((item) => ({
       item_id: item.itemId,
       canonical_product_id: item.product.productId,
@@ -37,6 +37,13 @@ export function automaticPlanningPayload(items: CartItem[]): AutomaticPlanningRe
       quantity: item.quantity,
     })),
   };
+}
+
+function requestIdentity(): string {
+  if (typeof globalThis.crypto?.randomUUID === "function") {
+    return globalThis.crypto.randomUUID();
+  }
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
 export async function optimizeCart(items: CartItem[]): Promise<AutomaticPlanningResult> {

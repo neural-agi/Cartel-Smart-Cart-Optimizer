@@ -17,7 +17,12 @@ export default function OptimizePage() {
     mutationFn: () => optimizeCart(items),
     onSuccess: (result) => {
       setAutomaticPlanning(result);
-      router.push("/results");
+      if (
+        result.status === "ready" &&
+        result.optimization_result?.outcome === "selected"
+      ) {
+        router.push("/results");
+      }
     },
   });
 
@@ -59,6 +64,20 @@ export default function OptimizePage() {
                 <div role="alert" className="flex items-start gap-3 rounded-xl border border-destructive/40 bg-destructive/5 p-4 text-sm">
                   <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" aria-hidden="true" />
                   <span>{mutation.error instanceof Error ? mutation.error.message : "Optimization failed. Try again."}</span>
+                </div>
+              )}
+              {mutation.data?.status === "unresolved" && (
+                <div role="status" className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4 text-sm">
+                  <p className="font-medium">
+                    {mutation.data.optimization_result?.outcome === "infeasible"
+                      ? "No feasible plan is available."
+                      : "Cartel could not select a plan from the available evidence."}
+                  </p>
+                  {mutation.data.unresolved_reasons.length > 0 && (
+                    <ul className="mt-2 list-disc space-y-1 pl-5 text-muted-foreground">
+                      {mutation.data.unresolved_reasons.map((reason) => <li key={reason}>{reason}</li>)}
+                    </ul>
+                  )}
                 </div>
               )}
               <div className="flex flex-wrap items-center gap-3">
