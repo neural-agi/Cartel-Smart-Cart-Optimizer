@@ -11,6 +11,7 @@ from typing import Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from app.cart_optimization.enums import OptimizationOutcome
 from app.cart_optimization.construction import (
     CandidateAllocationSet,
     CandidatePlanConstructionInput,
@@ -271,14 +272,30 @@ class AutomaticCartPlanningService:
             )
             attached = self._construction.attach_to_request(optimization_request, tuple(construction_inputs))
             result = CartOptimizationService().optimize(attached)
-            return AutomaticPlanningResult(request_id=request_id, status=AutomaticPlanningStatus.READY, optimization_result=result)
+            if result.outcome is OptimizationOutcome.SELECTED:
+                return AutomaticPlanningResult(
+                    request_id=request_id,
+                    status=AutomaticPlanningStatus.READY,
+                    optimization_result=result,
+                )
+            reasons = result.unknowns or result.rejection_reasons or result.rationale
+            if not reasons:
+                reasons = (f"optimization outcome: {result.outcome.value}",)
+            return AutomaticPlanningResult(
+                request_id=request_id,
+                status=AutomaticPlanningStatus.UNRESOLVED,
+                optimization_result=result,
+                unresolved_reasons=tuple(reasons),
+            )
         except CheckoutCaptureAdapterUnavailable as exc:
             return AutomaticPlanningResult(
                 request_id=request_id,
                 status=AutomaticPlanningStatus.UNAVAILABLE,
                 unresolved_reasons=(str(exc),),
             )
-        except (PlanningProviderUnavailable, ValueError) as exc:
+        except PlanningProviderUnavailable:
+            raise
+        except ValueError as exc:
             return self._unresolved(request_id, (str(exc),))
 
     @staticmethod

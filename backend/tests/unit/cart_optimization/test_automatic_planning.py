@@ -9,6 +9,7 @@ from app.cart_optimization.automatic_planning import (
 )
 from app.cart_optimization.planning import CartPlanningService
 from app.cart_optimization.providers import (
+    PlanningProviderUnavailable,
     UnavailableCheckoutGroupProvider,
     UnavailablePlanPolicyProvider,
     UnavailableRetailerIdentityProvider,
@@ -69,6 +70,7 @@ def test_automatic_planning_preserves_canonical_cart_shape_for_discovery() -> No
 
 
 def test_automatic_planning_fails_closed_when_plan_identity_authority_is_missing() -> None:
+    import pytest
     from app.services.cart_candidate_discovery import PersistedListingCandidate, PersistedCandidateReadiness
     from app.data_ingestion.types import NormalizedObservation
     from app.cost_intelligence.shared.money import Money
@@ -105,10 +107,8 @@ def test_automatic_planning_fails_closed_when_plan_identity_authority_is_missing
         cost_intelligence=Mock(),
     )
 
-    result = service.plan(_request())
-
-    assert result.status is AutomaticPlanningStatus.UNRESOLVED
-    assert "authoritative plan identity provider" in result.unresolved_reasons[0]
+    with pytest.raises(PlanningProviderUnavailable, match="authoritative plan identity provider"):
+        service.plan(_request())
 
 
 def test_canonical_cart_validation_rejects_invalid_quantity() -> None:
@@ -190,8 +190,8 @@ def test_automatic_planning_links_checkout_observation_to_optimization() -> None
 
     result = service.plan(_request())
 
-    assert result.status is AutomaticPlanningStatus.READY
+    assert result.status is AutomaticPlanningStatus.UNRESOLVED
     assert result.optimization_result is not None
     assert result.optimization_result.request_id == "cart-1"
+    assert result.optimization_result.outcome.value == "infeasible"
     assert cost.calls == 1
-    assert result.optimization_result.outcome.value in {"selected", "infeasible", "unresolved"}
