@@ -107,7 +107,7 @@ class Settings(BaseSettings):
         default=Path("../data/sessions/blinkit/browser_state.json"),
         alias="BLINKIT_SESSION_STATE_PATH",
     )
-    blinkit_browser_executable_path: Path | None = Field(
+    blinkit_browser_executable_path: str | None = Field(
         default=None,
         alias="BLINKIT_BROWSER_EXECUTABLE_PATH",
     )

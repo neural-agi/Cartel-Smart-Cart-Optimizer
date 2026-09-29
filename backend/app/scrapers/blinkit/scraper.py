@@ -3,6 +3,9 @@ from collections.abc import Mapping
 import re
 from urllib.parse import urlencode, urlsplit
 
+from playwright.async_api import Error as PlaywrightError
+from playwright.async_api import TimeoutError as PlaywrightTimeoutError
+
 from app.core.config import Settings
 from app.scrapers.base.exceptions import ScraperAccessDeniedError, ScraperRequestError, ScraperUnavailableError
 from app.scrapers.base.scraper import BaseScraper
@@ -56,15 +59,22 @@ class BlinkitScraper(BaseScraper):
             )
             try:
                 response = await self._fetch_via_browser(query)
-            except Exception as exc:
+            except (PlaywrightTimeoutError, PlaywrightError) as exc:
+                if "ERR_NETWORK_ACCESS_DENIED" in str(exc):
+                    reason_code = "retailer_access_denied"
+                elif isinstance(exc, PlaywrightTimeoutError):
+                    reason_code = "browser_timeout"
+                else:
+                    reason_code = "browser_runtime_failure"
                 self.logger.exception(
-                    "blinkit_acquisition_unavailable query=%s reason=browser_fallback_failed error=%s",
+                    "blinkit_acquisition_unavailable query=%s reason=%s error=%s",
                     query,
+                    reason_code,
                     exc.__class__.__name__,
                 )
                 raise ScraperUnavailableError(
                     f"Blinkit acquisition unavailable after HTTP and browser attempts for query={query!r}",
-                    reason_code="browser_fallback_failed",
+                    reason_code=reason_code,
                 ) from exc
         if self._is_access_denied(response):
             raise ScraperAccessDeniedError(
@@ -116,8 +126,6 @@ class BlinkitScraper(BaseScraper):
         headless: bool = True,
         target_url: str | None = None,
     ) -> RawHttpResponse:
-        from playwright.async_api import Error as PlaywrightError
-        from playwright.async_api import TimeoutError as PlaywrightTimeoutError
         from playwright.async_api import async_playwright
 
         search_url = target_url or f"{self.base_url}{self.search_path}?{urlencode({'q': query})}"

@@ -10,6 +10,7 @@ import asyncio
 from collections.abc import Mapping
 from typing import Any, Protocol
 
+from app.scrapers.base.exceptions import ScraperRequestError, ScraperUnavailableError
 from app.core.config import Settings, get_settings
 from app.cost_intelligence.observation.capture_contract import (
     CheckoutCaptureArtifact,
@@ -151,12 +152,12 @@ class BlinkitCheckoutCaptureAdapter:
                     "cart_line_identity_available": False,
                 }
             )
-        except Exception as exc:
+        except (ScraperRequestError, ScraperUnavailableError) as exc:
             diagnostics.update(
                 {
                     "browser_session": "unavailable",
                     "error_type": exc.__class__.__name__,
-                    "reason_code": "blinkit_session_unavailable",
+                    "reason_code": getattr(exc, "reason_code", "blinkit_session_unavailable"),
                 }
             )
         return diagnostics
