@@ -1,12 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   BarChart3,
   Calculator,
   CircleUserRound,
   LayoutDashboard,
+  LogOut,
   Search,
   Settings,
   ShoppingCart,
@@ -14,6 +16,9 @@ import {
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { clearBearerToken } from "@/lib/authSession";
+import { useCartStore } from "@/store/cartStore";
+import { Button } from "@/components/ui/button";
 
 export const appNavigation = [
   { label: "Home", href: "/home", icon: LayoutDashboard },
@@ -32,6 +37,16 @@ interface AppSidebarProps {
 
 export default function AppSidebar({ onNavigate }: AppSidebarProps) {
   const pathname = usePathname();
+  const router = useRouter();
+  const queryClient = useQueryClient();
+
+  const signOut = () => {
+    clearBearerToken();
+    queryClient.clear();
+    useCartStore.getState().clearCart();
+    onNavigate?.();
+    router.replace("/login");
+  };
 
   return (
     <aside className="flex h-full w-64 flex-col border-r border-border bg-background">
@@ -68,6 +83,10 @@ export default function AppSidebar({ onNavigate }: AppSidebarProps) {
 
       <div className="border-t border-border p-4">
         <p className="px-3 text-xs text-muted-foreground">Your grocery command center</p>
+        <Button className="mt-3 w-full justify-start" variant="ghost" onClick={signOut}>
+          <LogOut aria-hidden="true" />
+          Sign out
+        </Button>
       </div>
     </aside>
   );

@@ -3,8 +3,7 @@ import type {
   AutomaticPlanningRequest,
   AutomaticPlanningResult,
 } from "@/types/automaticPlanning";
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "";
+import { apiFetch } from "@/lib/apiClient";
 
 function parseResult(value: unknown): AutomaticPlanningResult {
   if (!value || typeof value !== "object") {
@@ -48,7 +47,7 @@ function requestIdentity(): string {
 
 export async function optimizeCart(items: CartItem[]): Promise<AutomaticPlanningResult> {
   const payload = automaticPlanningPayload(items);
-  const response = await fetch(`${API_BASE_URL}/api/v1/cart/optimize`, {
+  const response = await apiFetch("/api/v1/cart/optimize", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(payload),

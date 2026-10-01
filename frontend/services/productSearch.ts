@@ -1,6 +1,5 @@
 import type { Product } from "@/types/product";
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "";
+import { apiFetch } from "@/lib/apiClient";
 
 export type ProductSearchStatus = "ready";
 
@@ -71,8 +70,8 @@ function parseProductSearchResponse(value: unknown): ProductSearchResult {
 export const productSearchService: ProductSearchService = {
   async search(query) {
     const normalizedQuery = query.trim();
-    const response = await fetch(
-      `${API_BASE_URL}/api/v1/products/search?query=${encodeURIComponent(normalizedQuery)}`,
+    const response = await apiFetch(
+      `/api/v1/products/search?query=${encodeURIComponent(normalizedQuery)}`,
     );
     if (!response.ok) {
       let message = `Product search failed with status ${response.status}`;

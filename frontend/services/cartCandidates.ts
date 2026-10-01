@@ -4,8 +4,7 @@ import type {
   CartCandidateDiscoveryRequestItem,
   CartCandidateDiscoveryResult,
 } from "@/types/cartCandidates";
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "";
+import { apiFetch } from "@/lib/apiClient";
 
 export class CartCandidateDiscoveryError extends Error {
   constructor(message: string, public readonly status?: number) {
@@ -46,7 +45,7 @@ export function buildCartCandidateDiscoveryRequest(
 export async function discoverCartCandidates(
   resolution: CartResolutionResult,
 ): Promise<CartCandidateDiscoveryResult> {
-  const response = await fetch(`${API_BASE_URL}/api/v1/cart/candidates`, {
+  const response = await apiFetch("/api/v1/cart/candidates", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(buildCartCandidateDiscoveryRequest(resolution)),

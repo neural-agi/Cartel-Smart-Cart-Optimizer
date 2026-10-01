@@ -4,8 +4,7 @@ import type {
   CartResolutionRequestItem,
   CartResolutionResult,
 } from "@/types/cartResolution";
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "";
+import { apiFetch } from "@/lib/apiClient";
 
 export class CartResolutionError extends Error {
   constructor(message: string, public readonly status?: number) {
@@ -41,7 +40,7 @@ export function buildCartResolutionRequest(items: CartItem[]): CartResolutionReq
 }
 
 export async function resolveCart(items: CartItem[]): Promise<CartResolutionResult> {
-  const response = await fetch(`${API_BASE_URL}/api/v1/cart/resolve`, {
+  const response = await apiFetch("/api/v1/cart/resolve", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(buildCartResolutionRequest(items)),
