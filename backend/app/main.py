@@ -140,12 +140,14 @@ def create_application(
         request_id = incoming if 0 < len(incoming) <= 128 and incoming.isprintable() else str(uuid4())
         request.state.request_id = request_id
         request.state.user_id = "anonymous"
+        request.state.authenticated = False
         protected = request.url.path.startswith(f"{app_settings.api_v1_prefix}/") and not request.url.path.endswith("/health") and not request.url.path.endswith("/ready")
         if protected and app_settings.auth_required:
             try:
                 request.state.user_id = authenticate_bearer(
                     request.headers.get("Authorization", ""), app_settings
                 )
+                request.state.authenticated = True
             except AuthenticationError as exc:
                 return JSONResponse(
                     status_code=401,

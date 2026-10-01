@@ -27,6 +27,43 @@ def test_authenticated_request_exposes_no_token_in_response(tmp_path) -> None:
     assert "secret-token" not in response.text
 
 
+def test_auth_session_returns_identity_for_configured_bearer_token(tmp_path) -> None:
+    settings = Settings(_env_file=None, data_dir=tmp_path, auth_required=True, auth_tokens="user-1=secret-token")
+    with TestClient(create_application(settings)) as client:
+        response = client.get(
+            "/api/v1/auth/session",
+            headers={"Authorization": "Bearer secret-token"},
+        )
+
+    assert response.status_code == 200
+    assert response.json() == {"authenticated": True, "user_id": "user-1"}
+    assert "secret-token" not in response.text
+
+
+def test_auth_session_rejects_missing_or_invalid_bearer_token(tmp_path) -> None:
+    settings = Settings(_env_file=None, data_dir=tmp_path, auth_required=True, auth_tokens="user-1=secret-token")
+    with TestClient(create_application(settings)) as client:
+        missing = client.get("/api/v1/auth/session")
+        invalid = client.get(
+            "/api/v1/auth/session",
+            headers={"Authorization": "Bearer wrong-token"},
+        )
+
+    assert missing.status_code == 401
+    assert invalid.status_code == 401
+    assert missing.json()["error"]["code"] == "authentication_required"
+    assert invalid.json()["error"]["code"] == "authentication_required"
+
+
+def test_auth_session_does_not_claim_authentication_when_disabled(tmp_path) -> None:
+    settings = Settings(_env_file=None, data_dir=tmp_path, auth_required=False)
+    with TestClient(create_application(settings)) as client:
+        response = client.get("/api/v1/auth/session")
+
+    assert response.status_code == 200
+    assert response.json() == {"authenticated": False, "user_id": None}
+
+
 def test_rate_limit_returns_structured_error(tmp_path) -> None:
     settings = Settings(_env_file=None, data_dir=tmp_path, rate_limit_requests=1, rate_limit_window_seconds=60)
     with TestClient(create_application(settings)) as client:

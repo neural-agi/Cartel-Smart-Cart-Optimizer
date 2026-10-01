@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 
+from app.api.routes.auth import router as auth_router
 from app.api.routes.health import router as health_router
 from app.api.routes.cost_intelligence import router as cost_intelligence_router
 from app.api.routes.scrape import router as scrape_router
@@ -15,6 +16,7 @@ from app.api.routes.product_search import router as product_search_router
 
 router = APIRouter()
 router.include_router(health_router, tags=["health"])
+router.include_router(auth_router)
 router.include_router(cost_intelligence_router)
 router.include_router(scrape_router)
 router.include_router(observations_router)
