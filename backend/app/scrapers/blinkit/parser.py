@@ -134,6 +134,7 @@ class BlinkitProductParser:
                         availability_status = ProductAvailability.AVAILABLE
                 return RawExtractedProduct(
                     source_index=source_index,
+                    platform=self.platform,
                     retailer_product_id=product_id.strip(),
                     product_url=record.get("url") if isinstance(record.get("url"), str) else None,
                     product_name=name.strip(),

@@ -53,6 +53,7 @@ def test_parse_content_extracts_retailer_product_id_from_product_jsonld() -> Non
         html.encode(), query="637879", source_reference="fixture://product/637879"
     )
     assert result.product_count == 1
+    assert result.products[0].platform == "blinkit"
     assert result.products[0].retailer_product_id == "637879"
     assert result.products[0].stock_availability == "out_of_stock"
     assert result.products[0].product_url.endswith("/prid/637879")
