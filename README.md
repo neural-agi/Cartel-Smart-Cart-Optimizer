@@ -385,12 +385,19 @@ Prerequisites: Docker Desktop with Compose.
 git clone https://github.com/neural-agi/Cartel-Smart-Cart-Optimizer.git
 cd Cartel-Smart-Cart-Optimizer
 cp .env.example .env
+# Edit .env and set unique deployment secrets:
+# AUTH_TOKENS=operator-1=<high-entropy-token>
+# POSTGRES_PASSWORD=<unique-secret>
+docker compose config
 docker compose up --build
 ```
 
 API: `http://localhost:8000`
-Docs: `http://localhost:8000/docs`
 Health: `http://localhost:8000/health`
+Readiness: `http://localhost:8000/ready`
+Frontend: `http://localhost:3000`
+
+Production Compose requires non-empty `AUTH_TOKENS` entries in `user_id=token` format and an explicitly supplied `POSTGRES_PASSWORD`. It keeps bearer authentication enabled. The frontend proxies `/api/v1/*` to `BACKEND_INTERNAL_URL` (default `http://api:8000`) through the Compose network; same-origin proxying does not require a localhost CORS origin. Set `CORS_ALLOWED_ORIGINS` only when a separate browser origin must call the backend directly. The API docs are disabled in production. Backend data is bind-mounted from `./data` to `/app/data` and survives container recreation; `docker compose down` does not delete it.
 
 Stop with:
 
@@ -458,7 +465,7 @@ Currently implemented endpoints:
 | `POST` | `/api/v1/cart/plan` | Explicit cart planning |
 | `POST` | `/api/v1/cart/optimize` | Automatic cart planning and optimization |
 
-Interactive API documentation (Swagger UI) is available at `http://localhost:8000/docs` once the backend is running.
+Interactive API documentation (Swagger UI) is available at `http://localhost:8000/docs` only when `DOCS_ENABLED=true`; it is disabled in the production Compose configuration.
 
 The current MVP exposes health, governed product search, explicit planning, and automatic cart optimization. Checkout/ECE-backed live retailer results depend on successful retailer checkout capture.
 
