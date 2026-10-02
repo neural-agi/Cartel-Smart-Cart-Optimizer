@@ -11,7 +11,7 @@ npm ci
 npm run dev
 ```
 
-For direct local backend access during development only, `NEXT_PUBLIC_API_BASE_URL` may be set in `.env.local` (for example `http://localhost:8000`). Leave it unset in the Compose deployment so API requests use the same-origin proxy. Production login validates the operator-provided bearer token through `/api/v1/auth/session`; subsequent API requests use that token from browser session storage.
+Consumer sign-in uses `/api/v2/auth/*`, verified email/password, and a server-managed `HttpOnly` session cookie. The frontend keeps only the CSRF token in memory; it does not persist consumer credentials or session tokens in browser storage. Same-origin mutations send a CSRF header. Operator/service bearer credentials are separate from the consumer login flow. In Compose, leave `NEXT_PUBLIC_API_BASE_URL` unset so the browser uses the same-origin proxy; point `BACKEND_INTERNAL_URL` at the private API service.
 
 ## Validation
 

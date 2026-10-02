@@ -218,7 +218,7 @@ Product Intelligence Execution
 Cost Intelligence
 ```
 
-> The current MVP has a working ingestion → canonical catalog → candidate discovery → automatic planning path, with governed catalog population, filesystem-backed persistence, checkout-capture integration, and deterministic replay. Remaining production gaps are concentrated in runtime/deployment validation and live retailer checkout evidence.
+> The frozen `v0.1.0-deploy.1` Compose topology was validated locally. This working tree adds PostgreSQL-backed consumer identity and changes the Compose services/volumes; that updated topology has not been runtime-validated here because the Docker daemon and PostgreSQL service are unavailable. Public-host DNS/TLS/proxy/firewall/secret delivery, backup integrity and restore testing, public-origin reachability, and live Blinkit checkout remain unverified or unavailable.
 
 The system processes scraped retail observations through ingestion, normalization, observation registration, canonical catalog resolution, and Product Intelligence execution. The current executable pipeline continues from normalized observations into canonical Product/ProductVariant resolution and Product Intelligence execution. Canonical catalog persistence and lifecycle governance are filesystem-backed MVP infrastructure.
 
@@ -263,7 +263,7 @@ Canonical identity is governed separately from platform identity. Platform ident
 
 The MVP includes a filesystem-backed authoritative catalog path with deterministic canonical resolution, snapshot construction, catalog population tooling, and candidate discovery.
 
-The current MVP uses filesystem-backed persistence for canonical catalog state. A database-backed persistence technology is not yet established.
+The canonical catalog and observation stores remain filesystem-backed. PostgreSQL now backs the consumer identity slice (users, identities, password credentials, sessions, verification challenges, and audit events); user-owned lists and catalog persistence have not yet migrated.
 
 ### 🚧 Execution Lifecycle — Production Hardening
 
@@ -273,13 +273,13 @@ The current MVP uses filesystem-backed persistence for canonical catalog state. 
 - Filesystem-backed lifecycle state projection
 - Retry and attempt identity contracts
 
-The current implementation persists acquisition and parsing lifecycle transitions; remaining lifecycle work is concentrated on production hardening, restart/recovery, and complete terminal-state ownership.
+The implementation persists acquisition and parsing lifecycle transitions. Lifecycle terminal-state ownership remains a separate hardening area; this does not negate the locally validated single-instance Compose deployment.
 
-Retry semantics are contractually defined, including a maximum of three attempts and retryable failure categories. Durable restart/recovery and full runtime integration remain incomplete.
+Retry semantics are contractually defined, including a maximum of three attempts and retryable failure categories. Filesystem persistence is used by the runtime; operational backup integrity and restore testing on a deployment host remain unverified.
 
 The scrape API is wired into the ingestion and Product Intelligence runtime path, with filesystem-backed runtime dependencies.
 
-Product Intelligence execution is implemented and tested. The remaining work is completing the authoritative catalog/runtime lifecycle path and productionizing the persistence and lifecycle boundaries.
+Product Intelligence execution is implemented and tested. Lifecycle terminal-state ownership remains an application hardening concern; public-host deployment and recovery are not verified by local Compose validation.
 
 Data Acquisition through the implemented Product Intelligence components, with canonical catalog and lifecycle integration actively under development.
 
@@ -368,7 +368,7 @@ Audit Trail & Replay Reference
 - Canonical IDs are externally assigned stable identifiers.
 - The canonical catalog currently uses filesystem-backed persistence.
 - Candidate generation operates over the populated canonical catalog snapshot.
-- Full production scrape lifecycle hardening through COMPLETED and restart/recovery remains incomplete.
+- Scrape lifecycle terminal-state ownership remains a hardening area; public-host backup/restore and recovery have not been verified.
 - Automatic canonical entity creation from observations is not supported.
 - Unresolved or conflicting identity remains unresolved and requires manual resolution.
 - Additional live retailer integrations beyond Blinkit remain incomplete.
@@ -377,21 +377,21 @@ Audit Trail & Replay Reference
 
 ## Production Deployment Handoff
 
-This Compose topology is for one Linux host and one application instance. It binds the frontend to `127.0.0.1:3000` by default; the API has no host-published port. Provide DNS, HTTPS, firewall policy, and secrets outside this repository.
+The commands in this section deploy only the frozen `v0.1.0-deploy.1` artifact. The PostgreSQL-backed consumer identity changes in the current working tree are not included in that tag and are not deployable by these commands. This Compose topology is for one Linux host and one application instance. It binds the frontend to `127.0.0.1:3000` by default; the API has no host-published port. Provide DNS, HTTPS, firewall policy, and secrets outside this repository.
 
 ### Host prerequisites
 
 - A supported Linux host with Docker Engine and the Docker Compose plugin, enough disk for images and persistent application data, and permission to run Compose.
 - A DNS `A` record (and `AAAA` only if IPv6 ingress is configured) for the public hostname pointing to the host. Configure the hostname in the TLS proxy/hosting platform; the app does not provision DNS or certificates.
 - A TLS-terminating reverse proxy on the host or hosting platform, with a valid certificate and upstream `http://127.0.0.1:3000`. Preserve the original `Host` and forwarded-protocol headers. Restrict public ingress to HTTPS (and HTTP only when redirecting to HTTPS); do not publish ports 3000 or 8000 publicly. The backend is only reachable on the private Compose network.
-- A secret manager or protected deployment environment to inject the auth token. Do not put production secrets in Git, image build arguments, command history, or deployment logs.
-- A backup destination and procedure for the named `cartel-data` volume. Backups contain application/catalog/observation data and must be access-controlled and encrypted. Test restoration before relying on the service.
+- A secret manager or protected deployment environment to inject the operator auth token. Do not put production secrets in Git, image build arguments, command history, or deployment logs.
+- A backup destination and procedure for the `cartel-data` volume. Backups must be access-controlled and encrypted. Test restoration before relying on the service.
 
 ### Configuration
 
-Required runtime secret:
+Required runtime secret for the frozen release:
 
-- `AUTH_TOKENS`: one or more `user_id=high-entropy-token` entries (comma-separated for multiple users). Compose requires it and enforces `AUTH_REQUIRED=true`. Provision unique tokens and deliver them to users through a separate secure channel. Rotate by updating the secret and recreating the API container.
+- `AUTH_TOKENS`: one or more `user_id=high-entropy-token` entries (comma-separated). The frozen release uses these operator-provisioned bearer credentials for the application session. Provision securely and rotate through the deployment environment.
 
 Optional deployment variables:
 
@@ -400,17 +400,19 @@ Optional deployment variables:
 - `RATE_LIMIT_REQUESTS` and `RATE_LIMIT_WINDOW_SECONDS`: optional API rate limit overrides; defaults are 120 requests and 60 seconds.
 - `CORS_ALLOWED_ORIGINS`: normally leave empty. The browser uses the same-origin frontend `/api/*` proxy, so public CORS is not needed.
 
-Do not set `NEXT_PUBLIC_API_BASE_URL` in production. The frontend server proxies `/api/*` to `BACKEND_INTERNAL_URL`; the browser must use the public HTTPS origin. The backend runs with authentication required, API docs disabled, and checkout observation/capture explicitly unavailable. Do not change those modes or configure fixture evidence for production. The deployment currently does not provide live checkout evidence.
+Do not set `NEXT_PUBLIC_API_BASE_URL` in production. The frontend server proxies `/api/*` to `BACKEND_INTERNAL_URL`; the browser must use the public HTTPS origin. The frozen release runs with bearer authentication required, API docs disabled, and checkout observation/capture explicitly unavailable. Do not configure fixture evidence for production. The deployment does not provide live checkout evidence.
 
 ### Deploy
 
 Run from the checked-out release directory. Have the deployment system inject `AUTH_TOKENS` into the environment before invoking Compose; avoid typing the secret into a shell command.
 
 ```bash
-git clone https://github.com/neural-agi/Cartel-Smart-Cart-Optimizer.git /srv/Cartel-Smart-Cart-Optimizer
+set -eu
+set +x
+git clone --branch v0.1.0-deploy.1 --depth 1 https://github.com/neural-agi/Cartel-Smart-Cart-Optimizer.git /srv/Cartel-Smart-Cart-Optimizer
 cd /srv/Cartel-Smart-Cart-Optimizer
-# Check out the reviewed release tag or commit before deploying.
-git checkout <reviewed-release-tag-or-commit>
+git checkout --detach v0.1.0-deploy.1
+test "$(git rev-parse HEAD)" = "518df303803eab4031d533edc3f47c0cd685e027"
 : "${AUTH_TOKENS:?Inject AUTH_TOKENS from the deployment secret manager first}"
 docker compose config --quiet
 docker compose build
@@ -425,6 +427,7 @@ Configure the external TLS proxy upstream as `http://127.0.0.1:3000`, then point
 Set `PUBLIC_ORIGIN` to the HTTPS deployment URL. `SMOKE_TOKEN` must be a token provisioned in `AUTH_TOKENS`; avoid enabling shell tracing while it is set.
 
 ```bash
+set -eu
 set +x
 : "${AUTH_TOKENS:?Load AUTH_TOKENS from the deployment secret manager}"
 export PUBLIC_ORIGIN='https://cartel.example.com'
@@ -448,18 +451,81 @@ The optimize smoke request uses deliberately unknown canonical IDs and must retu
 
 ### Persistent data and operations
 
-Compose creates a named volume with logical name `cartel-data` mounted at `/app/data` (Docker prefixes the physical volume name with the Compose project). Back it up before upgrades and after important data changes using the host's volume snapshot/backup tooling; protect backups as sensitive application data and periodically test restore. Ordinary `docker compose down` preserves it. **Never use `docker compose down -v` for routine operations**; that deletes the volume. A host loss without a valid backup loses filesystem-backed state.
+The frozen `v0.1.0-deploy.1` artifact creates the named `cartel-data` volume mounted at `/app/data`; Docker prefixes its physical name with the Compose project. These procedures inspect that actual mount, stop the stack for a consistent archive, encrypt with `age`, and checksum the encrypted backup. The host needs `age`, `sha256sum`, and Docker; the `alpine:3.20` helper image must be present or pullable. Set `AGE_RECIPIENT` to the public age recipient and `BACKUP_DIR` to an access-controlled destination. Keep the private age identity separately for restore. Backup integrity and restore have not been tested on a deployment host.
+
+#### Backup
+
+Run in the frozen release's Compose project directory while the stack is running. Tracing is disabled before backup configuration is read, and services are restarted on exit or failure.
+
+```bash
+set -euo pipefail
+set +x
+: "${AGE_RECIPIENT:?Load the public age recipient from approved configuration}"
+: "${BACKUP_DIR:?Set an access-controlled backup destination directory}"
+umask 077
+mkdir -p "$BACKUP_DIR"
+api_container="$(docker compose ps -q api)"
+test -n "$api_container"
+data_volume="$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/app/data"}}{{.Name}}{{end}}{{end}}' "$api_container")"
+test -n "$data_volume"
+backup_name="cartel-state-$(date -u +%Y%m%dT%H%M%SZ).tar.gz.age"
+backup_path="$BACKUP_DIR/$backup_name"
+restart_services() { docker compose start; }
+trap restart_services EXIT
+docker compose stop
+docker run --rm \
+  --mount "type=volume,src=$data_volume,dst=/backup/app-data,readonly" \
+  alpine:3.20 tar -C /backup -czf - app-data | age -r "$AGE_RECIPIENT" -o "$backup_path"
+(cd "$BACKUP_DIR" && sha256sum "$backup_name" > "$backup_name.sha256")
+docker compose start
+trap - EXIT
+printf 'Encrypted backup and checksum created in %s\n' "$BACKUP_DIR"
+```
+
+#### Restore
+
+Restore only into an empty `cartel-data` volume for the same Compose project name. The procedure verifies the checksum and archive before writing, refuses a non-empty volume, and starts the stack only after extraction. Set `BACKUP_FILE` to the `.tar.gz.age` file and `AGE_IDENTITY` to the separately protected private age identity file path. Do not put private key contents in commands or enable tracing. If the volume is non-empty, stop and make a separate recovery plan; this procedure will not overwrite or merge it.
+
+```bash
+set -euo pipefail
+set +x
+: "${AUTH_TOKENS:?Load AUTH_TOKENS from the deployment secret manager}"
+: "${BACKUP_FILE:?Set BACKUP_FILE to the encrypted backup file}"
+: "${AGE_IDENTITY:?Set AGE_IDENTITY to the protected private age identity file path}"
+backup_dir="$(cd "$(dirname "$BACKUP_FILE")" && pwd)"
+backup_name="$(basename "$BACKUP_FILE")"
+(cd "$backup_dir" && sha256sum -c "$backup_name.sha256")
+age -d -i "$AGE_IDENTITY" "$BACKUP_FILE" | tar -tzf - >/dev/null
+docker compose stop
+docker compose create api
+api_container="$(docker compose ps -aq api)"
+test -n "$api_container"
+data_volume="$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/app/data"}}{{.Name}}{{end}}{{end}}' "$api_container")"
+test -n "$data_volume"
+empty="$(docker run --rm \
+  --mount "type=volume,src=$data_volume,dst=/restore/app-data,readonly" \
+  alpine:3.20 sh -ec 'test -z "$(find /restore/app-data -mindepth 1 -print -quit)" && printf empty')"
+test "$empty" = empty
+age -d -i "$AGE_IDENTITY" "$BACKUP_FILE" | docker run --rm -i \
+  --mount "type=volume,src=$data_volume,dst=/restore/app-data" \
+  alpine:3.20 tar -xzf - -C /restore
+docker compose up -d
+```
+
+Ordinary `docker compose down` preserves `cartel-data`. **Never use `docker compose down -v` for routine operations**; that deletes the volume. Do not extract over a non-empty volume. A host loss without a valid backup loses filesystem-backed application state.
 
 To inspect service health and recent logs:
 
 ```bash
+set -eu
+set +x
 docker compose ps
 docker compose logs --since=15m api frontend
 ```
 
 Logs should contain operational status only; do not enable shell tracing or add commands that print bearer tokens, browser session state, or raw retailer payloads. To stop containers while retaining data, run `docker compose down`.
 
-The repository cannot verify public DNS propagation, certificate issuance/renewal, cloud firewall rules, secret-manager delivery/rotation, backup integrity, host monitoring, or public-origin reachability until these are configured on the deployment host. This is a single-instance filesystem deployment, not a horizontally scalable topology.
+The repository cannot verify public DNS propagation, certificate issuance/renewal, cloud firewall rules, secret-manager delivery/rotation, backup integrity, host monitoring, or public-origin reachability until these are configured on the deployment host. The frozen artifact is a single-instance filesystem-backed Compose deployment, not a horizontally scalable topology. PostgreSQL-backed consumer identity is present only in the untagged working tree and is not part of this deployment procedure.
 
 ### Local Setup
 
@@ -505,7 +571,7 @@ The following demonstrations are the remaining MVP-facing verification targets:
 - Deterministic checkout/ECE path ✅
 - Live checkout-derived effective-cost computation 🚧 Blinkit access/cart evidence blocked
 - Cart optimization and automatic optimization flow ✅
-- Consumer web interface 🚧 production deployment/build validation remaining
+- Consumer web interface ✅ repository-local production Compose validated; public-host DNS/TLS/proxy/reachability remain unverified
 
 ---
 
