@@ -20,7 +20,6 @@ def _settings(**overrides: object) -> Settings:
         "postgres_port": 5432,
         "postgres_db": "cartel",
         "postgres_user": "cartel",
-        "postgres_password": "cartel",
         "redis_url": "redis://localhost:6379/0",
     }
     values.update(overrides)
@@ -64,17 +63,20 @@ def test_invalid_configuration_fails_closed(overrides: dict[str, object]) -> Non
         _settings(**overrides)
 
 
-def test_production_requires_explicit_safe_configuration() -> None:
-    with pytest.raises(ValidationError):
-        _settings(app_env="production", app_debug=False, docs_enabled=False)
-
+def test_production_filesystem_runtime_does_not_require_unused_database_secret() -> None:
     settings = _settings(
         app_env="production",
         app_debug=False,
         docs_enabled=False,
-        postgres_password="configured-secret",
+        auth_required=True,
+        auth_tokens="release-user=release-token",
     )
     assert settings.is_production is True
+
+
+def test_production_rejects_disabled_bearer_authentication() -> None:
+    with pytest.raises(ValidationError, match="AUTH_REQUIRED must be true"):
+        _settings(app_env="production", app_debug=False, docs_enabled=False)
 
 
 def test_startup_diagnostics_exclude_secret_values(capsys: pytest.CaptureFixture[str]) -> None:

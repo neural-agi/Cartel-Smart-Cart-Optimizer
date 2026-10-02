@@ -78,6 +78,21 @@ def test_health_and_readiness_expose_safe_operational_headers(tmp_path) -> None:
     assert readiness.json()["checks"]["product_search"] == "ready"
 
 
+def test_readiness_stays_ready_when_checkout_provider_is_explicitly_unavailable(tmp_path) -> None:
+    application = create_application(Settings(
+        _env_file=None,
+        data_dir=tmp_path,
+        checkout_capture_adapter_mode="unavailable",
+        checkout_observation_provider_mode="unavailable",
+    ))
+    with TestClient(application) as client:
+        response = client.get("/ready")
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "ready"
+    assert response.json()["checks"]["checkout_capture"] == "unavailable"
+
+
 def test_configured_cors_allows_only_declared_origin(tmp_path) -> None:
     settings = Settings(
         _env_file=None,

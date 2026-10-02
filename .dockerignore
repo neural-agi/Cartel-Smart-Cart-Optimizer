@@ -1,0 +1,14 @@
+.git
+.github
+.pytest_cache
+.mypy_cache
+.ruff_cache
+__pycache__
+*.py[cod]
+.env
+.env.*
+!.env.example
+data
+frontend/node_modules
+frontend/.next
+node_modules

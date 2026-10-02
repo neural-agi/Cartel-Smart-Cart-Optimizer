@@ -55,8 +55,20 @@ export async function optimizeCart(items: CartItem[]): Promise<AutomaticPlanning
   if (!response.ok) {
     let message = `Automatic planning failed with status ${response.status}`;
     try {
-      const body = (await response.json()) as { detail?: string };
-      if (body.detail) message = body.detail;
+      const body = (await response.json()) as Record<string, unknown>;
+      const detailMessage = typeof body.detail === "string"
+        ? body.detail
+        : body.detail && typeof body.detail === "object" && "message" in body.detail && typeof body.detail.message === "string"
+          ? body.detail.message
+          : undefined;
+      const errorBody = body.error && typeof body.error === "object"
+        ? body.error as Record<string, unknown>
+        : undefined;
+      const errorMessage = errorBody && typeof errorBody.message === "string"
+        ? errorBody.message
+        : undefined;
+      const resolvedMessage = detailMessage ?? errorMessage;
+      if (resolvedMessage) message = resolvedMessage;
     } catch {
       // Preserve the HTTP failure when the response is not JSON.
     }

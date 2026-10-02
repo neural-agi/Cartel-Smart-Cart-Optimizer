@@ -80,6 +80,17 @@ export default function OptimizePage() {
                   )}
                 </div>
               )}
+              {mutation.data?.status === "unavailable" && (
+                <div role="status" className="rounded-xl border border-orange-500/30 bg-orange-500/5 p-4 text-sm">
+                  <p className="font-medium">Checkout evidence is unavailable.</p>
+                  <p className="mt-1 text-muted-foreground">No checkout total or effective cost was estimated.</p>
+                  {mutation.data.unresolved_reasons.length > 0 && (
+                    <ul className="mt-2 list-disc space-y-1 pl-5 text-muted-foreground">
+                      {mutation.data.unresolved_reasons.map((reason) => <li key={reason}>{reason}</li>)}
+                    </ul>
+                  )}
+                </div>
+              )}
               <div className="flex flex-wrap items-center gap-3">
                 <Button onClick={() => mutation.mutate()} disabled={mutation.isPending}>
                   {mutation.isPending ? "Optimizing..." : "Optimize cart"}

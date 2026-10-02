@@ -23,13 +23,13 @@ services:
       BLINKIT_DELIVERY_LATITUDE: "28.413333"
       BLINKIT_DELIVERY_LONGITUDE: "77.072833"
       DATA_DIR: /app/data
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD for the deployment environment}
-    ports:
-      - "8000:8000"
+    expose:
+      - "8000"
     volumes:
-      - ./data:/app/data
+      - cartel-data:/app/data
     networks:
       - cartel
+    restart: unless-stopped
     healthcheck:
       test:
         - CMD
@@ -51,14 +51,15 @@ services:
       BACKEND_INTERNAL_URL: ${BACKEND_INTERNAL_URL:-http://api:8000}
       NEXT_TELEMETRY_DISABLED: "1"
     ports:
-      - "3000:3000"
+      - "${FRONTEND_BIND_ADDRESS:-127.0.0.1}:3000:3000"
     depends_on:
       api:
         condition: service_healthy
     networks:
       - cartel
+    restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "--spider", "--quiet", "http://localhost:3000/home"]
+      test: ["CMD", "wget", "--spider", "--quiet", "http://127.0.0.1:3000/home"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -67,3 +68,6 @@ services:
 networks:
   cartel:
     driver: bridge
+
+volumes:
+  cartel-data:

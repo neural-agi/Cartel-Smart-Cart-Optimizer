@@ -11,10 +11,10 @@
 <br/>
 
 [![Build](https://github.com/neural-agi/Cartel-Smart-Cart-Optimizer/actions/workflows/ci.yml/badge.svg)](https://github.com/neural-agi/Cartel-Smart-Cart-Optimizer/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-0.2.0-blue?style=for-the-badge)](https://github.com/neural-agi/Cartel-Smart-Cart-Optimizer)
+[![Version](https://img.shields.io/badge/version-0.1.0-blue?style=for-the-badge)](https://github.com/neural-agi/Cartel-Smart-Cart-Optimizer)
 [![Python](https://img.shields.io/badge/python-3.12-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
 [![License](https://img.shields.io/badge/license-MIT-green?style=for-the-badge)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-627%20passing-brightgreen?style=for-the-badge)](https://github.com/neural-agi/Cartel-Smart-Cart-Optimizer/tree/main/backend/tests)
+[![Tests](https://img.shields.io/badge/tests-release%20validated-informational?style=for-the-badge)](https://github.com/neural-agi/Cartel-Smart-Cart-Optimizer/tree/main/backend/tests)
 [![Status](https://img.shields.io/badge/status-active%20development-yellow?style=for-the-badge)](https://github.com/neural-agi/Cartel-Smart-Cart-Optimizer)
 
 <!-- TODO: Add screenshot/GIF of demo pipeline -->
@@ -375,35 +375,91 @@ Audit Trail & Replay Reference
 
 ---
 
-## 🚀 Quick Start
+## Production Deployment Handoff
 
-### Docker (Recommended)
+This Compose topology is for one Linux host and one application instance. It binds the frontend to `127.0.0.1:3000` by default; the API has no host-published port. Provide DNS, HTTPS, firewall policy, and secrets outside this repository.
 
-Prerequisites: Docker Desktop with Compose.
+### Host prerequisites
+
+- A supported Linux host with Docker Engine and the Docker Compose plugin, enough disk for images and persistent application data, and permission to run Compose.
+- A DNS `A` record (and `AAAA` only if IPv6 ingress is configured) for the public hostname pointing to the host. Configure the hostname in the TLS proxy/hosting platform; the app does not provision DNS or certificates.
+- A TLS-terminating reverse proxy on the host or hosting platform, with a valid certificate and upstream `http://127.0.0.1:3000`. Preserve the original `Host` and forwarded-protocol headers. Restrict public ingress to HTTPS (and HTTP only when redirecting to HTTPS); do not publish ports 3000 or 8000 publicly. The backend is only reachable on the private Compose network.
+- A secret manager or protected deployment environment to inject the auth token. Do not put production secrets in Git, image build arguments, command history, or deployment logs.
+- A backup destination and procedure for the named `cartel-data` volume. Backups contain application/catalog/observation data and must be access-controlled and encrypted. Test restoration before relying on the service.
+
+### Configuration
+
+Required runtime secret:
+
+- `AUTH_TOKENS`: one or more `user_id=high-entropy-token` entries (comma-separated for multiple users). Compose requires it and enforces `AUTH_REQUIRED=true`. Provision unique tokens and deliver them to users through a separate secure channel. Rotate by updating the secret and recreating the API container.
+
+Optional deployment variables:
+
+- `FRONTEND_BIND_ADDRESS`: defaults to `127.0.0.1`, recommended for a reverse proxy on the same host. Only set this to a private interface address when a separate trusted load balancer must connect directly; firewall that interface so the frontend port is not public.
+- `BACKEND_INTERNAL_URL`: defaults to `http://api:8000`, the Compose service-to-service route. Change only if the internal topology is intentionally changed.
+- `RATE_LIMIT_REQUESTS` and `RATE_LIMIT_WINDOW_SECONDS`: optional API rate limit overrides; defaults are 120 requests and 60 seconds.
+- `CORS_ALLOWED_ORIGINS`: normally leave empty. The browser uses the same-origin frontend `/api/*` proxy, so public CORS is not needed.
+
+Do not set `NEXT_PUBLIC_API_BASE_URL` in production. The frontend server proxies `/api/*` to `BACKEND_INTERNAL_URL`; the browser must use the public HTTPS origin. The backend runs with authentication required, API docs disabled, and checkout observation/capture explicitly unavailable. Do not change those modes or configure fixture evidence for production. The deployment currently does not provide live checkout evidence.
+
+### Deploy
+
+Run from the checked-out release directory. Have the deployment system inject `AUTH_TOKENS` into the environment before invoking Compose; avoid typing the secret into a shell command.
 
 ```bash
-git clone https://github.com/neural-agi/Cartel-Smart-Cart-Optimizer.git
-cd Cartel-Smart-Cart-Optimizer
-cp .env.example .env
-# Edit .env and set unique deployment secrets:
-# AUTH_TOKENS=operator-1=<high-entropy-token>
-# POSTGRES_PASSWORD=<unique-secret>
-docker compose config
-docker compose up --build
+git clone https://github.com/neural-agi/Cartel-Smart-Cart-Optimizer.git /srv/Cartel-Smart-Cart-Optimizer
+cd /srv/Cartel-Smart-Cart-Optimizer
+# Check out the reviewed release tag or commit before deploying.
+git checkout <reviewed-release-tag-or-commit>
+: "${AUTH_TOKENS:?Inject AUTH_TOKENS from the deployment secret manager first}"
+docker compose config --quiet
+docker compose build
+docker compose up -d
+docker compose ps
 ```
 
-API: `http://localhost:8000`
-Health: `http://localhost:8000/health`
-Readiness: `http://localhost:8000/ready`
-Frontend: `http://localhost:3000`
+Configure the external TLS proxy upstream as `http://127.0.0.1:3000`, then point DNS to the host and verify the certificate. The frontend container starts only after API readiness succeeds. Both services use `restart: unless-stopped`.
 
-Production Compose requires non-empty `AUTH_TOKENS` entries in `user_id=token` format and an explicitly supplied `POSTGRES_PASSWORD`. It keeps bearer authentication enabled. The frontend proxies `/api/v1/*` to `BACKEND_INTERNAL_URL` (default `http://api:8000`) through the Compose network; same-origin proxying does not require a localhost CORS origin. Set `CORS_ALLOWED_ORIGINS` only when a separate browser origin must call the backend directly. The API docs are disabled in production. Backend data is bind-mounted from `./data` to `/app/data` and survives container recreation; `docker compose down` does not delete it.
+### Smoke test
 
-Stop with:
+Set `PUBLIC_ORIGIN` to the HTTPS deployment URL. `SMOKE_TOKEN` must be a token provisioned in `AUTH_TOKENS`; avoid enabling shell tracing while it is set.
 
 ```bash
-docker compose down
+set +x
+: "${AUTH_TOKENS:?Load AUTH_TOKENS from the deployment secret manager}"
+export PUBLIC_ORIGIN='https://cartel.example.com'
+: "${SMOKE_TOKEN:?Set SMOKE_TOKEN from the same secret source without shell tracing}"
+docker compose exec -T api python -c "import urllib.request; print(urllib.request.urlopen('http://127.0.0.1:8000/health').status, urllib.request.urlopen('http://127.0.0.1:8000/ready').status)"
+test "$(curl -sS -o /dev/null -w '%{http_code}' "$PUBLIC_ORIGIN/login")" = 200
+test "$(curl -sS -o /dev/null -w '%{http_code}' "$PUBLIC_ORIGIN/api/v1/health")" = 200
+test "$(curl -sS -o /dev/null -w '%{http_code}' "$PUBLIC_ORIGIN/api/v1/auth/session")" = 401
+printf 'header = "Authorization: Bearer %s"\n' "$SMOKE_TOKEN" | \
+  curl -fsS --config - "$PUBLIC_ORIGIN/api/v1/auth/session"
+printf 'header = "Authorization: Bearer %s"\n' "$SMOKE_TOKEN" | \
+  curl -fsS --config - \
+  -H 'Content-Type: application/json' \
+  --data '{"cart_id":"deployment-smoke","items":[{"item_id":"deployment-smoke-item","canonical_product_id":"deployment-smoke-product","canonical_variant_id":"deployment-smoke-variant","quantity":1}]}' \
+  "$PUBLIC_ORIGIN/api/v1/cart/optimize"
 ```
+
+Use an opaque URL-safe token value (for example, generated hex/base64url text) so it is valid in curl's config syntax. The commands disable shell xtrace and pass the bearer header through standard input rather than curl's process arguments.
+
+The optimize smoke request uses deliberately unknown canonical IDs and must return the API's honest unresolved/unavailable result; it must not report checkout-backed success or a fabricated cost. The health route indicates application health, not retailer availability. `/ready` is an internal backend check at `http://api:8000/ready` and does not imply Blinkit checkout is available.
+
+### Persistent data and operations
+
+Compose creates a named volume with logical name `cartel-data` mounted at `/app/data` (Docker prefixes the physical volume name with the Compose project). Back it up before upgrades and after important data changes using the host's volume snapshot/backup tooling; protect backups as sensitive application data and periodically test restore. Ordinary `docker compose down` preserves it. **Never use `docker compose down -v` for routine operations**; that deletes the volume. A host loss without a valid backup loses filesystem-backed state.
+
+To inspect service health and recent logs:
+
+```bash
+docker compose ps
+docker compose logs --since=15m api frontend
+```
+
+Logs should contain operational status only; do not enable shell tracing or add commands that print bearer tokens, browser session state, or raw retailer payloads. To stop containers while retaining data, run `docker compose down`.
+
+The repository cannot verify public DNS propagation, certificate issuance/renewal, cloud firewall rules, secret-manager delivery/rotation, backup integrity, host monitoring, or public-origin reachability until these are configured on the deployment host. This is a single-instance filesystem deployment, not a horizontally scalable topology.
 
 ### Local Setup
 
@@ -465,7 +521,7 @@ Currently implemented endpoints:
 | `POST` | `/api/v1/cart/plan` | Explicit cart planning |
 | `POST` | `/api/v1/cart/optimize` | Automatic cart planning and optimization |
 
-Interactive API documentation (Swagger UI) is available at `http://localhost:8000/docs` only when `DOCS_ENABLED=true`; it is disabled in the production Compose configuration.
+Interactive API documentation (Swagger UI) is available at `http://localhost:8000/docs` only for a locally run backend when `DOCS_ENABLED=true`; it is disabled in the production Compose configuration, whose backend port is private.
 
 The current MVP exposes health, governed product search, explicit planning, and automatic cart optimization. Checkout/ECE-backed live retailer results depend on successful retailer checkout capture.
 
@@ -536,7 +592,7 @@ Cartel-Smart-Cart-Optimizer/
 - **Real Data Ingestion** live Blinkit acquisition, normalization, persistence, replay, and observation registration implemented for the MVP
 - **Deterministic identity system** across products, carts and operational entities
 - **Immutable value contracts** throughout implemented pipelines
-- **627 automated tests passing**
+- Backend test results are recorded by each release validation run; this README does not assert a current test count.
 
 ---
 

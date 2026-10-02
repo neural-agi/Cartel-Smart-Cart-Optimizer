@@ -116,7 +116,7 @@ class Settings(BaseSettings):
     postgres_port: int = Field(default=5432, alias="POSTGRES_PORT")
     postgres_db: str = Field(default="cartel", alias="POSTGRES_DB")
     postgres_user: str = Field(default="cartel", alias="POSTGRES_USER")
-    postgres_password: str = Field(default="cartel", alias="POSTGRES_PASSWORD")
+    postgres_password: str = Field(default="", alias="POSTGRES_PASSWORD")
     redis_url: str = Field(default="redis://localhost:6379/0", alias="REDIS_URL")
 
     @field_validator(
@@ -129,7 +129,6 @@ class Settings(BaseSettings):
         "postgres_host",
         "postgres_db",
         "postgres_user",
-        "postgres_password",
         "redis_url",
         "optimization_policy_version",
         mode="before",
@@ -249,8 +248,8 @@ class Settings(BaseSettings):
         if self.auth_required and not self.configured_auth_tokens:
             raise ValueError("AUTH_TOKENS must be configured when AUTH_REQUIRED is true")
         if self.app_env == "production":
-            if "postgres_password" not in self.model_fields_set or self.postgres_password == "cartel":
-                raise ValueError("POSTGRES_PASSWORD must be explicitly configured in production")
+            if not self.auth_required:
+                raise ValueError("AUTH_REQUIRED must be true in production")
             if self.app_debug:
                 raise ValueError("APP_DEBUG must be false in production")
             if self.docs_enabled:
