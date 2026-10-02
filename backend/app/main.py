@@ -3,9 +3,9 @@ from time import monotonic
 from uuid import uuid4
 from urllib.parse import urlsplit
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from starlette.requests import Request
 from starlette.responses import Response
 from starlette.responses import JSONResponse
 from time import time
@@ -51,6 +51,12 @@ from app.cost_intelligence.observation.capture_service import (
 from app.data_ingestion.artifact_store import LocalFilesystemArtifactStore
 from app.cost_intelligence.pipeline.service import CostIntelligencePipelineService
 from app.scrapers.blinkit.checkout_capture import BlinkitCheckoutCaptureAdapter
+from app.db.session import get_session_factory
+from app.auth.email_delivery import SmtpEmailDelivery
+from app.auth.email_delivery import EmailDelivery
+from app.auth.service import resolve_session, require_csrf, AuthFailure
+from sqlalchemy.exc import SQLAlchemyError
+from app.api.v2.router import router as v2_router
 
 
 logger = get_logger(__name__)
@@ -79,7 +85,7 @@ class _InMemoryRateLimiter:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    settings = get_settings()
+    settings = getattr(app.state, "settings", None) or get_settings()
     configure_logging(log_level=settings.log_level, json_logs=settings.log_json)
     app.state.settings = settings
 
@@ -110,6 +116,7 @@ async def lifespan(app: FastAPI):
 def create_application(
     settings: Settings | None = None,
     runtime: ProductIntelligenceRuntime | None = None,
+    email_delivery: EmailDelivery | None = None,
 ) -> FastAPI:
     app_settings = settings or get_settings()
     docs_url = "/docs" if app_settings.docs_enabled else None
@@ -125,6 +132,20 @@ def create_application(
         openapi_url=openapi_url,
         lifespan=lifespan,
     )
+    application.state.settings = app_settings
+
+    @application.exception_handler(RequestValidationError)
+    async def sanitized_validation_error(request: Request, exc: RequestValidationError):
+        errors = [
+            {key: error[key] for key in ("loc", "msg", "type") if key in error}
+            for error in exc.errors()
+        ]
+        return JSONResponse(status_code=422, content={"detail": errors})
+
+    @application.exception_handler(SQLAlchemyError)
+    async def database_unavailable(request: Request, exc: SQLAlchemyError):
+        logger.error("identity_or_application_database_unavailable", extra={"request_id": getattr(request.state, "request_id", None)})
+        return JSONResponse(status_code=503, content={"detail": {"code": "database_unavailable"}})
     if app_settings.cors_origins:
         application.add_middleware(
             CORSMiddleware,
@@ -141,13 +162,61 @@ def create_application(
         request.state.request_id = request_id
         request.state.user_id = "anonymous"
         request.state.authenticated = False
+        if request.url.path.startswith("/api/v2/auth/") and request.method == "POST":
+            auth_limiter = getattr(application.state, "auth_rate_limiter", None)
+            client = request.client.host if request.client else "unknown"
+            if auth_limiter is not None and not auth_limiter.allow(client, request.url.path):
+                return JSONResponse(
+                    status_code=429,
+                    content={"detail": {"code": "rate_limited"}},
+                    headers={"Retry-After": str(app_settings.rate_limit_window_seconds)},
+                )
         protected = request.url.path.startswith(f"{app_settings.api_v1_prefix}/") and not request.url.path.endswith("/health") and not request.url.path.endswith("/ready")
         if protected and app_settings.auth_required:
+            consumer_paths = {
+                f"{app_settings.api_v1_prefix}/products/search",
+                f"{app_settings.api_v1_prefix}/cart/resolve",
+                f"{app_settings.api_v1_prefix}/cart/candidates",
+                f"{app_settings.api_v1_prefix}/cart/plan",
+            }
+            authorization = request.headers.get("Authorization", "")
+            cookie_token = request.cookies.get("cartel_session", "")
             try:
-                request.state.user_id = authenticate_bearer(
-                    request.headers.get("Authorization", ""), app_settings
-                )
-                request.state.authenticated = True
+                if authorization:
+                    request.state.user_id = authenticate_bearer(authorization, app_settings)
+                    request.state.authenticated = True
+                    request.state.auth_method = "operator_bearer"
+                elif request.url.path in consumer_paths and cookie_token:
+                    with application.state.db_session_factory() as db:
+                        resolved = resolve_session(db, cookie_token, app_settings.auth_idle_days)
+                        if resolved is None:
+                            raise AuthenticationError("consumer session is invalid")
+                        if request.method in {"POST", "PUT", "PATCH", "DELETE"}:
+                            origin = request.headers.get("Origin")
+                            expected = urlsplit(app_settings.public_origin)
+                            supplied = urlsplit(origin or "")
+                            if (supplied.scheme, supplied.netloc) != (expected.scheme, expected.netloc):
+                                return JSONResponse(status_code=403, content={"detail": {"code": "origin_rejected"}})
+                            try:
+                                require_csrf(resolved[0], request.headers.get("X-CSRF-Token"))
+                            except AuthFailure:
+                                return JSONResponse(status_code=403, content={"detail": {"code": "csrf_failed"}})
+                        request.state.user_id = str(resolved[1].id)
+                        request.state.authenticated = True
+                        request.state.auth_method = "consumer_session"
+                elif cookie_token and request.url.path not in consumer_paths:
+                    return JSONResponse(
+                        status_code=403,
+                        content={"detail": {"code": "operator_authentication_required"}},
+                    )
+                elif request.url.path not in consumer_paths:
+                    request.state.user_id = authenticate_bearer(authorization, app_settings)
+                    request.state.authenticated = True
+                    request.state.auth_method = "operator_bearer"
+                else:
+                    raise AuthenticationError("consumer authentication is required")
+            except SQLAlchemyError:
+                return JSONResponse(status_code=503, content={"detail": {"code": "identity_store_unavailable"}})
             except AuthenticationError as exc:
                 return JSONResponse(
                     status_code=401,
@@ -188,10 +257,18 @@ def create_application(
         return response
     application.include_router(health_router, tags=["health"])
     application.include_router(api_router, prefix=app_settings.api_v1_prefix)
+    application.include_router(v2_router, prefix="/api/v2")
+    application.state.db_session_factory = get_session_factory(app_settings)
+    application.state.email_delivery = email_delivery or SmtpEmailDelivery(app_settings)
+    application.state.logger = logger
     configured_runtime = runtime or build_product_intelligence_runtime(app_settings)
     application.state.product_intelligence_runtime = configured_runtime
     application.state.rate_limiter = _InMemoryRateLimiter(
         limit=app_settings.rate_limit_requests,
+        window_seconds=app_settings.rate_limit_window_seconds,
+    )
+    application.state.auth_rate_limiter = _InMemoryRateLimiter(
+        limit=app_settings.auth_rate_limit_requests,
         window_seconds=app_settings.rate_limit_window_seconds,
     )
     application.state.retail_observation_query = RetailObservationQueryService(

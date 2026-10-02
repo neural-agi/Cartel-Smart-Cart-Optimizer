@@ -1,0 +1,192 @@
+from datetime import datetime, timezone
+
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from sqlalchemy.orm import Session
+
+from app.auth.email_delivery import EmailDeliveryUnavailable
+from app.auth.service import (
+    AuthFailure,
+    IssuedSession,
+    csrf_token_for_session,
+    login,
+    logout_all,
+    logout_current,
+    request_password_recovery,
+    resend_verification,
+    reset_password,
+    rotate_session,
+    signup,
+    verify_email,
+)
+from app.api.v2.dependencies import ConsumerPrincipal, current_consumer, csrf_protected, require_same_origin
+from app.db.session import get_db
+from app.schemas.consumer_auth import (
+    AuthAcceptedResponse,
+    ConsumerSessionResponse,
+    LoginRequest,
+    RecoveryRequest,
+    ResendVerificationRequest,
+    ResetPasswordRequest,
+    SignupRequest,
+    VerifyEmailRequest,
+)
+
+
+router = APIRouter(prefix="/auth", tags=["consumer-auth"])
+
+
+def _handle_failure(exc: AuthFailure) -> HTTPException:
+    return HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message})
+
+
+def _set_session_cookie(response: Response, request: Request, token: str, expires_at: datetime) -> None:
+    max_age = max(0, int((expires_at - datetime.now(timezone.utc)).total_seconds()))
+    response.set_cookie(
+        "cartel_session",
+        token,
+        httponly=True,
+        secure=request.app.state.settings.secure_auth_cookie,
+        samesite="lax",
+        path="/",
+        max_age=max_age,
+        expires=expires_at,
+    )
+
+
+def _clear_session_cookie(response: Response, request: Request) -> None:
+    response.delete_cookie(
+        "cartel_session",
+        path="/",
+        secure=request.app.state.settings.secure_auth_cookie,
+        httponly=True,
+        samesite="lax",
+    )
+
+
+def _session_response(issued: IssuedSession, response: Response, request: Request) -> ConsumerSessionResponse:
+    _set_session_cookie(response, request, issued.raw_token, issued.expires_at)
+    email = next(identity.email for identity in issued.user.identities if identity.provider == "email_password")
+    return ConsumerSessionResponse(
+        user_id=issued.user.id,
+        email=email,
+        expires_at=issued.expires_at,
+        csrf_token=issued.raw_csrf,
+    )
+
+
+@router.post("/signup", response_model=AuthAcceptedResponse, status_code=202)
+def signup_route(payload: SignupRequest, request: Request, db: Session = Depends(get_db)):
+    require_same_origin(request)
+    if not request.app.state.settings.email_delivery_configured:
+        raise HTTPException(status_code=503, detail={"code": "email_delivery_unavailable"})
+    mailer = request.app.state.email_delivery
+    try:
+        signup(db, request.app.state.settings, mailer, str(payload.email), payload.password, request.state.request_id)
+    except AuthFailure as exc:
+        if exc.code == "account_exists":
+            return AuthAcceptedResponse()
+        raise _handle_failure(exc) from exc
+    except EmailDeliveryUnavailable as exc:
+        request.app.state.logger.warning("consumer_auth_email_delivery_unavailable event=signup")
+        raise HTTPException(status_code=503, detail={"code": "email_delivery_unavailable"}) from exc
+    return AuthAcceptedResponse()
+
+
+@router.post("/verification/resend", response_model=AuthAcceptedResponse, status_code=202)
+def resend_route(payload: ResendVerificationRequest, request: Request, db: Session = Depends(get_db)):
+    require_same_origin(request)
+    if not request.app.state.settings.email_delivery_configured:
+        raise HTTPException(status_code=503, detail={"code": "email_delivery_unavailable"})
+    try:
+        resend_verification(db, request.app.state.settings, request.app.state.email_delivery, str(payload.email))
+    except AuthFailure:
+        pass
+    except EmailDeliveryUnavailable as exc:
+        request.app.state.logger.warning("consumer_auth_email_delivery_unavailable event=verification_resend")
+        raise HTTPException(status_code=503, detail={"code": "email_delivery_unavailable"}) from exc
+    return AuthAcceptedResponse()
+
+
+@router.post("/email/verify", response_model=ConsumerSessionResponse)
+def verify_route(payload: VerifyEmailRequest, request: Request, response: Response, db: Session = Depends(get_db)):
+    require_same_origin(request)
+    try:
+        issued = verify_email(db, request.app.state.settings, payload.token, request.headers.get("user-agent"), request.state.request_id)
+    except AuthFailure as exc:
+        raise _handle_failure(exc) from exc
+    return _session_response(issued, response, request)
+
+
+@router.post("/login", response_model=ConsumerSessionResponse)
+def login_route(payload: LoginRequest, request: Request, response: Response, db: Session = Depends(get_db)):
+    require_same_origin(request)
+    try:
+        issued = login(db, request.app.state.settings, str(payload.email), payload.password, request.headers.get("user-agent"), request.state.request_id)
+    except AuthFailure as exc:
+        raise _handle_failure(exc) from exc
+    return _session_response(issued, response, request)
+
+
+@router.get("/csrf")
+def csrf_route(request: Request, principal: ConsumerPrincipal = Depends(current_consumer)):
+    raw_token = request.cookies.get("cartel_session", "")
+    return {"csrf_token": csrf_token_for_session(raw_token)}
+
+
+@router.get("/session", response_model=ConsumerSessionResponse)
+def session_route(request: Request, principal: ConsumerPrincipal = Depends(current_consumer)):
+    raw_token = request.cookies.get("cartel_session", "")
+    email = next(identity.email for identity in principal.user.identities if identity.provider == "email_password")
+    return ConsumerSessionResponse(
+        user_id=principal.user.id,
+        email=email,
+        expires_at=principal.session.expires_at,
+        csrf_token=csrf_token_for_session(raw_token),
+    )
+
+
+@router.post("/rotate", response_model=ConsumerSessionResponse)
+def rotate_route(request: Request, response: Response, principal: ConsumerPrincipal = Depends(csrf_protected), db: Session = Depends(get_db)):
+    issued = rotate_session(db, request.app.state.settings, principal.session, principal.user, request.headers.get("user-agent"))
+    return _session_response(issued, response, request)
+
+
+@router.post("/logout", status_code=204)
+def logout_route(request: Request, response: Response, principal: ConsumerPrincipal = Depends(csrf_protected), db: Session = Depends(get_db)):
+    logout_current(db, principal.session, request.state.request_id)
+    _clear_session_cookie(response, request)
+    response.status_code = status.HTTP_204_NO_CONTENT
+    return response
+
+
+@router.post("/logout-all", status_code=204)
+def logout_all_route(request: Request, response: Response, principal: ConsumerPrincipal = Depends(csrf_protected), db: Session = Depends(get_db)):
+    logout_all(db, principal.user, request.state.request_id)
+    _clear_session_cookie(response, request)
+    response.status_code = status.HTTP_204_NO_CONTENT
+    return response
+
+
+@router.post("/password/recovery", response_model=AuthAcceptedResponse, status_code=202)
+def recovery_route(payload: RecoveryRequest, request: Request, db: Session = Depends(get_db)):
+    require_same_origin(request)
+    if not request.app.state.settings.email_delivery_configured:
+        raise HTTPException(status_code=503, detail={"code": "email_delivery_unavailable"})
+    try:
+        request_password_recovery(db, request.app.state.settings, request.app.state.email_delivery, str(payload.email))
+    except AuthFailure:
+        pass
+    except EmailDeliveryUnavailable as exc:
+        request.app.state.logger.warning("consumer_auth_email_delivery_unavailable event=password_recovery")
+        raise HTTPException(status_code=503, detail={"code": "email_delivery_unavailable"}) from exc
+    return AuthAcceptedResponse()
+
+
+@router.post("/password/reset", response_model=AuthAcceptedResponse)
+def reset_route(payload: ResetPasswordRequest, request: Request, db: Session = Depends(get_db)):
+    require_same_origin(request)
+    try:
+        reset_password(db, payload.token, payload.new_password, request.state.request_id)
+    except AuthFailure as exc:
+        raise _handle_failure(exc) from exc
+    return AuthAcceptedResponse(status="completed")

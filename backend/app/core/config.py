@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Literal
 from urllib.parse import urlsplit
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -34,7 +34,7 @@ class Settings(BaseSettings):
     docs_enabled: bool = Field(default=True, alias="DOCS_ENABLED")
     cors_allowed_origins: str = Field(default="", alias="CORS_ALLOWED_ORIGINS")
     auth_required: bool = Field(default=False, alias="AUTH_REQUIRED")
-    auth_tokens: str = Field(default="", alias="AUTH_TOKENS")
+    auth_tokens: SecretStr = Field(default=SecretStr(""), alias="AUTH_TOKENS")
     rate_limit_requests: int = Field(default=120, alias="RATE_LIMIT_REQUESTS")
     rate_limit_window_seconds: int = Field(default=60, alias="RATE_LIMIT_WINDOW_SECONDS")
     checkout_observation_provider_mode: Literal["registry", "unavailable"] = Field(
@@ -116,7 +116,21 @@ class Settings(BaseSettings):
     postgres_port: int = Field(default=5432, alias="POSTGRES_PORT")
     postgres_db: str = Field(default="cartel", alias="POSTGRES_DB")
     postgres_user: str = Field(default="cartel", alias="POSTGRES_USER")
-    postgres_password: str = Field(default="", alias="POSTGRES_PASSWORD")
+    postgres_password: SecretStr = Field(default=SecretStr(""), alias="POSTGRES_PASSWORD")
+    database_required: bool = Field(default=False, alias="DATABASE_REQUIRED")
+    database_url_override: SecretStr | None = Field(default=None, alias="DATABASE_URL")
+    auth_session_days: int = Field(default=14, alias="AUTH_SESSION_DAYS")
+    auth_idle_days: int = Field(default=7, alias="AUTH_IDLE_DAYS")
+    auth_challenge_minutes: int = Field(default=30, alias="AUTH_CHALLENGE_MINUTES")
+    auth_rate_limit_requests: int = Field(default=8, alias="AUTH_RATE_LIMIT_REQUESTS")
+    auth_cookie_secure: bool | None = Field(default=None, alias="AUTH_COOKIE_SECURE")
+    smtp_host: str = Field(default="", alias="SMTP_HOST")
+    smtp_port: int = Field(default=587, alias="SMTP_PORT")
+    smtp_username: str = Field(default="", alias="SMTP_USERNAME")
+    smtp_password: SecretStr = Field(default=SecretStr(""), alias="SMTP_PASSWORD")
+    smtp_from: str = Field(default="", alias="SMTP_FROM")
+    smtp_starttls: bool = Field(default=True, alias="SMTP_STARTTLS")
+    public_origin: str = Field(default="http://localhost:3000", alias="PUBLIC_ORIGIN")
     redis_url: str = Field(default="redis://localhost:6379/0", alias="REDIS_URL")
 
     @field_validator(
@@ -129,6 +143,7 @@ class Settings(BaseSettings):
         "postgres_host",
         "postgres_db",
         "postgres_user",
+        "public_origin",
         "redis_url",
         "optimization_policy_version",
         mode="before",
@@ -182,10 +197,17 @@ class Settings(BaseSettings):
             raise ValueError("rate limit values must be positive")
         return value
 
+    @field_validator("auth_session_days", "auth_idle_days", "auth_challenge_minutes", "auth_rate_limit_requests", "smtp_port")
+    @classmethod
+    def validate_auth_lifetimes(cls, value: int) -> int:
+        if value < 1 or value > 65535:
+            raise ValueError("authentication lifetime or SMTP port is invalid")
+        return value
+
     @property
     def configured_auth_tokens(self) -> dict[str, str]:
         tokens: dict[str, str] = {}
-        for entry in self.auth_tokens.split(","):
+        for entry in self.auth_tokens.get_secret_value().split(","):
             if not entry.strip():
                 continue
             if "=" not in entry:
@@ -195,6 +217,25 @@ class Settings(BaseSettings):
                 raise ValueError("AUTH_TOKENS entries must contain user_id and token")
             tokens[token] = user_id
         return tokens
+
+    @property
+    def database_url(self) -> str:
+        if self.database_url_override and self.database_url_override.get_secret_value():
+            return self.database_url_override.get_secret_value()
+        from urllib.parse import quote_plus
+
+        credentials = quote_plus(self.postgres_user)
+        password = self.postgres_password.get_secret_value()
+        auth = f"{credentials}:{quote_plus(password)}" if password else credentials
+        return f"postgresql+psycopg://{auth}@{self.postgres_host}:{self.postgres_port}/{quote_plus(self.postgres_db)}"
+
+    @property
+    def secure_auth_cookie(self) -> bool:
+        return self.app_env == "production" if self.auth_cookie_secure is None else self.auth_cookie_secure
+
+    @property
+    def email_delivery_configured(self) -> bool:
+        return bool(self.smtp_host.strip() and self.smtp_from.strip())
 
     @field_validator(
         "planning_max_cart_items",
@@ -243,6 +284,23 @@ class Settings(BaseSettings):
             raise ValueError("REDIS_URL port must be between 1 and 65535")
         return value
 
+    @field_validator("database_url_override")
+    @classmethod
+    def validate_database_url(cls, value: SecretStr | None) -> SecretStr | None:
+        if value is not None:
+            parsed = urlsplit(value.get_secret_value())
+            if parsed.scheme not in {"postgresql", "postgresql+psycopg"} or not parsed.hostname:
+                raise ValueError("DATABASE_URL must identify a PostgreSQL database")
+        return value
+
+    @field_validator("public_origin")
+    @classmethod
+    def validate_public_origin(cls, value: str) -> str:
+        parsed = urlsplit(value)
+        if parsed.scheme not in {"http", "https"} or not parsed.hostname or parsed.path not in {"", "/"} or parsed.query or parsed.fragment:
+            raise ValueError("PUBLIC_ORIGIN must be an origin without path, query, or fragment")
+        return f"{parsed.scheme}://{parsed.netloc}"
+
     @model_validator(mode="after")
     def validate_runtime_configuration(self) -> "Settings":
         if self.auth_required and not self.configured_auth_tokens:
@@ -254,6 +312,13 @@ class Settings(BaseSettings):
                 raise ValueError("APP_DEBUG must be false in production")
             if self.docs_enabled:
                 raise ValueError("DOCS_ENABLED must be false in production")
+            if urlsplit(self.public_origin).scheme != "https":
+                raise ValueError("PUBLIC_ORIGIN must use HTTPS in production")
+            if self.database_required and not (
+                self.postgres_password.get_secret_value()
+                or (self.database_url_override and self.database_url_override.get_secret_value())
+            ):
+                raise ValueError("PostgreSQL credentials are required when DATABASE_REQUIRED is true")
         return self
 
     @property

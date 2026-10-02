@@ -5,6 +5,8 @@ pydantic-settings
 sqlalchemy
 alembic
 psycopg[binary]
+argon2-cffi
+email-validator
 redis
 httpx
 requests

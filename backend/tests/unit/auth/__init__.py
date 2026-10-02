@@ -1,0 +1,1 @@
+"""Consumer authentication unit tests."""

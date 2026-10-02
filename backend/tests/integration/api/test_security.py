@@ -89,3 +89,29 @@ def test_cors_preflight_allows_configured_origin(tmp_path) -> None:
 
     assert response.status_code == 200
     assert response.headers["access-control-allow-origin"] == "https://app.example"
+
+
+def test_consumer_signup_fails_honestly_when_email_delivery_is_unconfigured(tmp_path) -> None:
+    settings = Settings(_env_file=None, data_dir=tmp_path, public_origin="http://testserver")
+    with TestClient(create_application(settings), base_url="http://testserver") as client:
+        response = client.post(
+            "/api/v2/auth/signup",
+            headers={"Origin": "http://testserver"},
+            json={"email": "person@example.com", "password": "correct-horse-battery-staple"},
+        )
+    assert response.status_code == 503
+    assert response.json()["detail"]["code"] == "email_delivery_unavailable"
+    assert not response.headers.get("set-cookie")
+
+
+def test_request_validation_does_not_echo_plaintext_password(tmp_path) -> None:
+    settings = Settings(_env_file=None, data_dir=tmp_path, public_origin="http://testserver")
+    password = "not-long"
+    with TestClient(create_application(settings), base_url="http://testserver") as client:
+        response = client.post(
+            "/api/v2/auth/signup",
+            headers={"Origin": "http://testserver"},
+            json={"email": "person@example.com", "password": password},
+        )
+    assert response.status_code == 422
+    assert password not in response.text

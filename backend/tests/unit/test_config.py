@@ -70,6 +70,7 @@ def test_production_filesystem_runtime_does_not_require_unused_database_secret()
         docs_enabled=False,
         auth_required=True,
         auth_tokens="release-user=release-token",
+        public_origin="https://cartel.example",
     )
     assert settings.is_production is True
 
@@ -79,16 +80,52 @@ def test_production_rejects_disabled_bearer_authentication() -> None:
         _settings(app_env="production", app_debug=False, docs_enabled=False)
 
 
-def test_startup_diagnostics_exclude_secret_values(capsys: pytest.CaptureFixture[str]) -> None:
+def test_startup_diagnostics_exclude_secret_values(monkeypatch: pytest.MonkeyPatch) -> None:
     settings = _settings(postgres_password="super-secret-password")
     application = create_application(settings)
+    messages: list[str] = []
+    import app.main as main_module
+
+    original_info = main_module.logger.info
+
+    def capture_info(message: str, *args, **kwargs) -> None:
+        messages.append(message % args if args else message)
+        original_info(message, *args, **kwargs)
+
+    monkeypatch.setattr(main_module.logger, "info", capture_info)
 
     from fastapi.testclient import TestClient
 
     with TestClient(application):
         pass
 
-    messages = capsys.readouterr().err
-    assert "Runtime configuration" in messages
-    assert "localhost" in messages
-    assert "super-secret-password" not in messages
+    joined = "\n".join(messages)
+    assert any("Runtime configuration" in message for message in messages)
+    assert "localhost" in joined
+    assert "super-secret-password" not in joined
+
+
+def test_database_url_escapes_credentials_and_keeps_them_secret() -> None:
+    settings = _settings(postgres_user="cartel@service", postgres_password="p@ss:/word")
+
+    assert "cartel%40service:p%40ss%3A%2Fword@" in settings.database_url
+    assert "p@ss:/word" not in repr(settings)
+    assert "super-secret-password" not in repr(_settings(postgres_password="super-secret-password"))
+
+
+def test_operator_token_is_redacted_from_settings_repr() -> None:
+    settings = _settings(auth_required=True, auth_tokens="operator=do-not-print")
+    assert "do-not-print" not in repr(settings)
+
+
+def test_production_requires_postgres_secret_when_database_is_required() -> None:
+    with pytest.raises(ValidationError, match="PostgreSQL credentials are required"):
+        _settings(
+            app_env="production",
+            app_debug=False,
+            docs_enabled=False,
+            auth_required=True,
+            auth_tokens="operator=secret",
+            database_required=True,
+            public_origin="https://cartel.example",
+        )
