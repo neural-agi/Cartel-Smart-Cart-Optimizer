@@ -36,6 +36,7 @@ def test_production_user_journey_requires_bearer_and_reports_unavailable_checkou
         docs_enabled=False,
         auth_required=True,
         auth_tokens="release-user=release-secret",
+        public_origin="https://cartel.example",
         data_dir=tmp_path,
         checkout_capture_adapter_mode="unavailable",
         checkout_observation_provider_mode="unavailable",
