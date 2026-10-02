@@ -1,11 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
 import { Loader2, Search as SearchIcon, X } from "lucide-react";
 
 import AppShell from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/button";
 import { productSearchService, type ProductSearchResult } from "@/services/productSearch";
+import { shoppingListsService } from "@/services/shoppingLists";
+import type { ShoppingList } from "@/types/shoppingLists";
 import { useCartStore } from "@/store/cartStore";
 
 export default function SearchPage() {
@@ -13,7 +16,25 @@ export default function SearchPage() {
   const [searchResult, setSearchResult] = useState<ProductSearchResult | null>(null);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [isSearching, setIsSearching] = useState(false);
+  const [lists, setLists] = useState<readonly ShoppingList[]>([]);
+  const [selectedListId, setSelectedListId] = useState("");
+  const [listsLoading, setListsLoading] = useState(true);
+  const [listError, setListError] = useState<string | null>(null);
+  const [savingProductId, setSavingProductId] = useState<string | null>(null);
   const addItem = useCartStore((state) => state.addItem);
+  const activeLists = useMemo(() => lists.filter((list) => !list.archived), [lists]);
+
+  useEffect(() => {
+    let mounted = true;
+    void shoppingListsService.list().then((result) => {
+      if (!mounted) return;
+      setLists(result);
+      setSelectedListId(result.find((list) => !list.archived)?.id ?? "");
+    }).catch((error: unknown) => {
+      if (mounted) setListError(error instanceof Error ? error.message : "Shopping lists are unavailable.");
+    }).finally(() => { if (mounted) setListsLoading(false); });
+    return () => { mounted = false; };
+  }, []);
 
   const hasQuery = query.trim().length > 0;
 
@@ -31,16 +52,46 @@ export default function SearchPage() {
     }
   };
 
+  const addToList = async (product: ProductSearchResult["products"][number]) => {
+    if (!selectedListId || !product.variantId || !product.listingId || !product.observationId || savingProductId) return;
+    const key = product.variantId;
+    setSavingProductId(key); setListError(null);
+    try {
+      const updated = await shoppingListsService.addItem(selectedListId, {
+        query: searchResult?.query ?? query.trim(),
+        quantity: 1,
+        canonical_product_id: product.productId,
+        canonical_variant_id: product.variantId,
+        source_platform: product.platform,
+        source_listing_id: product.listingId,
+        source_observation_id: product.observationId,
+      });
+      setLists((current) => current.map((list) => list.id === updated.id ? updated : list));
+      addItem(product);
+    } catch (error) {
+      setListError(error instanceof Error ? error.message : "Could not save this product to your list.");
+    } finally { setSavingProductId(null); }
+  };
+
   return (
     <AppShell>
       <div className="space-y-8">
         <header className="space-y-2">
           <p className="text-sm font-medium text-primary">Product search</p>
           <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Find what you need.</h1>
-          <p className="max-w-2xl text-muted-foreground">
-            Search across your supported grocery platforms and build your cart one item at a time.
-          </p>
+          <p className="max-w-2xl text-muted-foreground">Search the governed catalog, then save the selected variant and its source observation to one of your persistent lists.</p>
         </header>
+
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="grid gap-1.5"><label htmlFor="shopping-list-target" className="text-sm font-medium">Save to list</label>
+            <select id="shopping-list-target" value={selectedListId} onChange={(event) => setSelectedListId(event.target.value)} disabled={listsLoading || activeLists.length === 0} className="h-10 min-w-56 rounded-md border border-border bg-background px-3 text-sm">
+              {activeLists.length === 0 ? <option value="">No active lists</option> : activeLists.map((list) => <option key={list.id} value={list.id}>{list.name}</option>)}
+            </select>
+          </div>
+          <Link href="/lists" className="inline-flex h-10 items-center justify-center rounded-md border border-border px-4 text-sm font-medium hover:bg-muted">Manage lists</Link>
+        </div>
+        {listError && <p role="alert" className="text-sm text-destructive">{listError}</p>}
+        {!listsLoading && activeLists.length === 0 && <p className="text-sm text-muted-foreground">Create a shopping list before saving products.</p>}
 
         <form
           role="search"
@@ -128,8 +179,8 @@ export default function SearchPage() {
                       {product.availability ?? "Availability unavailable"}
                     </span>
                   </div>
-                  <Button className="mt-5 w-full" onClick={() => addItem(product)} disabled={product.availability === "unavailable"}>
-                    Add to cart
+                  <Button className="mt-5 w-full" onClick={() => void addToList(product)} disabled={!selectedListId || !product.variantId || !product.listingId || !product.observationId || savingProductId !== null || product.availability === "unavailable"}>
+                    {savingProductId === product.variantId ? "Saving…" : "Add to list"}
                   </Button>
                 </article>
               ))}

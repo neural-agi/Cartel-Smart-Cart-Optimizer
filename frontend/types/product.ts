@@ -8,6 +8,7 @@ export interface Product {
   productId: string;
   variantId?: string;
   listingId?: string;
+  observationId?: string;
   name: string;
   brand?: string;
   pack?: string;

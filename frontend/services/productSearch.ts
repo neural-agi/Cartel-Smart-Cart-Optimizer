@@ -33,6 +33,7 @@ function parseProductSearchResponse(value: unknown): ProductSearchResult {
       "canonical_display_name",
       "platform",
       "platform_listing_id",
+      "observation_id",
     ];
     if (required.some((field) => typeof candidate[field] !== "string" || !candidate[field])) {
       throw new Error(`Product search returned incomplete item at position ${index}.`);
@@ -53,6 +54,7 @@ function parseProductSearchResponse(value: unknown): ProductSearchResult {
       productId: candidate.canonical_product_id as string,
       variantId: candidate.canonical_variant_id as string,
       listingId: candidate.platform_listing_id as string,
+      observationId: candidate.observation_id as string,
       name: candidate.canonical_display_name as string,
       brand: typeof candidate.brand === "string" ? candidate.brand : undefined,
       pack: typeof candidate.pack === "string" ? candidate.pack : undefined,
