@@ -26,7 +26,7 @@ from app.scrapers.blinkit.parser import BlinkitProductParser
 
 
 class AcquisitionBoundary(Protocol):
-    async def acquire_search(self, *, query: str, evaluation_scope: str): ...
+    async def acquire_search(self, *, query: str | None, evaluation_scope: str): ...
 
 
 class ParserBoundary(Protocol):
@@ -80,10 +80,17 @@ class LocalIngestionWorker:
             report_transition(JobState.DEQUEUED, JobState.ACQUIRING, "acquisition started")
             query = self._query(job)
             evaluation_scope = self._evaluation_scope(job, query)
-            acquisition = await self._acquisition.acquire_search(
-                query=query,
-                evaluation_scope=evaluation_scope,
-            )
+            if hasattr(self._acquisition, "acquire_for_job"):
+                acquisition = await self._acquisition.acquire_for_job(
+                    job=job,
+                    query=query,
+                    evaluation_scope=evaluation_scope,
+                )
+            else:
+                acquisition = await self._acquisition.acquire_search(
+                    query=query,
+                    evaluation_scope=evaluation_scope,
+                )
             stage = "artifact_storage"
             payload_digest = hashlib.sha256(acquisition.payload).hexdigest()
             artifact_id = ArtifactIdentityBuilder().artifact_id(
@@ -109,15 +116,31 @@ class LocalIngestionWorker:
                 content_type=acquisition.content_type,
                 capture_timestamp=acquisition.capture_timestamp,
                 source_reference=acquisition.source_reference,
+                provider_id=acquisition.provider_id,
+                acquisition_method=acquisition.acquisition_method,
+                location_scope=acquisition.location_scope or job.capture_context.location_scope,
+                evidence_quality=acquisition.evidence_quality,
+                provider_request_id=acquisition.provider_request_id,
+                location_latitude=acquisition.location_latitude,
+                location_longitude=acquisition.location_longitude,
             )
             report_transition(JobState.ACQUIRING, JobState.ARTIFACT_CAPTURED, "artifact captured")
             stage = "parsing"
             report_transition(JobState.ARTIFACT_CAPTURED, JobState.PARSING, "parsing started")
-            extraction = self._parser.parse_content(
-                acquisition.payload,
-                query=query,
-                source_reference=acquisition.source_reference,
-            )
+            if acquisition.provider_id == "quickcommerce":
+                from app.scrapers.quickcommerce.parser import QuickCommerceSearchParser
+                extraction = QuickCommerceSearchParser().parse(
+                    acquisition.payload,
+                    query=query or "",
+                    source_reference=acquisition.source_reference,
+                    evaluation_scope=acquisition.evaluation_scope,
+                )
+            else:
+                extraction = self._parser.parse_content(
+                    acquisition.payload,
+                    query=query,
+                    source_reference=acquisition.source_reference,
+                )
             extraction = self._complete_extraction(extraction, acquisition)
             batch = self._bridge.build_batch(extraction, artifact_reference)
             report_transition(JobState.PARSING, JobState.PARSED, "parsing completed")
@@ -167,16 +190,17 @@ class LocalIngestionWorker:
             )
 
     @staticmethod
-    def _query(job: ScrapeJob) -> str:
+    def _query(job: ScrapeJob) -> str | None:
         values = dict(job.request_parameters.values)
         query = values.get("query")
-        if not query:
+        if not query and job.capture_type.value != "PRODUCT_DETAIL":
             raise ValueError("search job requires query request parameter")
         return query
 
     @staticmethod
-    def _evaluation_scope(job: ScrapeJob, query: str) -> str:
-        return f"{job.job_id}:search:{query}"
+    def _evaluation_scope(job: ScrapeJob, query: str | None) -> str:
+        scope = "product-detail" if query is None else f"search:{query}"
+        return f"{job.job_id}:{scope}"
 
     @staticmethod
     def _complete_extraction(result: RawExtractionResult, acquisition) -> RawExtractionResult:

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Callable, Hashable, Iterable
+from collections.abc import Callable, Hashable, Iterable, Mapping
 from enum import StrEnum
 from typing import TypeAlias
 
@@ -8,6 +8,15 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.data_ingestion.types import NormalizedObservation
 from app.product_intelligence.catalog.types import CatalogState
+from app.product_intelligence.catalog.identity_contract import (
+    CanonicalIdentityResolution,
+    IdentityComparison,
+    IdentityResolutionState,
+    RetailerProductIdentityEvidence,
+    canonical_identity_profile,
+    compare_identity_profiles,
+)
+from app.product_intelligence.catalog.retailer_identity import RetailerIdentityAdapter
 from app.product_intelligence.models import (
     IdentityStatus,
     Product,
@@ -63,17 +72,46 @@ class DeterministicCanonicalListingResolver:
         product_catalog_key: ProductCatalogKey,
         variant_observation_key: VariantObservationKey,
         variant_catalog_key: VariantCatalogKey,
+        retailer_identity_adapters: Mapping[str, RetailerIdentityAdapter] | None = None,
     ) -> None:
         self._product_observation_key = product_observation_key
         self._product_catalog_key = product_catalog_key
         self._variant_observation_key = variant_observation_key
         self._variant_catalog_key = variant_catalog_key
+        self._retailer_identity_adapters = {
+            key.upper(): value for key, value in (retailer_identity_adapters or {}).items()
+        }
 
     def resolve(
         self,
         observation: NormalizedObservation,
         state: CatalogState,
     ) -> ListingResolutionResult:
+        identity_adapter = self._retailer_identity_adapters.get(observation.platform.value.upper())
+        if identity_adapter is not None:
+            evidence = identity_adapter.adapt(observation)
+            identity_result = self.resolve_identity(evidence, state)
+            if identity_result.state == IdentityResolutionState.EXACT_MATCH:
+                assert identity_result.canonical_product_id is not None
+                assert identity_result.canonical_variant_id is not None
+                return ListingResolutionResult(
+                    status=ListingResolutionStatus.mapped,
+                    association=CanonicalListingAssociation(
+                        observation_id=observation.observation_id,
+                        platform=observation.platform.value,
+                        platform_listing_id=observation.source_record_id,
+                        canonical_product_id=identity_result.canonical_product_id,
+                        canonical_variant_id=identity_result.canonical_variant_id,
+                    ),
+                    rationale=(identity_result.reason,),
+                )
+            status = (
+                ListingResolutionStatus.conflicting
+                if identity_result.state == IdentityResolutionState.MISMATCH
+                else ListingResolutionStatus.unresolved
+            )
+            return ListingResolutionResult(status=status, rationale=(identity_result.reason,))
+
         try:
             eligible_products = self._unique_products(
                 product for product in state.products if self._product_eligible(product)
@@ -121,6 +159,110 @@ class DeterministicCanonicalListingResolver:
                 canonical_variant_id=variant.canonical_variant_id,
             ),
             rationale=("exact governed Product and Variant keys matched",),
+        )
+
+    def compare_identity(
+        self,
+        evidence: RetailerProductIdentityEvidence,
+        product: Product,
+        variant: ProductVariant,
+    ) -> IdentityComparison:
+        """Compare one retailer listing to one proposed canonical variant."""
+        if evidence.evidence_issues:
+            return IdentityComparison(
+                state=IdentityResolutionState.UNRESOLVED,
+                reason="retailer provenance/identity is incomplete: " + ", ".join(evidence.evidence_issues),
+            )
+        if not self._identity_evidence_is_well_formed(evidence):
+            return IdentityComparison(
+                state=IdentityResolutionState.UNRESOLVED,
+                reason="authoritative retailer identity or observation provenance is missing or inconsistent",
+            )
+        if variant.canonical_product_id != product.canonical_product_id:
+            return IdentityComparison(
+                state=IdentityResolutionState.MISMATCH,
+                reason="variant belongs to a different canonical Product",
+            )
+        if not self._product_eligible(product) or not self._variant_eligible(variant):
+            return IdentityComparison(
+                state=IdentityResolutionState.UNRESOLVED,
+                reason="canonical Product or Variant is not established and active",
+            )
+        canonical_profile = canonical_identity_profile(product, variant)
+        return compare_identity_profiles(canonical_profile, evidence.identity)
+
+    def resolve_identity(
+        self,
+        evidence: RetailerProductIdentityEvidence,
+        state: CatalogState,
+    ) -> CanonicalIdentityResolution:
+        """Resolve to one unique exact canonical Product/Variant or remain unresolved."""
+        if evidence.evidence_issues:
+            return CanonicalIdentityResolution(
+                state=IdentityResolutionState.UNRESOLVED,
+                reason="retailer provenance/identity is incomplete: " + ", ".join(evidence.evidence_issues),
+            )
+        if not self._identity_evidence_is_well_formed(evidence):
+            return CanonicalIdentityResolution(
+                state=IdentityResolutionState.UNRESOLVED,
+                reason="authoritative retailer listing identity or observation provenance is missing",
+            )
+
+        try:
+            products = self._unique_products(
+                product for product in state.products if self._product_eligible(product)
+            )
+            variants = self._unique_variants(
+                variant for variant in state.variants if self._variant_eligible(variant)
+            )
+        except ValueError as exc:
+            return CanonicalIdentityResolution(
+                state=IdentityResolutionState.UNRESOLVED,
+                reason=f"canonical catalog identity state is conflicting: {exc}",
+            )
+
+        exact: list[tuple[Product, ProductVariant]] = []
+        unresolved_candidates = 0
+        for product in products:
+            for variant in variants:
+                if variant.canonical_product_id != product.canonical_product_id:
+                    continue
+                comparison = self.compare_identity(evidence, product, variant)
+                if comparison.state == IdentityResolutionState.EXACT_MATCH:
+                    exact.append((product, variant))
+                elif comparison.state == IdentityResolutionState.UNRESOLVED:
+                    unresolved_candidates += 1
+        if len(exact) != 1 or unresolved_candidates:
+            reason = (
+                "multiple canonical Product/Variant pairs satisfy the identity facts"
+                if len(exact) > 1
+                else "an eligible canonical Product/Variant candidate has insufficient identity evidence"
+                if exact and unresolved_candidates
+                else "no unique exact canonical Product/Variant match; evidence remains unresolved"
+            )
+            return CanonicalIdentityResolution(state=IdentityResolutionState.UNRESOLVED, reason=reason)
+        product, variant = exact[0]
+        return CanonicalIdentityResolution(
+            state=IdentityResolutionState.EXACT_MATCH,
+            canonical_product_id=product.canonical_product_id,
+            canonical_variant_id=variant.canonical_variant_id,
+            reason="unique exact canonical Product and Variant identity match",
+        )
+
+    @staticmethod
+    def _identity_evidence_is_well_formed(evidence: RetailerProductIdentityEvidence) -> bool:
+        observation = evidence.observation
+        retailer_id = evidence.retailer_product_id
+        artifact = observation.raw_artifact_reference
+        return bool(
+            retailer_id
+            and retailer_id.strip() == retailer_id
+            and observation.source_record_id.strip()
+            and artifact is not None
+            and artifact.platform is observation.platform
+            and observation.evidence_references
+            and observation.parser_version.strip()
+            and observation.normalization_version.strip()
         )
 
     def _same_product_key(self, product: Product, key: IdentityKey) -> bool:

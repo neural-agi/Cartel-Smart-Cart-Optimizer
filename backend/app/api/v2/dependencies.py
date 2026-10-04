@@ -33,6 +33,7 @@ def csrf_protected(
     request: Request,
     principal: ConsumerPrincipal = Depends(current_consumer),
 ) -> ConsumerPrincipal:
+    require_same_origin(request)
     try:
         require_csrf(principal.session, request.headers.get("X-CSRF-Token"))
     except AuthFailure as exc:

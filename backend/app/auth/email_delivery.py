@@ -1,6 +1,8 @@
 """Email delivery boundary for verification and password recovery."""
 
 from email.message import EmailMessage
+from datetime import datetime, timezone
+from pathlib import Path
 from smtplib import SMTP, SMTPException, SMTP_SSL
 from typing import Protocol
 
@@ -43,3 +45,26 @@ class SmtpEmailDelivery:
                     client.send_message(message)
         except (OSError, SMTPException) as exc:
             raise EmailDeliveryUnavailable("email delivery failed") from exc
+
+
+class FileEmailDelivery:
+    """Write test mail to an explicitly configured non-production directory."""
+
+    def __init__(self, settings: Settings) -> None:
+        if settings.app_env == "production" or settings.email_delivery_mode != "file":
+            raise EmailDeliveryUnavailable("file email delivery is only available in local environments")
+        self.directory = settings.local_email_dir
+
+    def send(self, recipient: str, subject: str, body: str) -> None:
+        self.directory.mkdir(parents=True, exist_ok=True)
+        message = EmailMessage()
+        message["From"] = "cartel-local@localhost"
+        message["To"] = recipient
+        message["Subject"] = subject
+        message["Date"] = datetime.now(timezone.utc).isoformat()
+        message.set_content(body)
+        filename = self.directory / f"{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S.%fZ')}.eml"
+        try:
+            filename.write_bytes(message.as_bytes())
+        except OSError as exc:
+            raise EmailDeliveryUnavailable("local email capture failed") from exc

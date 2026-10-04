@@ -172,7 +172,7 @@ def test_observation_query_endpoint_returns_persisted_observation_with_associati
     assert associations.all()
 
 
-def test_product_search_returns_governed_catalog_listing_after_ingestion(tmp_path) -> None:
+def test_product_search_excludes_non_retailer_fixture_source_after_ingestion(tmp_path) -> None:
     runtime, _catalog, _associations = _runtime(tmp_path, resolver=_resolver())
     client = TestClient(create_application(runtime=runtime))
 
@@ -184,14 +184,7 @@ def test_product_search_returns_governed_catalog_listing_after_ingestion(tmp_pat
     assert response.status_code == 200
     body = response.json()
     assert body["query"] == "amul"
-    assert len(body["items"]) == 1
-    item = body["items"][0]
-    assert item["canonical_product_id"] == "product-amul-taaza"
-    assert item["canonical_variant_id"] == "variant-amul-taaza-500ml"
-    assert item["platform"] == "BLINKIT"
-    assert item["platform_listing_id"]
-    assert item["observation_id"]
-    assert "price" in item
+    assert body["items"] == []
 
 
 def test_product_search_rejects_blank_query(tmp_path) -> None:
@@ -382,7 +375,7 @@ def test_cart_candidate_discovery_returns_persisted_listing_candidate(tmp_path) 
 
     assert response.status_code == 200
     item = response.json()["items"][0]
-    assert item["status"] == "candidates_available"
+    assert item["status"] == "candidates_not_ready"
     candidate = next(
         candidate
         for candidate in item["candidates"]
@@ -390,7 +383,8 @@ def test_cart_candidate_discovery_returns_persisted_listing_candidate(tmp_path) 
     )
     assert candidate["observation_id"] == priced.observation_id
     assert candidate["platform"] == association["platform"]
-    assert candidate["readiness"] == "ready_for_allocation"
+    assert candidate["readiness"] == "not_ready_for_allocation"
+    assert candidate["readiness_reason"] == "observation does not have admissible non-fixture retailer provenance"
 
 
 def test_cart_candidate_discovery_preserves_deterministic_item_and_candidate_order(tmp_path) -> None:

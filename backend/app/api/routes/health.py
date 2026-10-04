@@ -1,11 +1,18 @@
 from fastapi import APIRouter, Request, Response
+from fastapi.responses import PlainTextResponse
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.schemas.health import HealthResponse, ReadinessResponse
+from app.core.metrics import metrics
 
 
 router = APIRouter()
+
+
+@router.get("/metrics", response_class=PlainTextResponse, include_in_schema=False)
+async def metrics_route() -> PlainTextResponse:
+    return PlainTextResponse(metrics.prometheus(), media_type="text/plain; version=0.0.4")
 
 
 @router.get("/health", response_model=HealthResponse, summary="Health check")

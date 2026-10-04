@@ -20,6 +20,7 @@ from app.product_intelligence.catalog.identity import (
     variant_catalog_key,
     variant_observation_key,
 )
+from app.product_intelligence.catalog.retailer_identity import BlinkitIdentityAdapter
 from app.product_intelligence.catalog.storage import CatalogFilesystemStore
 from app.product_intelligence.evidence import EvidenceFilesystemStore, FilesystemEvidenceRegistry
 from app.product_intelligence.execution import ProductIntelligenceExecutionTrigger
@@ -28,12 +29,22 @@ from app.product_intelligence.matching import DeterministicProductMatcher, Deter
 from app.product_intelligence.orchestrator import DeterministicProductIntelligenceOrchestrator
 from app.product_intelligence.review import DeterministicReviewQueueManager
 from app.scrapers.blinkit.acquisition import BlinkitAcquisitionAdapter
+from app.retailer_data.providers import (
+    BlinkitRetailerDataProvider,
+    ProviderAcquisitionAdapter,
+    QuickCommerceRetailerDataProvider,
+    UnavailableRetailerDataProvider,
+)
 from app.workers.local_ingestion import LocalIngestionWorker
 from app.workers.product_intelligence_runtime import ProductIntelligenceRuntime
 from app.workers.job_execution_coordinator import JobExecutionCoordinator
 
 
-def build_product_intelligence_runtime(settings: Settings) -> JobExecutionCoordinator:
+def build_product_intelligence_runtime(
+    settings: Settings,
+    *,
+    acquisition_adapter=None,
+) -> JobExecutionCoordinator:
     catalog_root = settings.data_dir / "product_intelligence" / "catalog"
     evidence_root = settings.data_dir / "product_intelligence" / "evidence"
     lifecycle_root = settings.data_dir / "data_ingestion" / "lifecycle"
@@ -52,6 +63,7 @@ def build_product_intelligence_runtime(settings: Settings) -> JobExecutionCoordi
         product_catalog_key=product_catalog_key,
         variant_observation_key=variant_observation_key,
         variant_catalog_key=variant_catalog_key,
+        retailer_identity_adapters={"BLINKIT": BlinkitIdentityAdapter()},
     )
     trigger = ProductIntelligenceExecutionTrigger(
         evidence_publisher=ProductIntelligenceEvidencePublisher(evidence_registry),
@@ -67,9 +79,17 @@ def build_product_intelligence_runtime(settings: Settings) -> JobExecutionCoordi
             assertion_manager=DeterministicAssertionManager(),
         ),
     )
+    if acquisition_adapter is None:
+        if settings.retailer_data_provider_mode == "blinkit":
+            provider = BlinkitRetailerDataProvider(BlinkitAcquisitionAdapter(settings=settings))
+        elif settings.retailer_data_provider_mode == "quickcommerce":
+            provider = QuickCommerceRetailerDataProvider(settings)
+        else:
+            provider = UnavailableRetailerDataProvider()
+        acquisition_adapter = ProviderAcquisitionAdapter(provider)
     runtime = ProductIntelligenceRuntime(
         ingestion_worker=LocalIngestionWorker(
-            acquisition=BlinkitAcquisitionAdapter(settings=settings),
+            acquisition=acquisition_adapter,
             artifact_store=LocalFilesystemArtifactStore(
                 root=settings.raw_data_dir,
                 store_namespace="product-intelligence",

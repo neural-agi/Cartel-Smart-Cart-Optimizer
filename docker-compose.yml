@@ -16,6 +16,17 @@ services:
       timeout: 5s
       retries: 12
 
+  redis:
+    image: redis:7-alpine
+    networks:
+      - cartel
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
   api:
     build:
       context: .
@@ -37,6 +48,10 @@ services:
       POSTGRES_DB: cartel
       POSTGRES_USER: cartel
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD from the deployment secret manager}
+      REDIS_URL: redis://redis:6379/0
+      REDIS_CONNECT_TIMEOUT_SECONDS: ${REDIS_CONNECT_TIMEOUT_SECONDS:-1}
+      REDIS_OPERATION_TIMEOUT_SECONDS: ${REDIS_OPERATION_TIMEOUT_SECONDS:-1}
+      REDIS_MAX_CONNECTIONS: ${REDIS_MAX_CONNECTIONS:-20}
       AUTH_COOKIE_SECURE: "true"
       AUTH_SESSION_DAYS: ${AUTH_SESSION_DAYS:-14}
       AUTH_IDLE_DAYS: ${AUTH_IDLE_DAYS:-7}
@@ -49,6 +64,19 @@ services:
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       SMTP_FROM: ${SMTP_FROM:?set SMTP_FROM to the verified sender address}
       SMTP_STARTTLS: ${SMTP_STARTTLS:-true}
+      EMAIL_DELIVERY_MODE: ${EMAIL_DELIVERY_MODE:-smtp}
+      LOCAL_EMAIL_DIR: ${LOCAL_EMAIL_DIR:-/tmp/cartel-email}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-}
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+      GITHUB_REDIRECT_URI: ${GITHUB_REDIRECT_URI:-}
+      APPLE_CLIENT_ID: ${APPLE_CLIENT_ID:-}
+      APPLE_TEAM_ID: ${APPLE_TEAM_ID:-}
+      APPLE_KEY_ID: ${APPLE_KEY_ID:-}
+      APPLE_PRIVATE_KEY: ${APPLE_PRIVATE_KEY:-}
+      APPLE_REDIRECT_URI: ${APPLE_REDIRECT_URI:-}
       RATE_LIMIT_REQUESTS: ${RATE_LIMIT_REQUESTS:-120}
       RATE_LIMIT_WINDOW_SECONDS: ${RATE_LIMIT_WINDOW_SECONDS:-60}
       CHECKOUT_OBSERVATION_PROVIDER_MODE: unavailable
@@ -67,6 +95,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     healthcheck:
       test:
         - CMD
@@ -77,6 +107,47 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
+
+  worker:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: python -m app.worker_entrypoint
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      APP_DEBUG: ${APP_DEBUG:-false}
+      DATABASE_REQUIRED: "true"
+      POSTGRES_HOST: postgres
+      POSTGRES_DB: ${POSTGRES_DB:-cartel}
+      POSTGRES_USER: ${POSTGRES_USER:-cartel}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cartel}
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-cartel}:${POSTGRES_PASSWORD:-cartel}@postgres:5432/${POSTGRES_DB:-cartel}
+      DATA_DIR: /app/data
+      RETAILER_DATA_PROVIDER_MODE: ${RETAILER_DATA_PROVIDER_MODE:-unavailable}
+      QUICKCOMMERCE_API_BASE_URL: ${QUICKCOMMERCE_API_BASE_URL:-}
+      QUICKCOMMERCE_API_KEY: ${QUICKCOMMERCE_API_KEY:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      SMTP_STARTTLS: ${SMTP_STARTTLS:-true}
+      EMAIL_DELIVERY_MODE: ${EMAIL_DELIVERY_MODE:-smtp}
+      LOCAL_EMAIL_DIR: ${LOCAL_EMAIL_DIR:-/tmp/cartel-email}
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-1}
+      JOB_POLL_INTERVAL_SECONDS: ${JOB_POLL_INTERVAL_SECONDS:-1}
+      JOB_MAX_ATTEMPTS: ${JOB_MAX_ATTEMPTS:-3}
+      JOB_RETRY_BASE_SECONDS: ${JOB_RETRY_BASE_SECONDS:-5}
+      JOB_RETRY_MAX_SECONDS: ${JOB_RETRY_MAX_SECONDS:-300}
+      JOB_LEASE_SECONDS: ${JOB_LEASE_SECONDS:-300}
+    volumes:
+      - cartel-data:/app/data
+    networks:
+      - cartel
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   frontend:
     build:

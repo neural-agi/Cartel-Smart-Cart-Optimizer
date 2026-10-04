@@ -33,6 +33,21 @@ async def test_http_403_is_not_retried() -> None:
 
 
 @pytest.mark.asyncio
+async def test_http_429_is_not_retried() -> None:
+    client = AsyncHttpClient(max_retries=3, retry_backoff_seconds=0)
+    fake = _FakeAsyncClient(
+        httpx.Response(429, request=httpx.Request("GET", "https://blinkit.com/s/"))
+    )
+    client._client = fake  # type: ignore[assignment]
+
+    with pytest.raises(ScraperRequestError) as error:
+        await client.request(method="GET", url="https://blinkit.com/s/")
+
+    assert fake.calls == 1
+    assert error.value.status_code == 429
+
+
+@pytest.mark.asyncio
 async def test_transient_http_failure_uses_retry_budget() -> None:
     client = AsyncHttpClient(max_retries=2, retry_backoff_seconds=0)
     fake = _FakeAsyncClient(

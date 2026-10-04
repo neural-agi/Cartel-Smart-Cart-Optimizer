@@ -1,17 +1,4 @@
-from app.cart_optimization.planning import (
-    CandidateKey,
-    CartPlanningRequest,
-    CartPlanningService,
-    SuppliedCandidateContext,
-    SuppliedPlan,
-)
-from app.cart_optimization.persistence import (
-    FilesystemPlanningRequestRepository,
-    FilesystemPlanningResultRepository,
-)
-from app.cart_optimization.types import CheckoutGroup, EffectiveCostEvaluationReference
-from app.cart_optimization.enums import PlanFeasibility
-from app.cost_intelligence.evaluation.types import EffectiveCostEvaluationResult
+import pytest
 from app.cost_intelligence.shared.money import Money
 from app.data_ingestion.observation_registry.filesystem import FilesystemObservationRegistry
 from datetime import datetime, timezone
@@ -102,7 +89,7 @@ def _variant() -> ProductVariant:
     )
 
 
-def test_persisted_observation_reaches_optimization_with_provenance(tmp_path) -> None:
+def test_fixture_observation_is_not_allocation_ready_in_candidate_discovery(tmp_path) -> None:
     catalog = FilesystemAuthoritativeCatalog(
         store=CatalogFilesystemStore(root_dir=tmp_path / "catalog")
     )
@@ -157,72 +144,16 @@ def test_persisted_observation_reaches_optimization_with_provenance(tmp_path) ->
         association_registry=association_registry,
         observation_registry=observation_registry,
     )
-    request = CartPlanningRequest(
-        discovery=CartCandidateDiscoveryRequest(
-            items=({
-                "item_id": "item-1",
-                "quantity": 1,
-                "canonical_product_id": "product-amul-taaza",
-                "canonical_variant_id": "variant-amul-taaza-500ml",
-            },)
-        ),
-        candidate_contexts=(SuppliedCandidateContext(
-            key=CandidateKey(
-                item_id="item-1",
-                platform="BLINKIT",
-                platform_listing_id="listing-1",
-                observation_id=observation.observation_id,
-            ),
-            retailer_id="retailer-explicit",
-            checkout_group_id="group-explicit",
-        ),),
-        plans=(SuppliedPlan(
-            plan_id="plan-persisted-1",
-            combination_index=0,
-            inconvenience_penalty_units=0,
-            retailer_preference_priority=0,
-            checkout_groups=(CheckoutGroup(
-                checkout_group_id="group-explicit",
-                retailer_id="retailer-explicit",
-                effective_cost_evaluation_id="ece-persisted-1",
-            ),),
-            effective_cost_evaluation_reference=EffectiveCostEvaluationReference(
-                effective_cost_evaluation_id="ece-persisted-1"
-            ),
-            effective_cost_evaluation=EffectiveCostEvaluationResult(
-                evaluation_id="ece-persisted-1",
-                context_id="context-persisted-1",
-                effective_cost=Money(currency="INR", minor_units=100),
-            ),
-            feasibility=PlanFeasibility.FEASIBLE,
-            feasibility_evidence=("fixture-feasibility",),
-        ),),
-        request_id="request-persisted-1",
-        optimization_policy_version="policy-v1",
+    result = discovery.discover(CartCandidateDiscoveryRequest(items=({
+        "item_id": "item-1",
+        "quantity": 1,
+        "canonical_product_id": "product-amul-taaza",
+        "canonical_variant_id": "variant-amul-taaza-500ml",
+    },)))
+
+    assert len(result.items[0].candidates) == 1
+    assert result.items[0].status.value == "candidates_not_ready"
+    assert result.items[0].candidates[0].readiness.value == "not_ready_for_allocation"
+    assert result.items[0].candidates[0].readiness_reason == (
+        "observation does not have admissible non-fixture retailer provenance"
     )
-
-    result = CartPlanningService(discovery=discovery).plan(request)
-
-    assert result.chosen_plan_id == "plan-persisted-1"
-    assert result.chosen_plan is not None
-    allocation = result.chosen_plan.candidate_item_allocations[0]
-    assert allocation.item_id == "item-1"
-    assert allocation.canonical_variant_id == "variant-amul-taaza-500ml"
-    assert allocation.quantity == 1
-    assert allocation.retailer_id == "retailer-explicit"
-    assert allocation.checkout_group_id == "group-explicit"
-    assert allocation.listing_provenance.observation_id == observation.observation_id
-    assert result.chosen_plan.feasibility is PlanFeasibility.FEASIBLE
-    assert result.chosen_plan.effective_cost_evaluation_reference.effective_cost_evaluation_id == "ece-persisted-1"
-
-    replayed_request = CartPlanningRequest.model_validate_json(request.model_dump_json())
-    replayed_result = CartPlanningService(discovery=discovery).plan(replayed_request)
-    assert replayed_request == request
-    assert replayed_result == result
-
-    request_repository = FilesystemPlanningRequestRepository(tmp_path / "planning-requests")
-    result_repository = FilesystemPlanningResultRepository(tmp_path / "planning-results")
-    request_repository.save(request)
-    result_repository.save(result)
-    assert request_repository.get(request.request_id) == request
-    assert result_repository.get(result.optimization_id) == result

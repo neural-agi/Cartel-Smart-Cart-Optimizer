@@ -2,12 +2,18 @@ from datetime import datetime, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from starlette.responses import JSONResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.api.v2.dependencies import ConsumerPrincipal, current_consumer, csrf_protected
 from app.db.models import AuditEvent, ShoppingList, ShoppingListItem
 from app.db.session import get_db
+from app.product_intelligence.models import (
+    IdentityStatus,
+    ProductLifecycleStatus,
+    VariantLifecycleStatus,
+)
 from app.schemas.shopping_lists import (
     ShoppingListCreate,
     ShoppingListItemCreate,
@@ -16,6 +22,11 @@ from app.schemas.shopping_lists import (
     ShoppingListResponse,
     ShoppingListUpdate,
 )
+from app.services.product_search import (
+    has_supported_retailer_evidence,
+    latest_governed_observation_ids,
+)
+from app.services.idempotency import claim, complete, idempotency_key
 
 
 router = APIRouter(prefix="/lists", tags=["shopping-lists"])
@@ -91,13 +102,25 @@ def create_list(
     principal: ConsumerPrincipal = Depends(csrf_protected),
     db: Session = Depends(get_db),
 ):
+    replay = claim(
+        db,
+        user_id=principal.user.id,
+        operation="shopping_list.create",
+        key=idempotency_key(request),
+        payload=payload.model_dump(mode="json"),
+        ttl_seconds=request.app.state.settings.idempotency_ttl_seconds,
+    )
+    if replay is not None and replay.status_code:
+        return JSONResponse(status_code=replay.status_code, content=replay.response_body)
     shopping_list = ShoppingList(user_id=principal.user.id, name=payload.name)
     db.add(shopping_list)
     db.flush()
     _audit(db, principal.user.id, "shopping_list_created", shopping_list.id, request.state.request_id)
-    db.commit()
     db.refresh(shopping_list)
-    return _response(shopping_list)
+    result = _response(shopping_list)
+    complete(replay, status_code=status.HTTP_201_CREATED, response_body=result.model_dump(mode="json"))
+    db.commit()
+    return result
 
 
 @router.get("/{list_id}", response_model=ShoppingListResponse)
@@ -135,22 +158,51 @@ def add_item(
 ):
     shopping_list = _owned_list(db, principal.user.id, list_id, lock=True)
     _ensure_active(shopping_list)
+    replay = claim(
+        db,
+        user_id=principal.user.id,
+        operation="shopping_list.add_item",
+        key=idempotency_key(request),
+        payload={"list_id": str(list_id), **payload.model_dump(mode="json")},
+        ttl_seconds=request.app.state.settings.idempotency_ttl_seconds,
+    )
+    if replay is not None and replay.status_code:
+        return JSONResponse(status_code=replay.status_code, content=replay.response_body)
     display_name = None
     if payload.canonical_product_id is not None:
         runtime = request.app.state.product_intelligence_runtime
         product = runtime.catalog.get_product(payload.canonical_product_id)
         variant = runtime.catalog.get_variant(payload.canonical_variant_id)
-        association = runtime.association_registry.get(payload.source_platform, payload.source_listing_id)
+        association = next(
+            (
+                candidate
+                for candidate in runtime.association_registry.all()
+                if candidate.platform == payload.source_platform
+                and candidate.platform_listing_id == payload.source_listing_id
+                and candidate.observation_id == payload.source_observation_id
+            ),
+            None,
+        )
         observation = runtime.observation_registry.get(payload.source_observation_id)
+        current_observations = latest_governed_observation_ids(
+            runtime.association_registry.all(), runtime.observation_registry
+        )
         if (
             product is None
             or variant is None
             or variant.canonical_product_id != product.canonical_product_id
+            or product.product_identity_status is not IdentityStatus.established
+            or product.lifecycle_status is not ProductLifecycleStatus.active
+            or variant.variant_identity_status is not IdentityStatus.established
+            or variant.lifecycle_status is not VariantLifecycleStatus.active
+            or variant.pack_configuration.pack_configuration_status != "complete"
             or association is None
             or association.canonical_product_id != product.canonical_product_id
             or association.canonical_variant_id != variant.canonical_variant_id
             or association.observation_id != payload.source_observation_id
             or observation is None
+            or not has_supported_retailer_evidence(association.platform, observation)
+            or observation.observation_id not in current_observations
         ):
             raise HTTPException(status_code=409, detail={"code": "selected_product_evidence_stale"})
         display_name = product.canonical_display_name
@@ -172,9 +224,11 @@ def add_item(
     shopping_list.items.append(item)
     shopping_list.revision += 1
     _audit(db, principal.user.id, "shopping_list_item_added", shopping_list.id, request.state.request_id)
-    db.commit()
     db.refresh(shopping_list)
-    return _response(shopping_list)
+    result = _response(shopping_list)
+    complete(replay, status_code=status.HTTP_201_CREATED, response_body=result.model_dump(mode="json"))
+    db.commit()
+    return result
 
 
 @router.patch("/{list_id}/items/{item_id}", response_model=ShoppingListResponse)

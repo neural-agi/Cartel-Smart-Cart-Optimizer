@@ -16,4 +16,16 @@ export interface Product {
   price?: ProductMoney;
   availability?: string;
   imageUrl?: string;
+  evidenceState?: "registered_governed_observation";
+  observedAt?: string;
+  parserVersion?: string;
+  variantAttributes?: readonly { name: string; value: string; role: string; assertionStatus: string }[];
+  retailerProductId?: string;
+  retailerProductUrl?: string;
+  normalizationVersion?: string;
+  sourceReference?: string;
+  rawArtifactId?: string;
+  rawContentDigest?: string;
+  evidenceReferences?: readonly { sourceType: string; sourceId: string }[];
+  identityAttributes?: readonly { name: string; value: string; role: string; assertionStatus: string }[];
 }

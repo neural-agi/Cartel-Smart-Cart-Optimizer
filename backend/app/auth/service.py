@@ -16,9 +16,9 @@ from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.auth.email_delivery import EmailDelivery
 from app.core.config import Settings
-from app.db.models import AuditEvent, AuthSession, Identity, PasswordCredential, User, VerificationChallenge
+from app.db.models import AuditEvent, AuthSession, EmailOutboxEvent, Identity, OAuthChallenge, PasswordCredential, User, VerificationChallenge
+from app.auth.providers import VerifiedIdentity
 
 
 PASSWORD_HASHER = PasswordHasher(time_cost=3, memory_cost=65536, parallelism=2, hash_len=32, salt_len=16, type=Type.ID)
@@ -40,6 +40,14 @@ class IssuedSession:
     raw_token: str
     raw_csrf: str
     expires_at: datetime
+
+
+@dataclass(frozen=True)
+class OAuthState:
+    state: str
+    nonce: str
+    code_verifier: str
+    challenge: OAuthChallenge
 
 
 def normalize_email(email: str) -> str:
@@ -96,7 +104,15 @@ def _challenge(
     return raw
 
 
-def signup(db: Session, settings: Settings, mailer: EmailDelivery, email: str, password: str, request_id: str) -> None:
+def _queue_email(db: Session, *, challenge: VerificationChallenge, event_type: str,
+                 recipient: str, subject: str, body: str, request_id: str | None) -> None:
+    db.add(EmailOutboxEvent(
+        event_key=f"{event_type}:{challenge.id}", event_type=event_type,
+        recipient=recipient, subject=subject, body=body, request_id=request_id,
+    ))
+
+
+def signup(db: Session, settings: Settings, email: str, password: str, request_id: str) -> None:
     normalized = normalize_email(email)
     validate_password(password)
     existing = db.scalar(select(Identity.id).where(Identity.provider == "email_password", Identity.subject == normalized))
@@ -108,6 +124,10 @@ def signup(db: Session, settings: Settings, mailer: EmailDelivery, email: str, p
     db.add_all([user, identity, credential])
     db.flush()
     raw = _challenge(db, settings, user, identity, "email_verification")
+    challenge = db.scalar(select(VerificationChallenge).where(VerificationChallenge.token_hash == _digest(raw)))
+    link = f"{settings.public_origin.rstrip('/')}/verify-email#token={raw}"
+    _queue_email(db, challenge=challenge, event_type="email_verification", recipient=normalized,
+                 subject="Verify your Cartel email", body=f"Verify your email using this link: {link}\nThis link expires soon.", request_id=request_id)
     _audit(db, user.id, "signup_requested", request_id)
     try:
         db.flush()
@@ -123,19 +143,19 @@ def signup(db: Session, settings: Settings, mailer: EmailDelivery, email: str, p
         if duplicate is not None:
             raise AuthFailure("account_exists", 409, "An account already exists for this email.") from exc
         raise
-    link = f"{settings.public_origin.rstrip('/')}/verify-email#token={raw}"
-    mailer.send(normalized, "Verify your Cartel email", f"Verify your email using this link: {link}\nThis link expires soon.")
 
 
-def resend_verification(db: Session, settings: Settings, mailer: EmailDelivery, email: str) -> None:
+def resend_verification(db: Session, settings: Settings, email: str, request_id: str | None = None) -> None:
     normalized = normalize_email(email)
     identity = db.scalar(select(Identity).where(Identity.provider == "email_password", Identity.subject == normalized))
     if identity is None or identity.email_verified_at is not None or identity.user.status != "active":
         return
     raw = _challenge(db, settings, identity.user, identity, "email_verification")
-    db.commit()
+    challenge = db.scalar(select(VerificationChallenge).where(VerificationChallenge.token_hash == _digest(raw)))
     link = f"{settings.public_origin.rstrip('/')}/verify-email#token={raw}"
-    mailer.send(normalized, "Verify your Cartel email", f"Verify your email using this link: {link}\nThis link expires soon.")
+    _queue_email(db, challenge=challenge, event_type="email_verification", recipient=normalized,
+                 subject="Verify your Cartel email", body=f"Verify your email using this link: {link}\nThis link expires soon.", request_id=request_id)
+    db.commit()
 
 
 def _new_session(db: Session, settings: Settings, user: User, user_agent: str | None) -> IssuedSession:
@@ -202,6 +222,80 @@ def login(db: Session, settings: Settings, email: str, password: str, user_agent
     return issued
 
 
+def begin_oauth(db: Session, provider: str, redirect_uri: str, next_path: str, user_id: UUID | None = None) -> OAuthState:
+    import base64
+    import hashlib
+
+    now = datetime.now(timezone.utc)
+    state = secrets.token_urlsafe(32)
+    nonce = secrets.token_urlsafe(32)
+    verifier = secrets.token_urlsafe(48)
+    challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).rstrip(b"=").decode()
+    record = OAuthChallenge(
+        provider=provider, state_hash=_digest(state), nonce=nonce, code_verifier=verifier,
+        redirect_uri=redirect_uri, next_path=next_path, user_id=user_id,
+        expires_at=now + timedelta(minutes=10),
+    )
+    db.add(record)
+    db.commit()
+    return OAuthState(state, nonce, verifier, record)
+
+
+def consume_oauth_state(db: Session, provider: str, state: str) -> OAuthChallenge:
+    record = db.scalar(select(OAuthChallenge).where(OAuthChallenge.state_hash == _digest(state)).with_for_update())
+    now = datetime.now(timezone.utc)
+    if record is None or record.provider != provider or record.consumed_at is not None or record.expires_at <= now:
+        raise AuthFailure("invalid_oauth_state", 400, "This sign-in request is invalid or expired.")
+    record.consumed_at = now
+    db.commit()
+    return record
+
+
+def authenticate_external(
+    db: Session,
+    settings: Settings,
+    verified: VerifiedIdentity,
+    user_agent: str | None,
+    request_id: str,
+    link_user_id: UUID | None = None,
+) -> IssuedSession:
+    identity = db.scalar(
+        select(Identity).where(Identity.provider == verified.provider, Identity.subject == verified.subject).with_for_update()
+    )
+    if identity is not None:
+        if verified.email and identity.email and normalize_email(verified.email) != normalize_email(identity.email):
+            raise AuthFailure("identity_email_conflict", 409, "This sign-in identity does not match its linked account.")
+        if identity.user.status != "active":
+            raise AuthFailure("account_unavailable", 403, "This Cartel account is unavailable.")
+        issued = _new_session(db, settings, identity.user, user_agent)
+        _audit(db, identity.user_id, "oauth_login_succeeded", request_id)
+        db.commit()
+        return issued
+    if not verified.email or not verified.email_verified:
+        raise AuthFailure("verified_email_required", 400, "This provider did not confirm an email address.")
+    email = normalize_email(verified.email)
+    existing = db.scalar(select(Identity).where(Identity.provider == "email_password", Identity.subject == email).with_for_update())
+    if existing is not None:
+        if link_user_id is None or existing.user_id != link_user_id:
+            raise AuthFailure("account_link_required", 409, "Sign in to your existing Cartel account before connecting this provider.")
+        user = existing.user
+    else:
+        user = db.get(User, link_user_id) if link_user_id else User()
+        if user is None or user.status != "active":
+            raise AuthFailure("account_unavailable", 403, "This Cartel account is unavailable.")
+    identity = Identity(user=user, provider=verified.provider, subject=verified.subject, email=email, email_verified_at=datetime.now(timezone.utc))
+    db.add_all([user, identity])
+    db.flush()
+    issued = _new_session(db, settings, user, user_agent)
+    _audit(db, user.id, "oauth_account_created", request_id)
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise AuthFailure("identity_conflict", 409, "This sign-in identity is already connected to another account.") from exc
+    return issued
+
+
 def resolve_session(db: Session, raw_token: str, idle_days: int = 7) -> tuple[AuthSession, User] | None:
     if not raw_token or len(raw_token) > 256:
         return None
@@ -255,15 +349,17 @@ def logout_all(db: Session, user: User, request_id: str) -> None:
     db.commit()
 
 
-def request_password_recovery(db: Session, settings: Settings, mailer: EmailDelivery, email: str) -> None:
+def request_password_recovery(db: Session, settings: Settings, email: str, request_id: str | None = None) -> None:
     normalized = normalize_email(email)
     identity = db.scalar(select(Identity).where(Identity.provider == "email_password", Identity.subject == normalized))
     if identity is None or identity.email_verified_at is None or identity.user.status != "active":
         return
     raw = _challenge(db, settings, identity.user, identity, "password_recovery")
-    db.commit()
     link = f"{settings.public_origin.rstrip('/')}/reset-password#token={raw}"
-    mailer.send(normalized, "Reset your Cartel password", f"Reset your password using this link: {link}\nThis link expires soon.")
+    challenge = db.scalar(select(VerificationChallenge).where(VerificationChallenge.token_hash == _digest(raw)))
+    _queue_email(db, challenge=challenge, event_type="password_recovery", recipient=normalized,
+                 subject="Reset your Cartel password", body=f"Reset your password using this link: {link}\nThis link expires soon.", request_id=request_id)
+    db.commit()
 
 
 def reset_password(db: Session, token: str, new_password: str, request_id: str) -> None:

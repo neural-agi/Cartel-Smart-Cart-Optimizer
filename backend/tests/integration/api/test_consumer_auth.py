@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import re
+import asyncio
 from pathlib import Path
 
 import pytest
@@ -52,7 +53,7 @@ def pg_database():
     try:
         with engine.begin() as connection:
             connection.execute(text("DROP TABLE IF EXISTS alembic_version CASCADE"))
-            for table in ("audit_events", "verification_challenges", "sessions", "password_credentials", "identities", "users"):
+            for table in ("optimization_allocations", "optimization_plans", "optimization_requests", "audit_events", "verification_challenges", "sessions", "password_credentials", "identities", "users"):
                 connection.execute(text(f'DROP TABLE IF EXISTS "{table}" CASCADE'))
         command.upgrade(config, "head")
         yield engine
@@ -114,6 +115,9 @@ def test_00_migration_can_downgrade_and_upgrade(pg_database):
             "audit_events",
             "shopping_lists",
             "shopping_list_items",
+            "optimization_requests",
+            "optimization_plans",
+            "optimization_allocations",
         } <= tables
     finally:
         if previous is None:
@@ -224,7 +228,12 @@ def test_login_requires_verified_email_and_origin_is_checked(auth_client):
 
 def test_consumer_session_is_limited_to_consumer_api_and_v1_mutations_require_csrf(auth_client):
     client, mail, _ = auth_client
+    assert client.get("/api/v2/products/search", params={"query": "milk"}).status_code == 401
     _signup(client, mail, "consumer@example.com")
+    search = client.get("/api/v2/products/search", params={"query": "milk"})
+    assert search.status_code == 200
+    assert search.json() == {"query": "milk", "items": []}
+    assert client.get("/api/v2/products/search", params={"query": " "}).status_code == 422
     csrf = client.get("/api/v2/auth/csrf").json()["csrf_token"]
     assert client.get("/api/v1/products/search", params={"query": "milk"}).status_code == 200
     assert client.post("/api/v1/scrape", json={}).status_code == 403
@@ -295,6 +304,12 @@ def test_user_owned_shopping_list_create_manage_and_cross_user_isolation(auth_cl
 
     no_csrf = client.post("/api/v2/lists", json={"name": "Weekly"})
     assert no_csrf.status_code == 403
+    cross_origin = client.post(
+        "/api/v2/lists",
+        json={"name": "Weekly"},
+        headers={"Origin": "https://attacker.invalid", "X-CSRF-Token": csrf_a},
+    )
+    assert cross_origin.status_code == 403
     forged_owner = client.post(
         "/api/v2/lists",
         json={"name": "Weekly", "user_id": "some-other-user"},
@@ -413,3 +428,109 @@ def test_shopping_list_archival_and_selected_product_require_current_governed_ev
         headers={**_origin(), "X-CSRF-Token": csrf},
     )
     assert cannot_add.status_code == 409
+
+
+def test_consumer_search_excludes_non_live_fixture_evidence(auth_client, tmp_path):
+    from tests.integration.product_intelligence.test_vertical_pipeline import _job, _resolver, _runtime
+
+    client, mail, _ = auth_client
+    _signup(client, mail, "exact-selection@example.com")
+    runtime, _catalog, _associations = _runtime(tmp_path / "governed-catalog", resolver=_resolver())
+    client.app.state.product_intelligence_runtime = runtime
+    from app.services.product_search import ProductSearchService
+    client.app.state.product_search = ProductSearchService(
+        catalog=runtime.catalog,
+        association_registry=runtime.association_registry,
+        observation_registry=runtime.observation_registry,
+    )
+    asyncio.run(runtime.execute(_job()))
+
+    search = client.get("/api/v2/products/search", params={"query": "amul"})
+    assert search.status_code == 200
+    assert search.json()["items"] == []
+
+    csrf = client.get("/api/v2/auth/csrf").json()["csrf_token"]
+    created = client.post("/api/v2/lists", json={"name": "Weekly"}, headers={**_origin(), "X-CSRF-Token": csrf})
+    list_id = created.json()["id"]
+    invalid_source = client.post(
+        f"/api/v2/lists/{list_id}/items",
+        json={
+            "query": "Amul milk",
+            "canonical_product_id": "product-amul-taaza",
+            "canonical_variant_id": "variant-amul-taaza-500ml",
+            "source_platform": "ZEPTO",
+            "source_listing_id": "1",
+            "source_observation_id": "fixture-observation",
+        },
+        headers={**_origin(), "X-CSRF-Token": csrf},
+    )
+    assert invalid_source.status_code == 409
+    assert invalid_source.json()["detail"]["code"] == "selected_product_evidence_stale"
+    selected = client.post(
+        f"/api/v2/lists/{list_id}/items",
+        json={
+            "query": "Amul milk",
+            "quantity": 2,
+            "canonical_product_id": "product-amul-taaza",
+            "canonical_variant_id": "variant-amul-taaza-500ml",
+            "source_platform": "BLINKIT",
+            "source_listing_id": "1",
+            "source_observation_id": "fixture-observation",
+        },
+        headers={**_origin(), "X-CSRF-Token": csrf},
+    )
+    assert selected.status_code == 409
+    assert selected.json()["detail"]["code"] == "selected_product_evidence_stale"
+    assert client.get(f"/api/v2/lists/{list_id}").json()["items"] == []
+
+
+def test_consumer_optimization_persists_revision_and_replay_is_owner_scoped(auth_client):
+    from sqlalchemy import text
+
+    client, mail, database = auth_client
+    _signup(client, mail, "optimization-owner@example.com")
+    csrf = client.get("/api/v2/auth/csrf").json()["csrf_token"]
+    created = client.post("/api/v2/lists", json={"name": "Weekly"}, headers={**_origin(), "X-CSRF-Token": csrf})
+    list_id = created.json()["id"]
+    added = client.post(
+        f"/api/v2/lists/{list_id}/items",
+        json={"query": "milk", "quantity": 2},
+        headers={**_origin(), "X-CSRF-Token": csrf},
+    )
+    assert added.status_code == 201
+    revision = added.json()["revision"]
+    request = {"list_id": list_id, "expected_revision": revision}
+    assert client.post("/api/v2/optimizations", json=request).status_code == 403
+    first = client.post("/api/v2/optimizations", json=request, headers={**_origin(), "X-CSRF-Token": csrf})
+    assert first.status_code == 201, first.text
+    body = first.json()
+    assert body["status"] == "unresolved"
+    assert body["completeness"] == "unavailable"
+    assert body["requested_items"][0]["quantity"] == 2
+    assert body["offers"] == []
+    assert body["optimizer_result"] is None
+    replay = client.post("/api/v2/optimizations", json=request, headers={**_origin(), "X-CSRF-Token": csrf})
+    assert replay.status_code == 200
+    assert replay.json() == body
+    stored = client.get(f"/api/v2/optimizations/{body['request_id']}")
+    assert stored.status_code == 200
+    assert stored.json() == body
+
+    item_id = added.json()["items"][0]["id"]
+    changed = client.patch(
+        f"/api/v2/lists/{list_id}/items/{item_id}",
+        json={"quantity": 3},
+        headers={**_origin(), "X-CSRF-Token": csrf},
+    )
+    assert changed.status_code == 200
+    assert client.get(f"/api/v2/optimizations/{body['request_id']}").json() == body
+    stale = client.post("/api/v2/optimizations", json=request, headers={**_origin(), "X-CSRF-Token": csrf})
+    assert stale.status_code == 409
+    assert stale.json()["detail"]["code"] == "stale_list_revision"
+
+    with database.connect() as connection:
+        assert connection.execute(text("SELECT count(*) FROM optimization_requests")).scalar_one() == 1
+        assert connection.execute(text("SELECT count(*) FROM optimization_plans")).scalar_one() == 0
+
+    _signup(client, mail, "optimization-other@example.com")
+    assert client.get(f"/api/v2/optimizations/{body['request_id']}").status_code == 404

@@ -14,7 +14,13 @@ from app.product_intelligence.catalog import (
     FilesystemCanonicalListingAssociationRegistry,
     FilesystemCanonicalListingAssociationStore,
     GovernedCatalogPopulationService,
+    DeterministicCanonicalListingResolver,
+    product_observation_key,
+    product_catalog_key,
+    variant_observation_key,
+    variant_catalog_key,
 )
+from app.product_intelligence.catalog.retailer_identity import BlinkitIdentityAdapter
 from app.product_intelligence.catalog.storage import CatalogFilesystemStore
 
 
@@ -24,6 +30,13 @@ def main() -> int:
     args = parser.parse_args()
     settings = get_settings()
     root = settings.data_dir / "product_intelligence" / "catalog"
+    resolver = DeterministicCanonicalListingResolver(
+        product_observation_key=product_observation_key,
+        product_catalog_key=product_catalog_key,
+        variant_observation_key=variant_observation_key,
+        variant_catalog_key=variant_catalog_key,
+        retailer_identity_adapters={"BLINKIT": BlinkitIdentityAdapter()},
+    )
     service = GovernedCatalogPopulationService(
         catalog=FilesystemAuthoritativeCatalog(store=CatalogFilesystemStore(root_dir=root)),
         association_registry=FilesystemCanonicalListingAssociationRegistry(
@@ -32,6 +45,7 @@ def main() -> int:
         observation_registry=FilesystemObservationRegistry(
             root_dir=settings.data_dir / "product_intelligence" / "observations"
         ),
+        resolver=resolver,
     )
     manifest = CatalogPopulationManifest.model_validate(json.loads(args.manifest.read_text(encoding="utf-8")))
     service.import_manifest(manifest)

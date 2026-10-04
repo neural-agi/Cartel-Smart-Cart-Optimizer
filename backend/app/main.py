@@ -8,13 +8,16 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.responses import Response
 from starlette.responses import JSONResponse
-from time import time
-from threading import Lock
+import re
+from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.api.router import api_router
 from app.api.routes.health import router as health_router
 from app.core.config import Settings, get_settings
 from app.core.logging import configure_logging, get_logger
+from app.core.rate_limit import RateLimitBackendUnavailable, RedisRateLimiter
+from app.core.metrics import metrics, normalized_route
 from app.core.security import AuthenticationError, authenticate_bearer
 from app.workers.bootstrap import build_product_intelligence_runtime
 from app.workers.product_intelligence_runtime import ProductIntelligenceRuntime
@@ -32,6 +35,7 @@ from app.cart_optimization.providers import (
     ConfiguredPlanPolicyProvider,
     ConfiguredRetailerIdentityProvider,
     DeterministicPlanIdProvider,
+    ProductionCheckoutObservationProvider,
     RegistryCheckoutObservationProvider,
     UnavailableCheckoutGroupProvider,
     UnavailableCheckoutObservationProvider,
@@ -51,8 +55,9 @@ from app.cost_intelligence.observation.capture_service import (
 from app.data_ingestion.artifact_store import LocalFilesystemArtifactStore
 from app.cost_intelligence.pipeline.service import CostIntelligencePipelineService
 from app.scrapers.blinkit.checkout_capture import BlinkitCheckoutCaptureAdapter
-from app.db.session import get_session_factory
-from app.auth.email_delivery import SmtpEmailDelivery
+from app.db.session import dispose_engines, get_engine, get_session_factory
+from app.workers.background_jobs import DurableJobStore
+from app.auth.email_delivery import FileEmailDelivery, SmtpEmailDelivery
 from app.auth.email_delivery import EmailDelivery
 from app.auth.service import resolve_session, require_csrf, AuthFailure
 from sqlalchemy.exc import SQLAlchemyError
@@ -60,27 +65,8 @@ from app.api.v2.router import router as v2_router
 
 
 logger = get_logger(__name__)
-
-
-class _InMemoryRateLimiter:
-    """Process-local guardrail; shared deployments should use a shared limiter."""
-
-    def __init__(self, *, limit: int, window_seconds: int) -> None:
-        self._limit = limit
-        self._window_seconds = window_seconds
-        self._entries: dict[tuple[str, str], list[float]] = {}
-        self._lock = Lock()
-
-    def allow(self, client: str, path: str) -> bool:
-        now = time()
-        key = (client, path)
-        with self._lock:
-            values = [value for value in self._entries.get(key, []) if now - value < self._window_seconds]
-            allowed = len(values) < self._limit
-            if allowed:
-                values.append(now)
-            self._entries[key] = values
-            return allowed
+REQUEST_ID_HEADER = "X-Request-ID"
+_SAFE_REQUEST_ID = re.compile(r"^[A-Za-z0-9._:-]{1,128}$")
 
 
 @asynccontextmanager
@@ -88,6 +74,21 @@ async def lifespan(app: FastAPI):
     settings = getattr(app.state, "settings", None) or get_settings()
     configure_logging(log_level=settings.log_level, json_logs=settings.log_json)
     app.state.settings = settings
+    app.state.background_job_store = DurableJobStore(get_session_factory(settings), settings)
+
+    if settings.database_required:
+        try:
+            with get_engine(settings).connect() as connection:
+                connection.execute(text("SELECT 1"))
+        except SQLAlchemyError:
+            logger.critical("database_startup_check_failed", extra={"component": "database"})
+            raise
+    if settings.app_env == "production":
+        try:
+            await app.state.rate_limiter.ping()
+        except RateLimitBackendUnavailable:
+            logger.critical("rate_limit_backend_startup_check_failed", extra={"component": "rate_limiter"})
+            raise RuntimeError("Redis rate-limit backend is unavailable")
 
     logger.info(
         "Application startup complete: app=%s env=%s version=%s",
@@ -110,6 +111,8 @@ async def lifespan(app: FastAPI):
     try:
         yield
     finally:
+        await app.state.rate_limiter.close()
+        dispose_engines()
         logger.info("Application shutdown complete: app=%s", settings.app_name)
 
 
@@ -117,6 +120,7 @@ def create_application(
     settings: Settings | None = None,
     runtime: ProductIntelligenceRuntime | None = None,
     email_delivery: EmailDelivery | None = None,
+    rate_limiter: RedisRateLimiter | None = None,
 ) -> FastAPI:
     app_settings = settings or get_settings()
     docs_url = "/docs" if app_settings.docs_enabled else None
@@ -133,6 +137,7 @@ def create_application(
         lifespan=lifespan,
     )
     application.state.settings = app_settings
+    application.state.background_job_store = DurableJobStore(get_session_factory(app_settings), app_settings)
 
     @application.exception_handler(RequestValidationError)
     async def sanitized_validation_error(request: Request, exc: RequestValidationError):
@@ -140,37 +145,83 @@ def create_application(
             {key: error[key] for key in ("loc", "msg", "type") if key in error}
             for error in exc.errors()
         ]
-        return JSONResponse(status_code=422, content={"detail": errors})
+        request_id = getattr(request.state, "request_id", None)
+        return JSONResponse(
+            status_code=422,
+            content={"detail": errors, "request_id": request_id},
+            headers={REQUEST_ID_HEADER: request_id} if request_id else None,
+        )
 
     @application.exception_handler(SQLAlchemyError)
     async def database_unavailable(request: Request, exc: SQLAlchemyError):
         logger.error("identity_or_application_database_unavailable", extra={"request_id": getattr(request.state, "request_id", None)})
-        return JSONResponse(status_code=503, content={"detail": {"code": "database_unavailable"}})
+        request_id = getattr(request.state, "request_id", None)
+        return JSONResponse(
+            status_code=503,
+            content={"detail": {"code": "database_unavailable", "request_id": request_id}},
+            headers={REQUEST_ID_HEADER: request_id} if request_id else None,
+        )
+
+    @application.exception_handler(Exception)
+    async def unexpected_error(request: Request, exc: Exception):
+        request_id = getattr(request.state, "request_id", None)
+        logger.exception(
+            "unhandled_request_exception",
+            extra={"request_id": request_id, "component": "http"},
+        )
+        return JSONResponse(
+            status_code=500,
+            content={
+                "detail": {
+                    "code": "internal_error",
+                    "message": "Cartel could not complete the request.",
+                    "request_id": request_id,
+                }
+            },
+            headers={REQUEST_ID_HEADER: request_id} if request_id else None,
+        )
     if app_settings.cors_origins:
         application.add_middleware(
             CORSMiddleware,
             allow_origins=list(app_settings.cors_origins),
             allow_credentials=False,
             allow_methods=["GET", "POST", "OPTIONS"],
-            allow_headers=["Content-Type", "Authorization", "X-Request-ID"],
+            allow_headers=["Content-Type", "Authorization", "X-Request-ID", "Idempotency-Key"],
         )
 
     @application.middleware("http")
     async def request_context_middleware(request: Request, call_next) -> Response:
-        incoming = request.headers.get("X-Request-ID", "").strip()
-        request_id = incoming if 0 < len(incoming) <= 128 and incoming.isprintable() else str(uuid4())
+        incoming = request.headers.get(REQUEST_ID_HEADER, "").strip()
+        request_id = incoming if _SAFE_REQUEST_ID.fullmatch(incoming) else str(uuid4())
         request.state.request_id = request_id
         request.state.user_id = "anonymous"
         request.state.authenticated = False
-        if request.url.path.startswith("/api/v2/auth/") and request.method == "POST":
-            auth_limiter = getattr(application.state, "auth_rate_limiter", None)
+        auth_path = request.url.path.startswith("/api/v2/auth/")
+        oauth_path = auth_path and (request.url.path.endswith("/start") or request.url.path.endswith("/callback"))
+        if auth_path and app_settings.auth_required and (request.method == "POST" or oauth_path):
+            limiter = getattr(application.state, "rate_limiter", None)
             client = request.client.host if request.client else "unknown"
-            if auth_limiter is not None and not auth_limiter.allow(client, request.url.path):
-                return JSONResponse(
+            try:
+                decision = await limiter.allow(
+                    category="auth",
+                    identity=client,
+                    path=request.url.path,
+                    limit=app_settings.auth_rate_limit_requests,
+                    window_seconds=app_settings.rate_limit_window_seconds,
+                )
+            except RateLimitBackendUnavailable:
+                metrics.inc("cartel_rate_limit_requests_total", category="auth", outcome="redis_unavailable", route=normalized_route(request.url.path))
+                logger.error("rate_limit_backend_unavailable", extra={"request_id": request_id, "component": "rate_limiter"})
+                return JSONResponse(status_code=503, content={"error": {"code": "rate_limit_unavailable", "message": "Cartel cannot safely process this request right now.", "request_id": request_id}}, headers={REQUEST_ID_HEADER: request_id})
+            if not decision.allowed:
+                metrics.inc("cartel_rate_limit_requests_total", category="auth", outcome="limited", route=normalized_route(request.url.path))
+                logger.info("request_rate_limited", extra={"request_id": request_id, "component": "rate_limiter", "http_method": request.method, "http_path": request.url.path, "status_code": 429})
+                response = JSONResponse(
                     status_code=429,
                     content={"detail": {"code": "rate_limited"}},
-                    headers={"Retry-After": str(app_settings.rate_limit_window_seconds)},
+                    headers={"Retry-After": str(app_settings.rate_limit_window_seconds), REQUEST_ID_HEADER: request_id},
                 )
+                return response
         protected = request.url.path.startswith(f"{app_settings.api_v1_prefix}/") and not request.url.path.endswith("/health") and not request.url.path.endswith("/ready")
         if protected and app_settings.auth_required:
             consumer_paths = {
@@ -196,18 +247,19 @@ def create_application(
                             expected = urlsplit(app_settings.public_origin)
                             supplied = urlsplit(origin or "")
                             if (supplied.scheme, supplied.netloc) != (expected.scheme, expected.netloc):
-                                return JSONResponse(status_code=403, content={"detail": {"code": "origin_rejected"}})
+                                return JSONResponse(status_code=403, content={"detail": {"code": "origin_rejected", "request_id": request_id}}, headers={REQUEST_ID_HEADER: request_id})
                             try:
                                 require_csrf(resolved[0], request.headers.get("X-CSRF-Token"))
                             except AuthFailure:
-                                return JSONResponse(status_code=403, content={"detail": {"code": "csrf_failed"}})
+                                return JSONResponse(status_code=403, content={"detail": {"code": "csrf_failed", "request_id": request_id}}, headers={REQUEST_ID_HEADER: request_id})
                         request.state.user_id = str(resolved[1].id)
                         request.state.authenticated = True
                         request.state.auth_method = "consumer_session"
                 elif cookie_token and request.url.path not in consumer_paths:
                     return JSONResponse(
                         status_code=403,
-                        content={"detail": {"code": "operator_authentication_required"}},
+                        content={"detail": {"code": "operator_authentication_required", "request_id": request_id}},
+                        headers={REQUEST_ID_HEADER: request_id},
                     )
                 elif request.url.path not in consumer_paths:
                     request.state.user_id = authenticate_bearer(authorization, app_settings)
@@ -216,33 +268,64 @@ def create_application(
                 else:
                     raise AuthenticationError("consumer authentication is required")
             except SQLAlchemyError:
-                return JSONResponse(status_code=503, content={"detail": {"code": "identity_store_unavailable"}})
+                return JSONResponse(status_code=503, content={"detail": {"code": "identity_store_unavailable", "request_id": request_id}}, headers={REQUEST_ID_HEADER: request_id})
             except AuthenticationError as exc:
                 return JSONResponse(
                     status_code=401,
                     content={"error": {"code": "authentication_required", "message": str(exc), "request_id": request_id}},
-                    headers={"WWW-Authenticate": "Bearer", "X-Request-ID": request_id},
+                    headers={"WWW-Authenticate": "Bearer", REQUEST_ID_HEADER: request_id},
                 )
         limiter = getattr(application.state, "rate_limiter", None)
-        if protected and limiter is not None and not limiter.allow(request.client.host if request.client else "unknown", request.url.path):
-            return JSONResponse(
-                status_code=429,
-                content={"error": {"code": "rate_limited", "message": "request rate limit exceeded", "request_id": request_id}},
-                headers={"Retry-After": str(app_settings.rate_limit_window_seconds), "X-Request-ID": request_id},
-            )
+        if protected and app_settings.auth_required and limiter is not None:
+            identity = request.state.user_id if request.state.authenticated else (request.client.host if request.client else "unknown")
+            try:
+                decision = await limiter.allow(
+                    category="api",
+                    identity=identity,
+                    path=request.url.path,
+                    limit=app_settings.rate_limit_requests,
+                    window_seconds=app_settings.rate_limit_window_seconds,
+                )
+            except RateLimitBackendUnavailable:
+                metrics.inc("cartel_rate_limit_requests_total", category="api", outcome="redis_unavailable", route=normalized_route(request.url.path))
+                logger.error("rate_limit_backend_unavailable", extra={"request_id": request_id, "component": "rate_limiter"})
+                return JSONResponse(status_code=503, content={"error": {"code": "rate_limit_unavailable", "message": "Cartel cannot safely process this request right now.", "request_id": request_id}}, headers={REQUEST_ID_HEADER: request_id})
+            if not decision.allowed:
+                metrics.inc("cartel_rate_limit_requests_total", category="api", outcome="limited", route=normalized_route(request.url.path))
+                logger.info("request_rate_limited", extra={"request_id": request_id, "component": "rate_limiter", "http_method": request.method, "http_path": request.url.path, "status_code": 429})
+                return JSONResponse(
+                    status_code=429,
+                    content={"error": {"code": "rate_limited", "message": "request rate limit exceeded", "request_id": request_id}},
+                    headers={"Retry-After": str(app_settings.rate_limit_window_seconds), REQUEST_ID_HEADER: request_id},
+                )
         started = monotonic()
         try:
             response = await call_next(request)
         except Exception:
-            logger.exception(
-                "http_request_failed method=%s path=%s",
-                request.method,
-                request.url.path,
-                extra={"request_id": request_id},
+            metrics.inc("cartel_http_requests_total", method=request.method, route=normalized_route(request.url.path), status_class="5xx", outcome="exception")
+            logger.exception("http_request_failed", extra={
+                "request_id": request_id, "component": "http",
+                "http_method": request.method, "http_path": normalized_route(request.url.path),
+            })
+            response = JSONResponse(
+                status_code=500,
+                content={
+                    "detail": {
+                        "code": "internal_error",
+                        "message": "Cartel could not complete the request.",
+                        "request_id": request_id,
+                    }
+                },
+                headers={REQUEST_ID_HEADER: request_id},
             )
-            raise
+            response.headers["X-Content-Type-Options"] = "nosniff"
+            response.headers["X-Frame-Options"] = "DENY"
+            response.headers["Referrer-Policy"] = "no-referrer"
+            return response
         duration_ms = round((monotonic() - started) * 1000, 2)
-        response.headers["X-Request-ID"] = request_id
+        metrics.inc("cartel_http_requests_total", method=request.method, route=normalized_route(request.url.path), status_class=f"{response.status_code // 100}xx")
+        metrics.observe("cartel_http_request_duration_ms", duration_ms, method=request.method, route=normalized_route(request.url.path))
+        response.headers[REQUEST_ID_HEADER] = request_id
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Referrer-Policy"] = "no-referrer"
@@ -252,24 +335,32 @@ def create_application(
             request.url.path,
             response.status_code,
             duration_ms,
-            extra={"request_id": request_id},
+            extra={
+                "request_id": request_id, "component": "http",
+                "http_method": request.method, "http_path": normalized_route(request.url.path),
+                "status_code": response.status_code, "duration_ms": duration_ms,
+            },
         )
         return response
     application.include_router(health_router, tags=["health"])
     application.include_router(api_router, prefix=app_settings.api_v1_prefix)
     application.include_router(v2_router, prefix="/api/v2")
     application.state.db_session_factory = get_session_factory(app_settings)
-    application.state.email_delivery = email_delivery or SmtpEmailDelivery(app_settings)
+    if email_delivery is not None:
+        configured_email_delivery = email_delivery
+    elif app_settings.email_delivery_mode == "file":
+        configured_email_delivery = FileEmailDelivery(app_settings)
+    else:
+        configured_email_delivery = SmtpEmailDelivery(app_settings)
+    application.state.email_delivery = configured_email_delivery
     application.state.logger = logger
     configured_runtime = runtime or build_product_intelligence_runtime(app_settings)
     application.state.product_intelligence_runtime = configured_runtime
-    application.state.rate_limiter = _InMemoryRateLimiter(
-        limit=app_settings.rate_limit_requests,
-        window_seconds=app_settings.rate_limit_window_seconds,
-    )
-    application.state.auth_rate_limiter = _InMemoryRateLimiter(
-        limit=app_settings.auth_rate_limit_requests,
-        window_seconds=app_settings.rate_limit_window_seconds,
+    application.state.rate_limiter = rate_limiter or RedisRateLimiter(
+        url=app_settings.redis_url,
+        connect_timeout=app_settings.redis_connect_timeout_seconds,
+        operation_timeout=app_settings.redis_operation_timeout_seconds,
+        max_connections=app_settings.redis_max_connections,
     )
     application.state.retail_observation_query = RetailObservationQueryService(
         observation_registry=configured_runtime.observation_registry,
@@ -331,6 +422,7 @@ def create_application(
         if app_settings.planning_retailer_identity_map.strip()
         else UnavailableRetailerIdentityProvider()
     )
+    application.state.planning_retailer_provider = retailer_provider
     checkout_group_provider = (
         ConfiguredCheckoutGroupProvider(parse_mapping(app_settings.planning_checkout_group_map))
         if app_settings.planning_checkout_group_map.strip()
@@ -363,6 +455,19 @@ def create_application(
         checkout_observation_provider=checkout_provider,
         cost_intelligence=CostIntelligencePipelineService(),
         checkout_capture=application.state.checkout_capture,
+        optimization_policy_version=app_settings.optimization_policy_version,
+    )
+    # Consumer optimization must never trigger retailer cart/checkout capture.
+    application.state.consumer_automatic_planning = AutomaticCartPlanningService(
+        discovery=application.state.cart_candidate_discovery,
+        planning=application.state.cart_planning,
+        retailer_provider=retailer_provider,
+        checkout_group_provider=checkout_group_provider,
+        policy_provider=policy_provider,
+        plan_id_provider=DeterministicPlanIdProvider(),
+        checkout_observation_provider=ProductionCheckoutObservationProvider(checkout_provider),
+        cost_intelligence=CostIntelligencePipelineService(),
+        checkout_capture=None,
         optimization_policy_version=app_settings.optimization_policy_version,
     )
     return application
