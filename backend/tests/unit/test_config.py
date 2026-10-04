@@ -32,6 +32,7 @@ def test_valid_configuration_loads() -> None:
     assert settings.app_name == "Cartel"
     assert settings.redis_url == "redis://localhost:6379/0"
     assert settings.checkout_observation_provider_mode == "unavailable"
+    assert settings.retailer_data_provider_mode == "unavailable"
 
 
 def test_cors_origins_are_explicitly_parsed() -> None:
@@ -46,6 +47,24 @@ def test_checkout_observation_provider_mode_is_explicit(mode: str) -> None:
     assert settings.checkout_observation_provider_mode == mode
 
 
+@pytest.mark.parametrize("mode", ["blinkit", "unavailable"])
+def test_retailer_data_provider_mode_is_explicit(mode: str) -> None:
+    settings = _settings(retailer_data_provider_mode=mode)
+    assert settings.retailer_data_provider_mode == mode
+
+
+def test_quickcommerce_mode_requires_https_endpoint_and_secret() -> None:
+    with pytest.raises(ValidationError):
+        _settings(retailer_data_provider_mode="quickcommerce")
+    settings = _settings(
+        retailer_data_provider_mode="quickcommerce",
+        quickcommerce_api_base_url="https://provider.example",
+        quickcommerce_api_key="redacted-test-secret",
+    )
+    assert settings.quickcommerce_api_base_url == "https://provider.example"
+    assert "redacted-test-secret" not in repr(settings)
+
+
 @pytest.mark.parametrize(
     "overrides",
     [
@@ -55,6 +74,7 @@ def test_checkout_observation_provider_mode_is_explicit(mode: str) -> None:
         {"app_debug": "not-a-boolean"},
         {"app_env": "invalid"},
         {"checkout_observation_provider_mode": "unsupported"},
+        {"retailer_data_provider_mode": "unsupported"},
         {"planning_max_combinations": 0},
     ],
 )

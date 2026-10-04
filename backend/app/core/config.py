@@ -45,6 +45,13 @@ class Settings(BaseSettings):
         default="unavailable",
         alias="CHECKOUT_CAPTURE_ADAPTER_MODE",
     )
+    retailer_data_provider_mode: Literal["quickcommerce", "blinkit", "unavailable"] = Field(
+        default="unavailable",
+        alias="RETAILER_DATA_PROVIDER_MODE",
+    )
+    quickcommerce_api_base_url: str = Field(default="", alias="QUICKCOMMERCE_API_BASE_URL")
+    quickcommerce_api_key: SecretStr = Field(default=SecretStr(""), alias="QUICKCOMMERCE_API_KEY")
+    quickcommerce_timeout_seconds: float = Field(default=10.0, alias="QUICKCOMMERCE_TIMEOUT_SECONDS")
     planning_max_cart_items: int = Field(default=20, alias="PLANNING_MAX_CART_ITEMS")
     planning_max_candidates_per_item: int = Field(
         default=20,
@@ -119,10 +126,15 @@ class Settings(BaseSettings):
     postgres_password: SecretStr = Field(default=SecretStr(""), alias="POSTGRES_PASSWORD")
     database_required: bool = Field(default=False, alias="DATABASE_REQUIRED")
     database_url_override: SecretStr | None = Field(default=None, alias="DATABASE_URL")
+    db_pool_size: int = Field(default=5, alias="DB_POOL_SIZE")
+    db_max_overflow: int = Field(default=10, alias="DB_MAX_OVERFLOW")
+    db_pool_timeout_seconds: float = Field(default=30.0, alias="DB_POOL_TIMEOUT_SECONDS")
+    db_pool_recycle_seconds: int = Field(default=1800, alias="DB_POOL_RECYCLE_SECONDS")
     auth_session_days: int = Field(default=14, alias="AUTH_SESSION_DAYS")
     auth_idle_days: int = Field(default=7, alias="AUTH_IDLE_DAYS")
     auth_challenge_minutes: int = Field(default=30, alias="AUTH_CHALLENGE_MINUTES")
     auth_rate_limit_requests: int = Field(default=8, alias="AUTH_RATE_LIMIT_REQUESTS")
+    idempotency_ttl_seconds: int = Field(default=86400, alias="IDEMPOTENCY_TTL_SECONDS")
     auth_cookie_secure: bool | None = Field(default=None, alias="AUTH_COOKIE_SECURE")
     smtp_host: str = Field(default="", alias="SMTP_HOST")
     smtp_port: int = Field(default=587, alias="SMTP_PORT")
@@ -130,8 +142,38 @@ class Settings(BaseSettings):
     smtp_password: SecretStr = Field(default=SecretStr(""), alias="SMTP_PASSWORD")
     smtp_from: str = Field(default="", alias="SMTP_FROM")
     smtp_starttls: bool = Field(default=True, alias="SMTP_STARTTLS")
+    email_delivery_mode: Literal["smtp", "file"] = Field(
+        default="smtp",
+        alias="EMAIL_DELIVERY_MODE",
+    )
+    local_email_dir: Path = Field(default=Path("/tmp/cartel-email"), alias="LOCAL_EMAIL_DIR")
+    google_client_id: str = Field(default="", alias="GOOGLE_CLIENT_ID")
+    google_client_secret: SecretStr = Field(default=SecretStr(""), alias="GOOGLE_CLIENT_SECRET")
+    google_redirect_uri: str = Field(default="", alias="GOOGLE_REDIRECT_URI")
+    github_client_id: str = Field(default="", alias="GITHUB_CLIENT_ID")
+    github_client_secret: SecretStr = Field(default=SecretStr(""), alias="GITHUB_CLIENT_SECRET")
+    github_redirect_uri: str = Field(default="", alias="GITHUB_REDIRECT_URI")
+    apple_client_id: str = Field(default="", alias="APPLE_CLIENT_ID")
+    apple_team_id: str = Field(default="", alias="APPLE_TEAM_ID")
+    apple_key_id: str = Field(default="", alias="APPLE_KEY_ID")
+    apple_private_key: SecretStr = Field(default=SecretStr(""), alias="APPLE_PRIVATE_KEY")
+    apple_redirect_uri: str = Field(default="", alias="APPLE_REDIRECT_URI")
     public_origin: str = Field(default="http://localhost:3000", alias="PUBLIC_ORIGIN")
     redis_url: str = Field(default="redis://localhost:6379/0", alias="REDIS_URL")
+    redis_connect_timeout_seconds: float = Field(default=1.0, alias="REDIS_CONNECT_TIMEOUT_SECONDS")
+    redis_operation_timeout_seconds: float = Field(default=1.0, alias="REDIS_OPERATION_TIMEOUT_SECONDS")
+    redis_max_connections: int = Field(default=20, alias="REDIS_MAX_CONNECTIONS")
+    worker_concurrency: int = Field(default=1, alias="WORKER_CONCURRENCY")
+    job_poll_interval_seconds: float = Field(default=1.0, alias="JOB_POLL_INTERVAL_SECONDS")
+    job_max_attempts: int = Field(default=3, alias="JOB_MAX_ATTEMPTS")
+    job_retry_base_seconds: float = Field(default=5.0, alias="JOB_RETRY_BASE_SECONDS")
+    job_retry_max_seconds: float = Field(default=300.0, alias="JOB_RETRY_MAX_SECONDS")
+    job_lease_seconds: int = Field(default=300, alias="JOB_LEASE_SECONDS")
+    outbox_max_attempts: int = Field(default=5, alias="OUTBOX_MAX_ATTEMPTS")
+    outbox_retry_base_seconds: float = Field(default=5.0, alias="OUTBOX_RETRY_BASE_SECONDS")
+    outbox_retry_max_seconds: float = Field(default=300.0, alias="OUTBOX_RETRY_MAX_SECONDS")
+    outbox_lease_seconds: int = Field(default=300, alias="OUTBOX_LEASE_SECONDS")
+    outbox_poll_interval_seconds: float = Field(default=1.0, alias="OUTBOX_POLL_INTERVAL_SECONDS")
 
     @field_validator(
         "app_name",
@@ -197,11 +239,67 @@ class Settings(BaseSettings):
             raise ValueError("rate limit values must be positive")
         return value
 
+    @field_validator("db_pool_size", "db_pool_recycle_seconds")
+    @classmethod
+    def validate_database_pool_positive(cls, value: int) -> int:
+        if value < 1:
+            raise ValueError("database pool values must be positive")
+        return value
+
+    @field_validator("db_max_overflow")
+    @classmethod
+    def validate_database_overflow(cls, value: int) -> int:
+        if value < 0:
+            raise ValueError("DB_MAX_OVERFLOW must not be negative")
+        return value
+
+    @field_validator("db_pool_timeout_seconds")
+    @classmethod
+    def validate_database_timeout(cls, value: float) -> float:
+        if value <= 0:
+            raise ValueError("DB_POOL_TIMEOUT_SECONDS must be positive")
+        return value
+
+    @field_validator("redis_connect_timeout_seconds", "redis_operation_timeout_seconds")
+    @classmethod
+    def validate_redis_timeouts(cls, value: float) -> float:
+        if value <= 0 or value > 30:
+            raise ValueError("Redis timeouts must be greater than 0 and at most 30 seconds")
+        return value
+
+    @field_validator("redis_max_connections")
+    @classmethod
+    def validate_redis_connections(cls, value: int) -> int:
+        if value < 1 or value > 1000:
+            raise ValueError("REDIS_MAX_CONNECTIONS must be between 1 and 1000")
+        return value
+
+    @field_validator("worker_concurrency", "job_max_attempts", "job_lease_seconds", "outbox_max_attempts", "outbox_lease_seconds")
+    @classmethod
+    def validate_job_integers(cls, value: int) -> int:
+        if value < 1:
+            raise ValueError("background job integer settings must be positive")
+        return value
+
+    @field_validator("job_poll_interval_seconds", "job_retry_base_seconds", "job_retry_max_seconds", "outbox_retry_base_seconds", "outbox_retry_max_seconds", "outbox_poll_interval_seconds")
+    @classmethod
+    def validate_job_timings(cls, value: float) -> float:
+        if value <= 0:
+            raise ValueError("background job timing settings must be positive")
+        return value
+
     @field_validator("auth_session_days", "auth_idle_days", "auth_challenge_minutes", "auth_rate_limit_requests", "smtp_port")
     @classmethod
     def validate_auth_lifetimes(cls, value: int) -> int:
         if value < 1 or value > 65535:
             raise ValueError("authentication lifetime or SMTP port is invalid")
+        return value
+
+    @field_validator("idempotency_ttl_seconds")
+    @classmethod
+    def validate_idempotency_ttl(cls, value: int) -> int:
+        if value < 60 or value > 2_592_000:
+            raise ValueError("IDEMPOTENCY_TTL_SECONDS must be between 60 and 2592000")
         return value
 
     @property
@@ -235,7 +333,23 @@ class Settings(BaseSettings):
 
     @property
     def email_delivery_configured(self) -> bool:
+        if self.email_delivery_mode == "file":
+            return self.app_env != "production" and bool(str(self.local_email_dir).strip())
         return bool(self.smtp_host.strip() and self.smtp_from.strip())
+
+    @property
+    def google_oauth_configured(self) -> bool:
+        return bool(self.google_client_id.strip() and self.google_client_secret.get_secret_value().strip() and self.google_redirect_uri.strip())
+
+    @property
+    def github_oauth_configured(self) -> bool:
+        return bool(self.github_client_id.strip() and self.github_client_secret.get_secret_value().strip() and self.github_redirect_uri.strip())
+
+    @property
+    def apple_oauth_configured(self) -> bool:
+        # Apple fields are retained for readiness, but no Apple verifier is
+        # enabled until its server-side adapter is implemented.
+        return False
 
     @field_validator(
         "planning_max_cart_items",
@@ -319,6 +433,14 @@ class Settings(BaseSettings):
                 or (self.database_url_override and self.database_url_override.get_secret_value())
             ):
                 raise ValueError("PostgreSQL credentials are required when DATABASE_REQUIRED is true")
+        if self.retailer_data_provider_mode == "quickcommerce":
+            parsed = urlsplit(self.quickcommerce_api_base_url)
+            if parsed.scheme != "https" or not parsed.hostname:
+                raise ValueError("QUICKCOMMERCE_API_BASE_URL must be an HTTPS origin when enabled")
+            if not self.quickcommerce_api_key.get_secret_value().strip():
+                raise ValueError("QUICKCOMMERCE_API_KEY is required when QuickCommerce is enabled")
+        if self.quickcommerce_timeout_seconds <= 0:
+            raise ValueError("QUICKCOMMERCE_TIMEOUT_SECONDS must be positive")
         return self
 
     @property

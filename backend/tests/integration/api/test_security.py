@@ -2,11 +2,28 @@ from fastapi.testclient import TestClient
 
 from app.core.config import Settings
 from app.main import create_application
+from app.core.rate_limit import RateLimitDecision
+
+
+class _TestRateLimiter:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    async def ping(self) -> None:
+        return None
+
+    async def close(self) -> None:
+        return None
+
+    async def allow(self, **kwargs) -> RateLimitDecision:
+        self.calls += 1
+        limit = kwargs["limit"]
+        return RateLimitDecision(allowed=self.calls <= limit, remaining=max(limit - self.calls, 0))
 
 
 def test_protected_api_rejects_missing_bearer_token(tmp_path) -> None:
     settings = Settings(_env_file=None, data_dir=tmp_path, auth_required=True, auth_tokens="user-1=secret-token")
-    with TestClient(create_application(settings)) as client:
+    with TestClient(create_application(settings, rate_limiter=_TestRateLimiter())) as client:
         response = client.get("/api/v1/products/search", params={"query": "milk"})
 
     assert response.status_code == 401
@@ -16,7 +33,7 @@ def test_protected_api_rejects_missing_bearer_token(tmp_path) -> None:
 
 def test_authenticated_request_exposes_no_token_in_response(tmp_path) -> None:
     settings = Settings(_env_file=None, data_dir=tmp_path, auth_required=True, auth_tokens="user-1=secret-token")
-    with TestClient(create_application(settings)) as client:
+    with TestClient(create_application(settings, rate_limiter=_TestRateLimiter())) as client:
         response = client.get(
             "/api/v1/products/search",
             params={"query": "milk"},
@@ -29,7 +46,7 @@ def test_authenticated_request_exposes_no_token_in_response(tmp_path) -> None:
 
 def test_auth_session_returns_identity_for_configured_bearer_token(tmp_path) -> None:
     settings = Settings(_env_file=None, data_dir=tmp_path, auth_required=True, auth_tokens="user-1=secret-token")
-    with TestClient(create_application(settings)) as client:
+    with TestClient(create_application(settings, rate_limiter=_TestRateLimiter())) as client:
         response = client.get(
             "/api/v1/auth/session",
             headers={"Authorization": "Bearer secret-token"},
@@ -65,10 +82,11 @@ def test_auth_session_does_not_claim_authentication_when_disabled(tmp_path) -> N
 
 
 def test_rate_limit_returns_structured_error(tmp_path) -> None:
-    settings = Settings(_env_file=None, data_dir=tmp_path, rate_limit_requests=1, rate_limit_window_seconds=60)
-    with TestClient(create_application(settings)) as client:
-        first = client.get("/api/v1/products/search", params={"query": "milk"})
-        second = client.get("/api/v1/products/search", params={"query": "bread"})
+    settings = Settings(_env_file=None, data_dir=tmp_path, auth_required=True, auth_tokens="user-1=secret-token", rate_limit_requests=1, rate_limit_window_seconds=60)
+    with TestClient(create_application(settings, rate_limiter=_TestRateLimiter())) as client:
+        headers = {"Authorization": "Bearer secret-token"}
+        first = client.get("/api/v1/products/search", params={"query": "milk"}, headers=headers)
+        second = client.get("/api/v1/products/search", params={"query": "bread"}, headers=headers)
 
     assert first.status_code == 200
     assert second.status_code == 429
