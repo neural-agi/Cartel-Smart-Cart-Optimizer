@@ -1,4 +1,5 @@
 from datetime import timezone
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -77,6 +78,27 @@ def test_request_error_preserves_http_status_for_diagnostics() -> None:
 
     error = ScraperRequestError("forbidden", status_code=403)
     assert error.status_code == 403
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status_code", (401, 403, 406, 429))
+async def test_access_denial_never_falls_back_to_browser(monkeypatch, status_code):
+    from app.scrapers.base.exceptions import ScraperAccessDeniedError, ScraperRequestError
+
+    scraper = BlinkitScraper(settings=Settings(_env_file=None), max_retries=0)
+    monkeypatch.setattr(
+        scraper,
+        "fetch_raw",
+        AsyncMock(side_effect=ScraperRequestError("denied", status_code=status_code)),
+    )
+    browser_fallback = AsyncMock()
+    monkeypatch.setattr(scraper, "_fetch_via_browser", browser_fallback)
+
+    with pytest.raises(ScraperAccessDeniedError) as error:
+        await scraper.acquire_search("milk")
+
+    assert error.value.status_code == status_code
+    browser_fallback.assert_not_awaited()
 
 
 def test_browser_executable_override_is_optional() -> None:

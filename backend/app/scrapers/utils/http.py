@@ -114,7 +114,7 @@ class AsyncHttpClient:
                 )
                 # Access denials and permanent resource errors are not made
                 # more likely to succeed by repeating the same request.
-                non_retryable_status = status_code in {401, 403, 404, 405, 410, 451}
+                non_retryable_status = status_code in {401, 403, 404, 405, 406, 410, 429, 451}
                 if attempt == attempt_budget or non_retryable_status:
                     break
                 await asyncio.sleep(self.retry_backoff_seconds * attempt)

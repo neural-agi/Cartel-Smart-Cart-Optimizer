@@ -31,7 +31,7 @@ def _result(products: list[RawExtractedProduct], *, complete: bool | None = True
 
 
 def test_bridge_maps_raw_blinkit_fields_and_preserves_artifact() -> None:
-    product = RawExtractedProduct(source_index=1, platform="blinkit", retailer_product_id="637879", product_name="Milk", displayed_price="₹100", mrp="₹120", quantity="500 ml", stock_availability="in_stock", offer_text="₹20 OFF", raw_text="Milk 500 ml ₹100")
+    product = RawExtractedProduct(source_index=1, platform="blinkit", retailer_product_id="637879", product_url="https://blinkit.com/prn/milk/prid/637879", product_name="Milk", displayed_price="₹100", mrp="₹120", quantity="500 ml", stock_availability="in_stock", offer_text="₹20 OFF", raw_text="Milk 500 ml ₹100")
     batch = BlinkitParserBridge().build_batch(_result([product]), _artifact())
     observation = batch.observations[0]
     assert batch.raw_artifact_reference == _artifact()
@@ -41,7 +41,11 @@ def test_bridge_maps_raw_blinkit_fields_and_preserves_artifact() -> None:
     assert observation.raw_mrp_text == "₹120"
     assert observation.availability_signal == "in_stock"
     assert observation.offer_text == "₹20 OFF"
-    assert observation.platform_identifiers == (("retailer_product_id", "637879"), ("source_index", "1"))
+    assert observation.platform_identifiers == (
+        ("retailer_product_id", "637879"),
+        ("retailer_product_url", "https://blinkit.com/prn/milk/prid/637879"),
+        ("source_index", "1"),
+    )
     assert batch.completeness.state.value == "COMPLETE"
     assert batch.parser_version == "blinkit-parser-v1"
 

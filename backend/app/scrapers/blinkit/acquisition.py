@@ -21,7 +21,9 @@ class BlinkitAcquisitionAdapter:
     ) -> None:
         self._scraper = scraper or BlinkitScraper(settings=settings)
 
-    async def acquire_search(self, *, query: str, evaluation_scope: str) -> AcquisitionResult:
+    async def acquire_search(self, *, query: str | None, evaluation_scope: str) -> AcquisitionResult:
+        if query is None:
+            raise ValueError("live Blinkit acquisition requires an explicit search query")
         response = await self._scraper.acquire_search(query)
         return self._to_result(response, evaluation_scope=evaluation_scope)
 

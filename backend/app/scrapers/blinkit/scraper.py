@@ -52,6 +52,11 @@ class BlinkitScraper(BaseScraper):
                 params={"q": query},
             )
         except ScraperRequestError as exc:
+            if exc.status_code in {401, 403, 406, 429}:
+                raise ScraperAccessDeniedError(
+                    "Blinkit denied acquisition; browser fallback is not attempted",
+                    status_code=exc.status_code,
+                ) from exc
             self.logger.warning(
                 "blinkit_http_blocked query=%s status_code=%s falling_back=playwright",
                 query,
