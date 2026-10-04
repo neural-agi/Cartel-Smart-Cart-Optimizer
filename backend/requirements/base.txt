@@ -9,6 +9,7 @@ argon2-cffi
 email-validator
 redis
 httpx
+Authlib
 requests
 beautifulsoup4
 playwright
