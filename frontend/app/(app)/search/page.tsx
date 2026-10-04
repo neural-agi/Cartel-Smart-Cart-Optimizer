@@ -9,7 +9,12 @@ import { Button } from "@/components/ui/button";
 import { productSearchService, type ProductSearchResult } from "@/services/productSearch";
 import { shoppingListsService } from "@/services/shoppingLists";
 import type { ShoppingList } from "@/types/shoppingLists";
-import { useCartStore } from "@/store/cartStore";
+import PageHeader from "@/components/consumer/PageHeader";
+import StatePanel from "@/components/consumer/StatePanel";
+
+function selectionKey(product: ProductSearchResult["products"][number]): string {
+  return [product.productId, product.variantId, product.platform, product.listingId, product.observationId].join("\u001f");
+}
 
 export default function SearchPage() {
   const [query, setQuery] = useState("");
@@ -21,7 +26,8 @@ export default function SearchPage() {
   const [listsLoading, setListsLoading] = useState(true);
   const [listError, setListError] = useState<string | null>(null);
   const [savingProductId, setSavingProductId] = useState<string | null>(null);
-  const addItem = useCartStore((state) => state.addItem);
+  const [selectedProducts, setSelectedProducts] = useState<Record<string, boolean>>({});
+  const [quantities, setQuantities] = useState<Record<string, number>>({});
   const activeLists = useMemo(() => lists.filter((list) => !list.archived), [lists]);
 
   useEffect(() => {
@@ -41,9 +47,14 @@ export default function SearchPage() {
   const submitSearch = async () => {
     if (!hasQuery || isSearching) return;
     setSearchError(null);
+    setSearchResult(null);
+    setSelectedProducts({});
+    setQuantities({});
     setIsSearching(true);
     try {
       setSearchResult(await productSearchService.search(query));
+      setSelectedProducts({});
+      setQuantities({});
     } catch (error) {
       setSearchResult(null);
       setSearchError(error instanceof Error ? error.message : "Product search failed.");
@@ -54,12 +65,16 @@ export default function SearchPage() {
 
   const addToList = async (product: ProductSearchResult["products"][number]) => {
     if (!selectedListId || !product.variantId || !product.listingId || !product.observationId || savingProductId) return;
-    const key = product.variantId;
+    const key = selectionKey(product);
+    if (!selectedProducts[key]) {
+      setListError("Select the exact product and pack before adding it to your list.");
+      return;
+    }
     setSavingProductId(key); setListError(null);
     try {
       const updated = await shoppingListsService.addItem(selectedListId, {
         query: searchResult?.query ?? query.trim(),
-        quantity: 1,
+        quantity: quantities[key] ?? 1,
         canonical_product_id: product.productId,
         canonical_variant_id: product.variantId,
         source_platform: product.platform,
@@ -67,7 +82,6 @@ export default function SearchPage() {
         source_observation_id: product.observationId,
       });
       setLists((current) => current.map((list) => list.id === updated.id ? updated : list));
-      addItem(product);
     } catch (error) {
       setListError(error instanceof Error ? error.message : "Could not save this product to your list.");
     } finally { setSavingProductId(null); }
@@ -76,11 +90,7 @@ export default function SearchPage() {
   return (
     <AppShell>
       <div className="space-y-8">
-        <header className="space-y-2">
-          <p className="text-sm font-medium text-primary">Product search</p>
-          <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Find what you need.</h1>
-          <p className="max-w-2xl text-muted-foreground">Search the governed catalog, then save the selected variant and its source observation to one of your persistent lists.</p>
-        </header>
+        <PageHeader eyebrow="Product search" title="Find the exact product." description="Search Cartel's verified catalog, confirm the variant and pack, then save that exact choice to a persistent list." />
 
         <div className="flex flex-wrap items-end gap-3">
           <div className="grid gap-1.5"><label htmlFor="shopping-list-target" className="text-sm font-medium">Save to list</label>
@@ -137,7 +147,7 @@ export default function SearchPage() {
               </h2>
               <p className="mt-1 text-sm text-muted-foreground">
                 {hasQuery
-                  ? "Results from the governed canonical catalog."
+                  ? "Results from Cartel's verified product catalog."
                   : "Search to begin building your cart."}
               </p>
             </div>
@@ -146,31 +156,34 @@ export default function SearchPage() {
           {isSearching ? (
             <div className="rounded-2xl border border-border bg-card px-6 py-16 text-center" aria-label="Searching">
               <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" aria-hidden="true" />
-              <h3 className="mt-4 font-semibold">Searching governed products</h3>
+              <h3 className="mt-4 font-semibold">Checking verified products</h3>
               <p className="mt-2 text-sm text-muted-foreground">Checking the supported catalog for an exact match.</p>
             </div>
           ) : searchError ? (
-            <div role="alert" className="rounded-2xl border border-destructive/40 bg-destructive/5 px-6 py-10 text-center">
-              <h3 className="font-semibold">Product search unavailable</h3>
-              <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted-foreground">{searchError}</p>
-            </div>
+            <StatePanel icon={SearchIcon} title="Product search unavailable" description={searchError} tone="danger" />
           ) : searchResult?.products.length === 0 || !searchResult ? (
-            <div className="rounded-2xl border border-dashed border-border bg-card/50 px-6 py-16 text-center">
-              <SearchIcon className="mx-auto h-8 w-8 text-muted-foreground/60" aria-hidden="true" />
-              <h3 className="mt-4 font-semibold">No products to show yet</h3>
-              <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted-foreground">
-                {hasQuery
-                  ? "No governed product/listing observations matched this query."
-                  : "Enter a grocery item above to search the catalog."}
-              </p>
-            </div>
+            <StatePanel icon={SearchIcon} title={hasQuery ? "No verified match yet" : "Search the verified catalog"} description={hasQuery ? "Cartel found no exact product with retailer information it can safely connect to this request. No similar product was substituted." : "Enter a grocery item above to inspect exact products and pack sizes."} />
           ) : (
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {searchResult?.products.map((product) => (
-                <article key={product.variantId ?? product.listingId ?? product.productId} className="rounded-2xl border border-border bg-card p-5">
+                <article key={selectionKey(product)} className={`surface-lift rounded-2xl border bg-card p-5 ${selectedProducts[selectionKey(product)] ? "border-primary ring-2 ring-primary/15" : "border-border"}`}>
                   <p className="text-xs text-muted-foreground">{product.platform}</p>
                   <h3 className="mt-3 font-semibold">{product.name}</h3>
+                  <p className="mt-1 text-sm text-muted-foreground">Brand: {product.brand ?? "Not specified"}</p>
                   <p className="mt-1 text-sm text-muted-foreground">{product.pack ?? "Pack information unavailable"}</p>
+                  <p className="mt-2 text-xs text-muted-foreground">Exact product selected · {product.platform}</p>
+                  {product.identityAttributes?.length ? <ul className="mt-2 list-disc pl-5 text-sm text-muted-foreground">{product.identityAttributes.map((attribute) => <li key={`product:${attribute.name}:${attribute.value}`}>{attribute.name}: {attribute.value}{attribute.assertionStatus !== "asserted" ? ` (${attribute.assertionStatus})` : ""}</li>)}</ul> : null}
+                  {product.variantAttributes?.length ? <ul className="mt-2 list-disc pl-5 text-sm text-muted-foreground">{product.variantAttributes.map((attribute) => <li key={`${attribute.name}:${attribute.value}`}>{attribute.name}: {attribute.value}{attribute.assertionStatus !== "asserted" ? ` (${attribute.assertionStatus})` : ""}</li>)}</ul> : null}
+                  <label className="mt-4 flex cursor-pointer items-start gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(selectedProducts[selectionKey(product)])}
+                      disabled={!product.variantId || !product.listingId || !product.observationId || product.evidenceState !== "registered_governed_observation"}
+                      onChange={(event) => setSelectedProducts((current) => ({ ...current, [selectionKey(product)]: event.target.checked }))}
+                      className="mt-0.5"
+                    />
+                    <span>Select this exact variant</span>
+                  </label>
                   <div className="mt-4 flex items-center justify-between gap-3 text-sm">
                     <span className="font-medium">
                       {product.price ? `${product.price.currency} ${(product.price.minorUnits / 100).toFixed(2)}` : "Price unavailable"}
@@ -179,9 +192,15 @@ export default function SearchPage() {
                       {product.availability ?? "Availability unavailable"}
                     </span>
                   </div>
-                  <Button className="mt-5 w-full" onClick={() => void addToList(product)} disabled={!selectedListId || !product.variantId || !product.listingId || !product.observationId || savingProductId !== null || product.availability === "unavailable"}>
-                    {savingProductId === product.variantId ? "Saving…" : "Add to list"}
+                  <label className="mt-4 grid gap-1.5 text-sm">
+                    <span>Quantity</span>
+                    <input type="number" min={1} max={999} value={quantities[selectionKey(product)] ?? 1} onChange={(event) => setQuantities((current) => ({ ...current, [selectionKey(product)]: Math.max(1, Math.min(999, Number(event.target.value) || 1)) }))} disabled={!product.variantId || !selectedProducts[selectionKey(product)]} className="h-10 w-24 rounded-md border border-border bg-background px-3" />
+                  </label>
+                  <p className="mt-2 text-xs leading-5 text-muted-foreground">{product.evidenceState === "registered_governed_observation" ? "Verified catalog observation" : "Evidence unavailable"}{product.observedAt ? ` · captured ${new Date(product.observedAt).toLocaleString()}` : ""}. Price and availability are observed facts, not a checkout quote.</p>
+                  <Button className="mt-5 w-full" onClick={() => void addToList(product)} disabled={!selectedListId || !product.variantId || !product.listingId || !product.observationId || product.evidenceState !== "registered_governed_observation" || !selectedProducts[selectionKey(product)] || savingProductId !== null}>
+                    {savingProductId === selectionKey(product) ? "Saving…" : "Add selected variant to list"}
                   </Button>
+                  {savingProductId !== selectionKey(product) && lists.find((list) => list.id === selectedListId)?.items.some((item) => item.canonical_variant_id === product.variantId && item.source_observation_id === product.observationId) && <p role="status" className="mt-2 text-sm text-emerald-700">Saved to {lists.find((list) => list.id === selectedListId)?.name}.</p>}
                 </article>
               ))}
             </div>

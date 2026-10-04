@@ -1,5 +1,5 @@
 import type { Product } from "@/types/product";
-import { apiFetch } from "@/lib/apiClient";
+import { apiFetch, readApiPayload, safeApiError } from "@/lib/apiClient";
 
 export type ProductSearchStatus = "ready";
 
@@ -34,9 +34,21 @@ function parseProductSearchResponse(value: unknown): ProductSearchResult {
       "platform",
       "platform_listing_id",
       "observation_id",
+      "evidence_state",
+      "observed_at",
+      "parser_version",
+      "normalization_version",
+      "source_reference",
+      "raw_artifact_id",
+      "raw_content_digest",
     ];
     if (required.some((field) => typeof candidate[field] !== "string" || !candidate[field])) {
       throw new Error(`Product search returned incomplete item at position ${index}.`);
+    }
+    if (candidate.evidence_state !== "registered_governed_observation"
+      || typeof candidate.observed_at !== "string"
+      || Number.isNaN(Date.parse(candidate.observed_at))) {
+      throw new Error(`Product search returned unverified evidence at position ${index}.`);
     }
     const rawPrice = candidate.price;
     const price = rawPrice === null || rawPrice === undefined
@@ -63,6 +75,39 @@ function parseProductSearchResponse(value: unknown): ProductSearchResult {
       availability: typeof candidate.availability_signal === "string"
         ? candidate.availability_signal
         : undefined,
+      evidenceState: candidate.evidence_state,
+      observedAt: typeof candidate.observed_at === "string" ? candidate.observed_at : undefined,
+      parserVersion: typeof candidate.parser_version === "string" ? candidate.parser_version : undefined,
+      normalizationVersion: typeof candidate.normalization_version === "string" ? candidate.normalization_version : undefined,
+      retailerProductId: typeof candidate.retailer_product_id === "string" ? candidate.retailer_product_id : undefined,
+      retailerProductUrl: typeof candidate.retailer_product_url === "string" ? candidate.retailer_product_url : undefined,
+      sourceReference: candidate.source_reference as string,
+      rawArtifactId: candidate.raw_artifact_id as string,
+      rawContentDigest: candidate.raw_content_digest as string,
+      evidenceReferences: Array.isArray(candidate.evidence_references)
+        ? candidate.evidence_references.flatMap((reference) => {
+            if (!reference || typeof reference !== "object") return [];
+            const value = reference as Record<string, unknown>;
+            if (typeof value.source_type !== "string" || typeof value.source_id !== "string") return [];
+            return [{ sourceType: value.source_type, sourceId: value.source_id }];
+          })
+        : [],
+      variantAttributes: Array.isArray(candidate.variant_attributes)
+        ? candidate.variant_attributes.flatMap((attribute) => {
+            if (!attribute || typeof attribute !== "object") return [];
+            const value = attribute as Record<string, unknown>;
+            if (["name", "value", "role", "assertion_status"].some((key) => typeof value[key] !== "string")) return [];
+            return [{ name: value.name as string, value: value.value as string, role: value.role as string, assertionStatus: value.assertion_status as string }];
+          })
+        : [],
+      identityAttributes: Array.isArray(candidate.identity_attributes)
+        ? candidate.identity_attributes.flatMap((attribute) => {
+            if (!attribute || typeof attribute !== "object") return [];
+            const value = attribute as Record<string, unknown>;
+            if (["name", "value", "role", "assertion_status"].some((key) => typeof value[key] !== "string")) return [];
+            return [{ name: value.name as string, value: value.value as string, role: value.role as string, assertionStatus: value.assertion_status as string }];
+          })
+        : [],
     } satisfies Product;
   });
 
@@ -73,18 +118,12 @@ export const productSearchService: ProductSearchService = {
   async search(query) {
     const normalizedQuery = query.trim();
     const response = await apiFetch(
-      `/api/v1/products/search?query=${encodeURIComponent(normalizedQuery)}`,
+      `/api/v2/products/search?query=${encodeURIComponent(normalizedQuery)}`,
     );
     if (!response.ok) {
-      let message = `Product search failed with status ${response.status}`;
-      try {
-        const body = (await response.json()) as { detail?: string };
-        if (body.detail) message = body.detail;
-      } catch {
-        // Preserve the HTTP failure when the response is not JSON.
-      }
-      throw new Error(message);
+      const body = await readApiPayload<{ detail?: unknown }>(response);
+      throw new Error(safeApiError(response, typeof body?.detail === "string" ? body.detail : "Product search is unavailable right now."));
     }
-    return parseProductSearchResponse(await response.json());
+    return parseProductSearchResponse(await readApiPayload(response));
   },
 };

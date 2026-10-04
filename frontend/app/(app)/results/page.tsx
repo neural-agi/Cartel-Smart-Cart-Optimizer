@@ -6,6 +6,9 @@ import { AlertCircle, ArrowLeft, CheckCircle2, CircleHelp, ExternalLink } from "
 import AppShell from "@/components/layout/AppShell";
 import { useCartStore } from "@/store/cartStore";
 import type { ItemAllocation } from "@/types/cartOptimization";
+import PageHeader from "@/components/consumer/PageHeader";
+import StatePanel from "@/components/consumer/StatePanel";
+import { consumerReason } from "@/lib/consumerCopy";
 
 export default function ResultsPage() {
   const items = useCartStore((state) => state.items);
@@ -25,20 +28,14 @@ export default function ResultsPage() {
   return (
     <AppShell>
       <div className="space-y-8">
-        <header className="space-y-2">
-          <p className="text-sm font-medium text-primary">Optimization result</p>
-          <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">A clearer way to buy this cart.</h1>
-          <p className="max-w-2xl text-muted-foreground">
-            Review the governed result and its evidence. Costs are shown only when the optimization response contains an effective-cost value.
-          </p>
-        </header>
+        <PageHeader eyebrow="Optimization result" title="A clearer way to buy this cart." description="Review what Cartel could determine from current supported evidence. Observed prices are not guaranteed checkout totals." />
 
         {automaticPlanning?.status === "unresolved" && !optimizationResult && (
           <section role="alert" className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-6">
             <h2 className="font-semibold">Cartel could not safely build a plan</h2>
-            <p className="mt-2 text-sm text-muted-foreground">No estimates were substituted for missing governed data.</p>
+            <p className="mt-2 text-sm text-muted-foreground">Cartel could not safely determine where this cart should be bought. No estimates were substituted for missing information.</p>
             <ul className="mt-4 list-disc space-y-1 pl-5 text-sm text-muted-foreground">
-              {automaticPlanning.unresolved_reasons.map((reason) => <li key={reason}>{reason}</li>)}
+              {consumerReason(automaticPlanning.unresolved_reasons[0] ?? "").length > 0 && <li>{consumerReason(automaticPlanning.unresolved_reasons[0] ?? "")}</li>}
             </ul>
             <Link href="/cart" className="mt-5 inline-flex text-sm font-medium text-primary hover:underline">Review cart</Link>
           </section>
@@ -46,10 +43,10 @@ export default function ResultsPage() {
 
         {automaticPlanning?.status === "unavailable" && !optimizationResult && (
           <section role="alert" className="rounded-2xl border border-orange-500/30 bg-orange-500/5 p-6">
-            <h2 className="font-semibold">Checkout provider unavailable</h2>
-            <p className="mt-2 text-sm text-muted-foreground">Cartel could not obtain authoritative retailer checkout evidence. No checkout cost was estimated.</p>
+            <h2 className="font-semibold">Checkout information is unavailable</h2>
+            <p className="mt-2 text-sm text-muted-foreground">Cartel could not verify a checkout total, so this result does not estimate what you would pay.</p>
             <ul className="mt-4 list-disc space-y-1 pl-5 text-sm text-muted-foreground">
-              {automaticPlanning.unresolved_reasons.map((reason) => <li key={reason}>{reason}</li>)}
+              {consumerReason(automaticPlanning.unresolved_reasons[0] ?? "").length > 0 && <li>{consumerReason(automaticPlanning.unresolved_reasons[0] ?? "")}</li>}
             </ul>
           </section>
         )}
@@ -66,32 +63,30 @@ export default function ResultsPage() {
                       ? "No feasible plan"
                       : "Optimization unresolved"}
                 </h2>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  Request {optimizationResult.request_id} / Optimization {optimizationResult.optimization_id}
-                </p>
+                <p className="mt-2 text-sm text-muted-foreground">This is a saved comparison for the items and evidence available when you started optimization.</p>
               </div>
               <div className={`rounded-full px-3 py-1 text-sm font-medium ${optimizationResult.outcome === "selected" ? "bg-green-500/10 text-green-700" : "bg-amber-500/10 text-amber-700"}`}>
-                {optimizationResult.outcome}
+                {optimizationResult.outcome === "selected" ? "Plan found" : optimizationResult.outcome === "infeasible" ? "Not possible yet" : "Needs review"}
               </div>
             </div>
 
             {plan ? (
               <>
                 <div className="grid gap-4 sm:grid-cols-3">
-                  <article className="rounded-2xl border border-border bg-card p-5">
-                    <p className="text-sm text-muted-foreground">Effective cost</p>
-                    <p className="mt-2 text-lg font-semibold">Checkout evidence linked</p>
-                    <p className="mt-1 text-xs text-muted-foreground">The optimizer uses checkout-derived evidence, not listing price alone. Amount details are unavailable in this result contract.</p>
+                  <article className="surface-lift rounded-2xl border border-border bg-card p-5">
+                    <p className="text-sm text-muted-foreground">Checkout total</p>
+                    <p className="mt-2 text-lg font-semibold">Not available</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Observed product prices do not include delivery, fees, discounts, or checkout changes.</p>
                   </article>
-                  <article className="rounded-2xl border border-border bg-card p-5">
-                    <p className="text-sm text-muted-foreground">Checkouts</p>
+                  <article className="surface-lift rounded-2xl border border-border bg-card p-5">
+                    <p className="text-sm text-muted-foreground">Retailer groups</p>
                     <p className="mt-2 text-lg font-semibold">{plan.checkout_groups.length}</p>
-                    <p className="mt-1 text-xs text-muted-foreground">Declared checkout groups in the selected plan.</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Separate retailer groupings in this comparison.</p>
                   </article>
-                  <article className="rounded-2xl border border-border bg-card p-5">
-                    <p className="text-sm text-muted-foreground">Feasibility</p>
-                    <p className="mt-2 text-lg font-semibold">{plan.feasibility}</p>
-                    <p className="mt-1 text-xs text-muted-foreground">Plan {plan.plan_id} · ECE {plan.effective_cost_evaluation_reference.effective_cost_evaluation_id}</p>
+                  <article className="surface-lift rounded-2xl border border-border bg-card p-5">
+                    <p className="text-sm text-muted-foreground">Plan status</p>
+                    <p className="mt-2 text-lg font-semibold">{plan.feasibility === "feasible" ? "Ready to review" : "Needs review"}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">This is a comparison, not an order or payment authorization.</p>
                   </article>
                 </div>
 
@@ -99,11 +94,10 @@ export default function ResultsPage() {
                   <div className="flex flex-wrap items-start justify-between gap-4">
                     <div>
                       <h3 id="selected-plan-heading" className="text-lg font-semibold">Selected allocation</h3>
-                      <p className="mt-1 text-sm text-muted-foreground">{optimizationResult.rationale.join(" ") || "No rationale was provided."}</p>
+                      <p className="mt-1 text-sm text-muted-foreground">{optimizationResult.rationale.join(" ") || "Cartel selected this grouping from the available product evidence."}</p>
                     </div>
                     <div className="text-right text-sm text-muted-foreground">
-                      <p>Inconvenience units: {plan.inconvenience_penalty_units}</p>
-                      <p>Preference priority: {plan.retailer_preference_priority}</p>
+                      <p>{plan.checkout_groups.length} retailer group{plan.checkout_groups.length === 1 ? "" : "s"}</p>
                     </div>
                   </div>
 
@@ -111,7 +105,7 @@ export default function ResultsPage() {
                     {Object.entries(allocationsByRetailer).map(([retailerId, allocations]) => (
                       <article key={retailerId} className="rounded-xl border border-border p-4">
                         <div className="flex items-center justify-between gap-3">
-                          <h4 className="font-semibold">Retailer {retailerId}</h4>
+                          <h4 className="font-semibold">{retailerId}</h4>
                           <span className="text-xs text-muted-foreground">{allocations.length} allocation{allocations.length === 1 ? "" : "s"}</span>
                         </div>
                         <div className="mt-3 divide-y divide-border">
@@ -119,14 +113,13 @@ export default function ResultsPage() {
                             <div key={`${allocation.item_id}:${allocation.checkout_group_id}`} className="flex justify-between gap-4 py-3 text-sm">
                               <div>
                                 <p className="font-medium">{allocation.item_id}</p>
-                                <p className="text-xs text-muted-foreground">Variant {allocation.canonical_variant_id}</p>
+                                <p className="text-xs text-muted-foreground">Exact product selected</p>
                               </div>
                               <div className="text-right">
                                 <p>Quantity {allocation.quantity}</p>
-                                <p className="text-xs text-muted-foreground">Group {allocation.checkout_group_id}</p>
                                 {plan.candidate_item_allocations?.find((candidate) => candidate.item_id === allocation.item_id)?.listing_provenance?.observed_selling_price && (
                                   <p className="text-xs text-muted-foreground">
-                                    Listed {plan.candidate_item_allocations.find((candidate) => candidate.item_id === allocation.item_id)?.listing_provenance?.observed_selling_price?.currency} {(plan.candidate_item_allocations.find((candidate) => candidate.item_id === allocation.item_id)?.listing_provenance?.observed_selling_price?.minor_units ?? 0) / 100}
+                                    Observed price {plan.candidate_item_allocations.find((candidate) => candidate.item_id === allocation.item_id)?.listing_provenance?.observed_selling_price?.currency} {(plan.candidate_item_allocations.find((candidate) => candidate.item_id === allocation.item_id)?.listing_provenance?.observed_selling_price?.minor_units ?? 0) / 100}
                                   </p>
                                 )}
                               </div>
@@ -144,7 +137,7 @@ export default function ResultsPage() {
                     </div>
                     <div className="rounded-xl bg-muted/40 p-4">
                       <h4 className="font-semibold">Retailer handoff</h4>
-                      <p className="mt-2 flex items-start gap-2 text-sm text-muted-foreground"><ExternalLink className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" /> No supported listing URL or execution handoff is present in the result contract.</p>
+                      <p className="mt-2 flex items-start gap-2 text-sm text-muted-foreground"><ExternalLink className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" /> Cartel could not provide a supported retailer handoff for this result.</p>
                     </div>
                   </div>
                 </section>
@@ -171,9 +164,9 @@ export default function ResultsPage() {
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
                   {optimizationResult.alternative_plans.map((alternative) => (
                     <article key={alternative.plan_id} className="rounded-xl border border-border p-4 text-sm">
-                      <p className="font-medium">Plan {alternative.plan_id}</p>
-                      <p className="mt-1 text-muted-foreground">Feasibility: {alternative.feasibility}</p>
-                      <p className="text-muted-foreground">Checkouts: {alternative.checkout_groups.length}</p>
+                      <p className="font-medium">Alternative comparison</p>
+                      <p className="mt-1 text-muted-foreground">{alternative.feasibility === "feasible" ? "Ready to review" : "Needs review"}</p>
+                      <p className="text-muted-foreground">{alternative.checkout_groups.length} retailer group{alternative.checkout_groups.length === 1 ? "" : "s"}</p>
                     </article>
                   ))}
                 </div>
@@ -183,12 +176,7 @@ export default function ResultsPage() {
         )}
 
         {!resolution && !automaticPlanning ? (
-          <section className="rounded-2xl border border-dashed border-border bg-card/50 px-6 py-20 text-center">
-            <CircleHelp className="mx-auto h-9 w-9 text-muted-foreground/60" aria-hidden="true" />
-            <h2 className="mt-5 text-lg font-semibold">No resolution result yet</h2>
-            <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-muted-foreground">Resolve a populated cart first.</p>
-            <Link href="/optimize" className="mt-6 inline-flex text-sm font-medium text-primary hover:underline">Prepare cart</Link>
-          </section>
+            <StatePanel icon={CircleHelp} title="Nothing to compare yet" description="Add items to your cart, then start an optimization to see which supported purchase paths Cartel can verify." action={<Link href="/optimize" className="text-sm font-medium text-primary hover:underline">Prepare cart</Link>} />
         ) : resolution ? (
           <section aria-labelledby="resolved-items-heading" className="space-y-4">
             <h2 id="resolved-items-heading" className="text-lg font-semibold">Cart items</h2>
@@ -206,15 +194,10 @@ export default function ResultsPage() {
                       <p className="mt-1 text-sm text-muted-foreground">Quantity: {item.quantity}</p>
                       {resolved ? (
                         <div className="mt-3 space-y-1 text-xs text-muted-foreground">
-                          <p>Product: {item.canonical_product_id}</p>
-                          <p>Variant: {item.canonical_variant_id}</p>
-                          {item.platform && <p>Listing: {item.platform} / {item.platform_listing_id}</p>}
-                          {item.observation_id && <p>Observation: {item.observation_id}</p>}
+                          {item.platform && <p>Retailer evidence available from {item.platform}.</p>}
                           {candidateItem && (
                             <div className="mt-3 space-y-2">
-                              <p>
-                                Persisted candidates: {candidateItem.candidates.length} ({candidateItem.status.replaceAll("_", " ")})
-                              </p>
+                              <p>{candidateItem.candidates.length} supported option{candidateItem.candidates.length === 1 ? "" : "s"} found.</p>
                               {candidateItem.reason && (
                                 <p className="text-amber-600">{candidateItem.reason}</p>
                               )}
@@ -223,13 +206,13 @@ export default function ResultsPage() {
                                   {candidateItem.candidates.map((candidate, candidateIndex) => (
                                     <div key={`${candidate.platform}:${candidate.platform_listing_id}:${candidate.observation_id}:${candidateIndex}`}>
                                       <p className="font-medium text-foreground">
-                                        {candidate.platform} / {candidate.platform_listing_id}
+                                        {candidate.platform} option
                                       </p>
                                       <p>
-                                        Observation: {candidate.observation_id} · {candidate.readiness.replaceAll("_", " ")}
+                                        {candidate.readiness === "ready_for_allocation" ? "Available for comparison" : "Needs more verified information"}
                                       </p>
                                       {candidate.readiness_reason && (
-                                        <p className="text-amber-600">{candidate.readiness_reason}</p>
+                        <p className="text-amber-600">{consumerReason(candidate.readiness_reason)}</p>
                                       )}
                                     </div>
                                   ))}
@@ -244,7 +227,7 @@ export default function ResultsPage() {
                     </div>
                     <div className={`flex shrink-0 items-center gap-2 text-sm ${resolved ? "text-green-600" : "text-amber-600"}`}>
                       {resolved ? <CheckCircle2 className="h-4 w-4" aria-hidden="true" /> : <AlertCircle className="h-4 w-4" aria-hidden="true" />}
-                      {resolved ? "Resolved" : "Unresolved"}
+                      {resolved ? "Ready" : "Needs review"}
                     </div>
                   </article>
                 );

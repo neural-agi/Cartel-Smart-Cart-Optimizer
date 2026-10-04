@@ -1,32 +1,29 @@
-import { apiFetch } from "@/lib/apiClient";
+import { apiFetch, newIdempotencyKey, readApiPayload, safeApiError } from "@/lib/apiClient";
 import type { ShoppingList, ShoppingListItemInput } from "@/types/shoppingLists";
 
 async function parseResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
-    let message = `Shopping list request failed (${response.status}).`;
-    try {
-      const body = await response.json() as { detail?: { code?: string; message?: string } | string };
-      if (typeof body.detail === "string") message = body.detail;
-      else if (body.detail?.message) message = body.detail.message;
-      else if (body.detail?.code) message = body.detail.code.replaceAll("_", " ");
-    } catch {
-      // Keep the status-based message for a non-JSON failure.
-    }
-    throw new Error(message);
+    const body = await readApiPayload<{ detail?: { message?: string } | string }>(response);
+    const detail = typeof body?.detail === "string" ? body.detail : body?.detail?.message;
+    throw new Error(safeApiError(response, detail ?? "Shopping list is unavailable right now."));
   }
   if (response.status === 204) return undefined as T;
-  return await response.json() as T;
+  return await readApiPayload<T>(response) as T;
 }
 
 export const shoppingListsService = {
+  async get(listId: string): Promise<ShoppingList> {
+    return parseResponse(await apiFetch(`/api/v2/lists/${encodeURIComponent(listId)}`, { cache: "no-store" }));
+  },
+
   async list(): Promise<readonly ShoppingList[]> {
     return parseResponse(await apiFetch("/api/v2/lists", { cache: "no-store" }));
   },
 
-  async create(name: string): Promise<ShoppingList> {
+  async create(name: string, key = newIdempotencyKey()): Promise<ShoppingList> {
     return parseResponse(await apiFetch("/api/v2/lists", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "Idempotency-Key": key },
       body: JSON.stringify({ name }),
     }));
   },
@@ -39,10 +36,10 @@ export const shoppingListsService = {
     }));
   },
 
-  async addItem(listId: string, item: ShoppingListItemInput): Promise<ShoppingList> {
+  async addItem(listId: string, item: ShoppingListItemInput, key = newIdempotencyKey()): Promise<ShoppingList> {
     return parseResponse(await apiFetch(`/api/v2/lists/${encodeURIComponent(listId)}/items`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "Idempotency-Key": key },
       body: JSON.stringify(item),
     }));
   },

@@ -1,14 +1,20 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Archive, Check, Pencil, Plus, Trash2 } from "lucide-react";
 
 import AppShell from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/button";
 import { shoppingListsService } from "@/services/shoppingLists";
 import type { ShoppingList } from "@/types/shoppingLists";
+import PageHeader from "@/components/consumer/PageHeader";
+import StatePanel from "@/components/consumer/StatePanel";
+import { ListChecks } from "lucide-react";
+import QuantityControl from "@/components/consumer/QuantityControl";
 
 export default function ShoppingListsPage() {
+  const router = useRouter();
   const [lists, setLists] = useState<readonly ShoppingList[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -109,11 +115,7 @@ export default function ShoppingListsPage() {
   return (
     <AppShell>
       <div className="space-y-8">
-        <header className="space-y-2">
-          <p className="text-sm font-medium text-primary">Your shopping</p>
-          <h1 className="text-3xl font-bold">Shopping lists</h1>
-          <p className="max-w-2xl text-muted-foreground">Keep requested items in your Cartel account. Product selections retain their governed catalog and observation references.</p>
-        </header>
+        <PageHeader eyebrow="Your shopping" title="Shopping lists" description="Keep requests and exact product selections in your Cartel account. Every revision stays tied to the evidence used for planning." />
 
         <form onSubmit={createList} className="flex max-w-xl gap-3">
           <input name="name" aria-label="New list name" placeholder="List name" maxLength={120} required className="h-10 min-w-0 flex-1 rounded-md border border-border bg-background px-3 text-sm" />
@@ -122,7 +124,7 @@ export default function ShoppingListsPage() {
 
         {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
         {loading ? <p role="status" className="text-sm text-muted-foreground">Loading your lists…</p> : lists.length === 0 ? (
-          <section className="border-y border-border py-12"><h2 className="text-lg font-semibold">No lists yet</h2><p className="mt-2 text-sm text-muted-foreground">Create a list, then add a request here or choose a governed product from Search.</p></section>
+          <StatePanel icon={ListChecks} title="Your first list is ready to create" description="Name a list above, then add an item to review or choose an exact verified product from Search." />
         ) : (
           <div className="grid gap-8 lg:grid-cols-[15rem_minmax(0,1fr)]">
             <nav aria-label="Shopping lists" className="space-y-1 border-b border-border pb-4 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-5">
@@ -140,6 +142,7 @@ export default function ShoppingListsPage() {
                 <Button variant="outline" size="sm" onClick={() => void toggleArchive()} disabled={saving}>
                   <Archive className="h-4 w-4" aria-hidden="true" />{selected.archived ? "Restore list" : "Archive"}
                 </Button>
+                {!selected.archived && selected.items.length > 0 && <Button size="sm" onClick={() => router.push(`/optimize?list_id=${encodeURIComponent(selected.id)}&revision=${selected.revision}`)}>Optimize list</Button>}
               </div>
 
               {!selected.archived && <form onSubmit={addItem} className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_7rem_auto]">
@@ -148,11 +151,11 @@ export default function ShoppingListsPage() {
                 <Button type="submit" disabled={saving}><Plus className="h-4 w-4" aria-hidden="true" />Add item</Button>
               </form>}
 
-              {selected.items.length === 0 ? <div className="border-t border-border py-10"><h3 className="font-medium">This list is empty</h3><p className="mt-2 text-sm text-muted-foreground">Search governed products or add an unresolved request above.</p></div> :
+              {selected.items.length === 0 ? <div className="border-t border-border py-10"><h3 className="font-medium">This list is empty</h3><p className="mt-2 text-sm text-muted-foreground">Search verified products or add an item to review above.</p></div> :
                 <div className="divide-y divide-border border-y border-border">
                   {selected.items.map((item) => <article key={item.id} className="flex flex-wrap items-center justify-between gap-4 py-4">
-                    <div className="min-w-0"><h3 className="font-medium">{item.display_name ?? item.query}</h3><p className="mt-1 text-xs text-muted-foreground">{item.resolution_status === "exact_confirmed" ? `Exact catalog variant · ${item.source_platform}` : "Unresolved request"}{item.unit ? ` · ${item.unit}` : ""}</p></div>
-                    <div className="flex items-center gap-2"><Button variant="outline" size="icon-sm" aria-label={`Decrease ${item.query}`} disabled={saving || selected.archived} onClick={() => void changeQuantity(item.id, item.quantity - 1)}>−</Button><span className="min-w-6 text-center text-sm tabular-nums">{item.quantity}</span><Button variant="outline" size="icon-sm" aria-label={`Increase ${item.query}`} disabled={saving || selected.archived || item.quantity >= 999} onClick={() => void changeQuantity(item.id, item.quantity + 1)}>+</Button><Button variant="ghost" size="icon-sm" aria-label={`Remove ${item.query}`} disabled={saving || selected.archived} onClick={() => void removeItem(item.id)}><Trash2 className="h-4 w-4" aria-hidden="true" /></Button></div>
+                    <div className="min-w-0 flex-1"><h3 className="font-medium">{item.display_name ?? item.query}</h3><p className="mt-1 text-xs text-muted-foreground">{item.resolution_status === "exact_confirmed" ? "Exact product saved" : "Request saved · product match still unresolved"}{item.unit ? ` · ${item.unit}` : ""}</p></div>
+                    <div className="flex items-center gap-2"><QuantityControl label={item.display_name ?? item.query} value={item.quantity} disabled={saving || selected.archived} onChange={(quantity) => void changeQuantity(item.id, quantity)} /><Button variant="ghost" size="icon-sm" aria-label={`Remove ${item.query}`} disabled={saving || selected.archived} onClick={() => void removeItem(item.id)}><Trash2 className="h-4 w-4" aria-hidden="true" /></Button></div>
                   </article>)}
                 </div>}
             </section>}

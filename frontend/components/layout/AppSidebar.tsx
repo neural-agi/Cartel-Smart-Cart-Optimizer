@@ -22,6 +22,7 @@ import { apiFetch } from "@/lib/apiClient";
 import { clearAuthState } from "@/lib/authSession";
 import { useCartStore } from "@/store/cartStore";
 import { Button } from "@/components/ui/button";
+import CartelMark from "@/components/brand/CartelMark";
 
 export const appNavigation = [
   { label: "Home", href: "/home", icon: LayoutDashboard },
@@ -64,9 +65,7 @@ export default function AppSidebar({ onNavigate }: AppSidebarProps) {
   return (
     <aside className="flex h-full w-64 flex-col border-r border-border bg-background">
       <div className="flex h-16 shrink-0 items-center border-b border-border px-6">
-        <Link href="/home" className="text-xl font-bold tracking-tight" onClick={onNavigate}>
-          Cartel
-        </Link>
+        <CartelMark onNavigate={onNavigate} />
       </div>
 
       <nav aria-label="Application navigation" className="flex-1 space-y-1 overflow-y-auto p-4">
