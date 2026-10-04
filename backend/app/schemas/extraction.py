@@ -20,6 +20,10 @@ class RawExtractedProduct(BaseModel):
     retailer_product_id: str | None = None
     product_url: str | None = None
     product_name: str
+    brand: str | None = None
+    image_urls: list[str] = Field(default_factory=list)
+    retailer_store_id: str | None = None
+    provider_metadata: dict[str, object] = Field(default_factory=dict)
     displayed_price: str | None = None
     mrp: str | None = None
     quantity: str | None = None
@@ -44,3 +48,5 @@ class RawExtractionResult(BaseModel):
     pages_evaluated: int | None = None
     pagination_complete: bool | None = None
     termination_reason: str | None = None
+    provider_request_id: str | None = None
+    provider_metadata: dict[str, object] = Field(default_factory=dict)

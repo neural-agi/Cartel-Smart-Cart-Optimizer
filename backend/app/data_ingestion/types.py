@@ -62,6 +62,13 @@ class AcquisitionResult(_FrozenContract):
     capture_type: CaptureType
     warnings: tuple[str, ...] = Field(default_factory=tuple)
     capture_coverage: CaptureCoverage
+    provider_id: str | None = None
+    acquisition_method: str | None = None
+    location_scope: str | None = None
+    evidence_quality: str | None = None
+    provider_request_id: str | None = None
+    location_latitude: float | None = None
+    location_longitude: float | None = None
 
     _validate_strings = field_validator("source_reference", "content_type", "evaluation_scope", "termination_reason")(_non_empty)
 
@@ -204,6 +211,13 @@ class RawArtifactReference(_FrozenContract):
     content_type: str
     capture_timestamp: datetime
     source_reference: str
+    provider_id: str | None = None
+    acquisition_method: str | None = None
+    location_scope: str | None = None
+    evidence_quality: str | None = None
+    provider_request_id: str | None = None
+    location_latitude: float | None = None
+    location_longitude: float | None = None
 
     _validate_strings = field_validator(
         "artifact_id",

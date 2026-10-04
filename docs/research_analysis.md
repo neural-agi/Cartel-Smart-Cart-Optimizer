@@ -6,7 +6,7 @@ This review assimilates the consolidated research report and the repository stat
 
 ### Current-State Observations
 
-- The repository has one operational acquisition path: Blinkit search via Playwright after direct HTTP is blocked by `403`.
+- Blinkit acquisition has a direct HTTP search path and a browser fallback for selected non-access-denial request failures. HTTP `401`, `403`, `406`, and `429` are terminal and do not trigger browser fallback. A preserved browser failure page contains Cloudflare/block markers, but its HTTP status and response metadata were not retained, so it does not establish the cause of a particular `403`.
 - A browser session is location-aware, persists state locally, and captures rendered HTML plus request metadata.
 - A Blinkit-specific parser extracts 24 product cards from the saved `milk` page into raw structured JSON. The current fields are name, visual price strings, a second visual price called MRP, quantity text, stock inferred from `ADD`, offer text, and raw card text.
 - There is no product catalog, normalizer, matcher, offer evaluator, fee model, price-history store, checkout observation model, database, or optimizer.
