@@ -2,6 +2,18 @@ from fastapi.testclient import TestClient
 
 from app.core.config import Settings
 from app.main import create_application
+from app.core.rate_limit import RateLimitDecision
+
+
+class _TestRateLimiter:
+    async def ping(self) -> None:
+        return None
+
+    async def close(self) -> None:
+        return None
+
+    async def allow(self, **kwargs) -> RateLimitDecision:
+        return RateLimitDecision(allowed=True, remaining=kwargs["limit"])
 
 
 def test_automatic_cart_planning_returns_structured_unresolved_result() -> None:
@@ -41,7 +53,7 @@ def test_production_user_journey_requires_bearer_and_reports_unavailable_checkou
         checkout_capture_adapter_mode="unavailable",
         checkout_observation_provider_mode="unavailable",
     )
-    with TestClient(create_application(settings)) as client:
+    with TestClient(create_application(settings, rate_limiter=_TestRateLimiter())) as client:
         health = client.get("/health")
         ready = client.get("/ready")
         rejected = client.post("/api/v1/cart/optimize", json={"cart_id": "release-1", "items": []})
