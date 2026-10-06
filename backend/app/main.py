@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
 from starlette.responses import JSONResponse
+from sqlalchemy.exc import SQLAlchemyError
 from time import time
 from threading import Lock
 
@@ -22,6 +23,7 @@ from app.data_ingestion.observation_registry.query import RetailObservationQuery
 from app.services.cart_resolution import CartResolutionService
 from app.services.cart_candidate_discovery import CartCandidateDiscoveryService
 from app.services.product_search import ProductSearchService
+from app.retailer_data.persistence import FilesystemRetailerObservationStore
 from app.cart_optimization.planning import CartPlanningService
 from app.cart_optimization.automatic_planning import (
     AutomaticCartPlanningService,
@@ -51,6 +53,8 @@ from app.cost_intelligence.observation.capture_service import (
 from app.data_ingestion.artifact_store import LocalFilesystemArtifactStore
 from app.cost_intelligence.pipeline.service import CostIntelligencePipelineService
 from app.scrapers.blinkit.checkout_capture import BlinkitCheckoutCaptureAdapter
+from app.db.session import get_session_factory
+from app.workers.background_jobs import DurableJobStore
 
 
 logger = get_logger(__name__)
@@ -82,6 +86,8 @@ async def lifespan(app: FastAPI):
     settings = get_settings()
     configure_logging(log_level=settings.log_level, json_logs=settings.log_json)
     app.state.settings = settings
+    app.state.db_session_factory = get_session_factory(settings)
+    app.state.background_job_store = DurableJobStore(app.state.db_session_factory, settings)
 
     logger.info(
         "Application startup complete: app=%s env=%s version=%s",
@@ -125,6 +131,20 @@ def create_application(
         openapi_url=openapi_url,
         lifespan=lifespan,
     )
+    application.state.settings = app_settings
+    application.state.db_session_factory = get_session_factory(app_settings)
+    application.state.background_job_store = DurableJobStore(
+        application.state.db_session_factory, app_settings
+    )
+
+    @application.exception_handler(SQLAlchemyError)
+    async def database_unavailable(request: Request, exc: SQLAlchemyError):
+        request_id = getattr(request.state, "request_id", None)
+        logger.error("database_unavailable", extra={"request_id": request_id})
+        return JSONResponse(
+            status_code=503,
+            content={"detail": {"code": "database_unavailable", "request_id": request_id}},
+        )
     if app_settings.cors_origins:
         application.add_middleware(
             CORSMiddleware,
@@ -212,6 +232,9 @@ def create_application(
         catalog=configured_runtime.catalog,
         association_registry=configured_runtime.association_registry,
         observation_registry=configured_runtime.observation_registry,
+        retailer_observation_store=FilesystemRetailerObservationStore(
+            app_settings.data_dir / "retailer_data" / "observations"
+        ),
     )
     checkout_store = FilesystemCheckoutObservationCorrelationStore(
         app_settings.data_dir / "cost_intelligence" / "checkout_captures"
