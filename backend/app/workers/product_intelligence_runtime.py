@@ -110,8 +110,9 @@ class ProductIntelligenceRuntime:
             lifecycle_reporter(job, JobState.NORMALIZED, JobState.REGISTERING_OBSERVATION,
                                "observation registration started", attempt_number=worker_result.attempt.attempt_number)
 
+        retailer_only = dict(job.request_parameters.values).get("retailer_only") == "true"
         records = tuple(
-            [await self._execute_observation(observation) for observation in normalized]
+            [await self._register_retailer_only(observation) if retailer_only else await self._execute_observation(observation) for observation in normalized]
         )
         if lifecycle_reporter is not None:
             lifecycle_reporter(job, JobState.REGISTERING_OBSERVATION, JobState.REGISTERED,
@@ -131,6 +132,23 @@ class ProductIntelligenceRuntime:
             worker_result=worker_result,
             observations=records,
             rationale=(f"processed_observations={len(records)}",),
+        )
+
+    async def _register_retailer_only(self, observation: NormalizedObservation) -> RuntimeObservationResult:
+        try:
+            registered = self.observation_registry.register(observation)
+        except Exception as exc:
+            return RuntimeObservationResult(
+                observation_id=observation.observation_id,
+                status=RuntimeObservationStatus.observation_registration_failed,
+                observation=observation,
+                rationale=(str(exc),),
+            )
+        return RuntimeObservationResult(
+            observation_id=registered.observation_id,
+            status=RuntimeObservationStatus.association_unresolved,
+            observation=registered,
+            rationale=("retailer-only acquisition; canonical association skipped",),
         )
 
     async def _execute_observation(

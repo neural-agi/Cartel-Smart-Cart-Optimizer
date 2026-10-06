@@ -31,6 +31,7 @@ from app.scrapers.blinkit.acquisition import BlinkitAcquisitionAdapter
 from app.workers.local_ingestion import LocalIngestionWorker
 from app.workers.product_intelligence_runtime import ProductIntelligenceRuntime
 from app.workers.job_execution_coordinator import JobExecutionCoordinator
+from app.retailer_data.persistence import FilesystemRetailerObservationStore
 
 
 def build_product_intelligence_runtime(settings: Settings) -> JobExecutionCoordinator:
@@ -73,6 +74,9 @@ def build_product_intelligence_runtime(settings: Settings) -> JobExecutionCoordi
             artifact_store=LocalFilesystemArtifactStore(
                 root=settings.raw_data_dir,
                 store_namespace="product-intelligence",
+            ),
+            retailer_observation_store=FilesystemRetailerObservationStore(
+                root_dir=settings.data_dir / "retailer_data" / "observations"
             ),
         ),
         normalizer=DeterministicIngestionNormalizer(),
