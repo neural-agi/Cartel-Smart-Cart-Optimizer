@@ -23,6 +23,8 @@ from app.schemas.extraction import RawExtractionResult
 from app.scrapers.blinkit.acquisition import BlinkitAcquisitionAdapter
 from app.scrapers.blinkit.bridge import BlinkitParserBridge
 from app.scrapers.blinkit.parser import BlinkitProductParser
+from app.retailer_data.blinkit import BlinkitRetailerDataProvider
+from app.retailer_data.persistence import FilesystemRetailerObservationStore
 
 
 class AcquisitionBoundary(Protocol):
@@ -43,12 +45,16 @@ class LocalIngestionWorker:
         artifact_store: ArtifactStore,
         parser: ParserBoundary | None = None,
         bridge: BlinkitParserBridge | None = None,
+        retailer_observation_store: FilesystemRetailerObservationStore | None = None,
+        retailer_provider: BlinkitRetailerDataProvider | None = None,
         lifecycle_reporter=None,
     ) -> None:
         self._acquisition = acquisition or BlinkitAcquisitionAdapter()
         self._artifact_store = artifact_store
         self._parser = parser or BlinkitProductParser()
         self._bridge = bridge or BlinkitParserBridge()
+        self._retailer_observation_store = retailer_observation_store
+        self._retailer_provider = retailer_provider or BlinkitRetailerDataProvider()
         self._lifecycle_reporter = lifecycle_reporter
 
     async def execute(self, job: ScrapeJob, *, attempt_number: int = 1) -> IngestionWorkerResult:
@@ -121,6 +127,12 @@ class LocalIngestionWorker:
             extraction = self._complete_extraction(extraction, acquisition)
             batch = self._bridge.build_batch(extraction, artifact_reference)
             report_transition(JobState.PARSING, JobState.PARSED, "parsing completed")
+            if self._retailer_observation_store is not None:
+                for observation in self._retailer_provider.normalize(
+                    extraction,
+                    source_artifact_reference=artifact_reference.storage_reference,
+                ):
+                    self._retailer_observation_store.register(observation)
             attempt = ScrapeAttempt(
                 job_id=job.job_id,
                 attempt_number=attempt_number,
