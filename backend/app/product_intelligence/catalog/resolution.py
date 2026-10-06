@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Hashable, Iterable
+from datetime import datetime
 from enum import StrEnum
 from typing import TypeAlias
 
@@ -39,6 +40,9 @@ class CanonicalListingAssociation(BaseModel):
     platform_listing_id: str
     canonical_product_id: str
     canonical_variant_id: str
+    association_status: str = "associated"
+    association_method: str = "operator_supplied"
+    association_timestamp: datetime | None = None
 
 
 class ListingResolutionResult(BaseModel):

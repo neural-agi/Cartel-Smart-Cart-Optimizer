@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.data_ingestion.observation_registry.interface import ObservationRegistry
 from app.product_intelligence.catalog.association_storage import (
     FilesystemCanonicalListingAssociationRegistry,
 )
 from app.product_intelligence.catalog.service import FilesystemAuthoritativeCatalog
+from app.retailer_data.persistence import FilesystemRetailerObservationStore
 
 
 class ProductSearchRequest(BaseModel):
@@ -14,6 +15,14 @@ class ProductSearchRequest(BaseModel):
 
     query: str
     limit: int = 20
+    max_age_seconds: int | None = None
+
+    @field_validator("max_age_seconds")
+    @classmethod
+    def _validate_max_age(cls, value: int | None) -> int | None:
+        if value is not None and value < 0:
+            raise ValueError("max_age_seconds must not be negative")
+        return value
 
 
 class ProductSearchMoney(BaseModel):
@@ -59,10 +68,12 @@ class ProductSearchService:
         catalog: FilesystemAuthoritativeCatalog,
         association_registry: FilesystemCanonicalListingAssociationRegistry,
         observation_registry: ObservationRegistry,
+        retailer_observation_store: FilesystemRetailerObservationStore | None = None,
     ) -> None:
         self._catalog = catalog
         self._association_registry = association_registry
         self._observation_registry = observation_registry
+        self._retailer_observation_store = retailer_observation_store
 
     def search(self, request: ProductSearchRequest) -> ProductSearchResult:
         query = request.query.strip()
@@ -79,6 +90,8 @@ class ProductSearchService:
         query_folded = query.casefold()
         items: list[ProductSearchItem] = []
         for association in self._association_registry.all():
+            if getattr(association, "association_status", "associated") != "associated":
+                continue
             product = products.get(association.canonical_product_id)
             variant = variants.get(association.canonical_variant_id)
             if product is None or variant is None:
@@ -95,9 +108,22 @@ class ProductSearchService:
             if query_folded not in searchable:
                 continue
             observation = self._observation_registry.get(association.observation_id)
+            retailer_observation = None
+            if observation is None and self._retailer_observation_store is not None:
+                retailer_observation = self._retailer_observation_store.get(association.observation_id)
+                if retailer_observation is not None and request.max_age_seconds is not None:
+                    from datetime import timedelta
+
+                    if retailer_observation.freshness_at(max_age=timedelta(seconds=request.max_age_seconds)).value != "current":
+                        continue
             if observation is None:
-                continue
-            price = observation.observed_selling_price
+                if retailer_observation is None:
+                    continue
+                price = retailer_observation.effective_price or retailer_observation.listed_price
+                availability_signal = retailer_observation.availability
+            else:
+                price = observation.observed_selling_price
+                availability_signal = observation.availability_signal
             items.append(
                 ProductSearchItem(
                     canonical_product_id=product.canonical_product_id,
@@ -116,7 +142,7 @@ class ProductSearchService:
                         if price is not None
                         else None
                     ),
-                    availability_signal=observation.availability_signal,
+                    availability_signal=availability_signal,
                 )
             )
 
