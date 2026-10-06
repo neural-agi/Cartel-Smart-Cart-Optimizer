@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Literal
 from urllib.parse import urlsplit
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -117,7 +117,52 @@ class Settings(BaseSettings):
     postgres_db: str = Field(default="cartel", alias="POSTGRES_DB")
     postgres_user: str = Field(default="cartel", alias="POSTGRES_USER")
     postgres_password: str = Field(default="cartel", alias="POSTGRES_PASSWORD")
+    database_required: bool = Field(default=False, alias="DATABASE_REQUIRED")
+    database_url_override: SecretStr | None = Field(default=None, alias="DATABASE_URL")
+    db_pool_size: int = Field(default=5, alias="DB_POOL_SIZE")
+    db_max_overflow: int = Field(default=10, alias="DB_MAX_OVERFLOW")
+    db_pool_timeout_seconds: float = Field(default=30.0, alias="DB_POOL_TIMEOUT_SECONDS")
+    db_pool_recycle_seconds: int = Field(default=1800, alias="DB_POOL_RECYCLE_SECONDS")
+    auth_session_days: int = Field(default=14, alias="AUTH_SESSION_DAYS")
+    auth_idle_days: int = Field(default=7, alias="AUTH_IDLE_DAYS")
+    auth_challenge_minutes: int = Field(default=30, alias="AUTH_CHALLENGE_MINUTES")
+    auth_rate_limit_requests: int = Field(default=10, alias="AUTH_RATE_LIMIT_REQUESTS")
+    auth_cookie_secure: bool = Field(default=False, alias="AUTH_COOKIE_SECURE")
+    public_origin: str = Field(default="http://localhost:3000", alias="PUBLIC_ORIGIN")
+    smtp_host: str = Field(default="", alias="SMTP_HOST")
+    smtp_port: int = Field(default=587, alias="SMTP_PORT")
+    smtp_username: str = Field(default="", alias="SMTP_USERNAME")
+    smtp_password: SecretStr = Field(default=SecretStr(""), alias="SMTP_PASSWORD")
+    smtp_from: str = Field(default="", alias="SMTP_FROM")
+    smtp_starttls: bool = Field(default=True, alias="SMTP_STARTTLS")
+    email_delivery_mode: Literal["smtp", "file"] = Field(default="file", alias="EMAIL_DELIVERY_MODE")
+    local_email_dir: Path = Field(default=Path("../data/emails"), alias="LOCAL_EMAIL_DIR")
+    google_client_id: str = Field(default="", alias="GOOGLE_CLIENT_ID")
+    google_client_secret: SecretStr = Field(default=SecretStr(""), alias="GOOGLE_CLIENT_SECRET")
+    google_redirect_uri: str = Field(default="", alias="GOOGLE_REDIRECT_URI")
+    github_client_id: str = Field(default="", alias="GITHUB_CLIENT_ID")
+    github_client_secret: SecretStr = Field(default=SecretStr(""), alias="GITHUB_CLIENT_SECRET")
+    github_redirect_uri: str = Field(default="", alias="GITHUB_REDIRECT_URI")
+    apple_client_id: str = Field(default="", alias="APPLE_CLIENT_ID")
+    apple_team_id: str = Field(default="", alias="APPLE_TEAM_ID")
+    apple_key_id: str = Field(default="", alias="APPLE_KEY_ID")
+    apple_private_key: SecretStr = Field(default=SecretStr(""), alias="APPLE_PRIVATE_KEY")
+    apple_redirect_uri: str = Field(default="", alias="APPLE_REDIRECT_URI")
     redis_url: str = Field(default="redis://localhost:6379/0", alias="REDIS_URL")
+    redis_connect_timeout_seconds: float = Field(default=1.0, alias="REDIS_CONNECT_TIMEOUT_SECONDS")
+    redis_operation_timeout_seconds: float = Field(default=1.0, alias="REDIS_OPERATION_TIMEOUT_SECONDS")
+    redis_max_connections: int = Field(default=20, alias="REDIS_MAX_CONNECTIONS")
+    worker_concurrency: int = Field(default=1, alias="WORKER_CONCURRENCY")
+    job_poll_interval_seconds: float = Field(default=1.0, alias="JOB_POLL_INTERVAL_SECONDS")
+    job_max_attempts: int = Field(default=3, alias="JOB_MAX_ATTEMPTS")
+    job_retry_base_seconds: float = Field(default=5.0, alias="JOB_RETRY_BASE_SECONDS")
+    job_retry_max_seconds: float = Field(default=300.0, alias="JOB_RETRY_MAX_SECONDS")
+    job_lease_seconds: int = Field(default=300, alias="JOB_LEASE_SECONDS")
+    outbox_max_attempts: int = Field(default=5, alias="OUTBOX_MAX_ATTEMPTS")
+    outbox_retry_base_seconds: float = Field(default=5.0, alias="OUTBOX_RETRY_BASE_SECONDS")
+    outbox_retry_max_seconds: float = Field(default=300.0, alias="OUTBOX_RETRY_MAX_SECONDS")
+    outbox_lease_seconds: int = Field(default=300, alias="OUTBOX_LEASE_SECONDS")
+    outbox_poll_interval_seconds: float = Field(default=1.0, alias="OUTBOX_POLL_INTERVAL_SECONDS")
 
     @field_validator(
         "app_name",
@@ -219,6 +264,39 @@ class Settings(BaseSettings):
     @property
     def configured_planning_feasibility_evidence(self) -> tuple[str, ...]:
         return tuple(item.strip() for item in self.planning_feasibility_evidence.split(",") if item.strip())
+
+    @property
+    def database_url(self) -> str:
+        if self.database_url_override and self.database_url_override.get_secret_value():
+            return self.database_url_override.get_secret_value()
+        return (
+            f"postgresql+psycopg://{self.postgres_user}:{self.postgres_password}"
+            f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
+        )
+
+    @property
+    def email_delivery_configured(self) -> bool:
+        if self.email_delivery_mode == "file":
+            return True
+        return bool(self.smtp_host.strip() and self.smtp_from.strip())
+
+    @property
+    def google_oauth_configured(self) -> bool:
+        return bool(self.google_client_id.strip() and self.google_client_secret.get_secret_value() and self.google_redirect_uri.strip())
+
+    @property
+    def github_oauth_configured(self) -> bool:
+        return bool(self.github_client_id.strip() and self.github_client_secret.get_secret_value() and self.github_redirect_uri.strip())
+
+    @property
+    def apple_oauth_configured(self) -> bool:
+        return bool(
+            self.apple_client_id.strip()
+            and self.apple_team_id.strip()
+            and self.apple_key_id.strip()
+            and self.apple_private_key.get_secret_value()
+            and self.apple_redirect_uri.strip()
+        )
 
     @field_validator("blinkit_delivery_latitude")
     @classmethod
