@@ -113,3 +113,9 @@ class AuditEvent(Base):
 from app.db.models.shopping import ShoppingList, ShoppingListItem  # noqa: E402,F401
 from app.db.models.background_jobs import BackgroundJob
 from app.db.models.email_outbox import EmailOutboxEvent
+from app.db.models.idempotency import IdempotencyRecord
+from app.db.models.optimization_records import (
+    OptimizationAllocationRecord,
+    OptimizationPlanRecord,
+    OptimizationRequestRecord,
+)

@@ -296,7 +296,13 @@ def authenticate_external(
     return issued
 
 
-def resolve_session(db: Session, raw_token: str, idle_days: int = 7) -> tuple[AuthSession, User] | None:
+def resolve_session(
+    db: Session,
+    raw_token: str,
+    idle_days: int = 7,
+    *,
+    commit: bool = True,
+) -> tuple[AuthSession, User] | None:
     if not raw_token or len(raw_token) > 256:
         return None
     session = db.scalar(select(AuthSession).where(AuthSession.token_hash == _digest(raw_token)))
@@ -306,13 +312,15 @@ def resolve_session(db: Session, raw_token: str, idle_days: int = 7) -> tuple[Au
     if session.last_seen_at + timedelta(days=idle_days) <= now:
         session.revoked_at = now
         session.revoke_reason = "idle_expired"
-        db.commit()
+        if commit:
+            db.commit()
         return None
     user = db.get(User, session.user_id)
     if user is None or user.status != "active" or user.deleted_at is not None:
         return None
     session.last_seen_at = now
-    db.commit()
+    if commit:
+        db.commit()
     return session, user
 
 
