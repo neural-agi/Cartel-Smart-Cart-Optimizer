@@ -126,6 +126,7 @@ class Settings(BaseSettings):
     auth_session_days: int = Field(default=14, alias="AUTH_SESSION_DAYS")
     auth_idle_days: int = Field(default=7, alias="AUTH_IDLE_DAYS")
     auth_challenge_minutes: int = Field(default=30, alias="AUTH_CHALLENGE_MINUTES")
+    idempotency_ttl_seconds: int = Field(default=86400, alias="IDEMPOTENCY_TTL_SECONDS")
     auth_rate_limit_requests: int = Field(default=10, alias="AUTH_RATE_LIMIT_REQUESTS")
     auth_cookie_secure: bool = Field(default=False, alias="AUTH_COOKIE_SECURE")
     public_origin: str = Field(default="http://localhost:3000", alias="PUBLIC_ORIGIN")

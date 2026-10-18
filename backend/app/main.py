@@ -17,6 +17,7 @@ from app.api.routes.health import router as health_router
 from app.core.config import Settings, get_settings
 from app.core.logging import configure_logging, get_logger
 from app.core.security import AuthenticationError, authenticate_bearer
+from app.core.rate_limit import RateLimitBackendUnavailable, RedisRateLimiter
 from app.workers.bootstrap import build_product_intelligence_runtime
 from app.workers.product_intelligence_runtime import ProductIntelligenceRuntime
 from app.data_ingestion.observation_registry.query import RetailObservationQueryService
@@ -80,14 +81,36 @@ class _InMemoryRateLimiter:
             self._entries[key] = values
             return allowed
 
+    async def close(self) -> None:
+        """Match the async lifecycle of the distributed limiter."""
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    settings = get_settings()
+    settings = getattr(app.state, "settings", None) or get_settings()
     configure_logging(log_level=settings.log_level, json_logs=settings.log_json)
     app.state.settings = settings
     app.state.db_session_factory = get_session_factory(settings)
     app.state.background_job_store = DurableJobStore(app.state.db_session_factory, settings)
+    app.state.rate_limiter_ready = True
+
+    if settings.database_required:
+        try:
+            from sqlalchemy import text
+            from app.db.session import get_engine
+
+            with get_engine(settings).connect() as connection:
+                connection.execute(text("SELECT 1"))
+        except SQLAlchemyError:
+            logger.critical("database_startup_check_failed", extra={"component": "database"})
+            raise
+    if settings.is_production:
+        try:
+            await app.state.rate_limiter.ping()
+        except RateLimitBackendUnavailable as exc:
+            app.state.rate_limiter_ready = False
+            logger.critical("rate_limit_backend_startup_check_failed", extra={"component": "rate_limiter"})
+            raise RuntimeError("Redis rate-limit backend is unavailable") from exc
 
     logger.info(
         "Application startup complete: app=%s env=%s version=%s",
@@ -110,6 +133,8 @@ async def lifespan(app: FastAPI):
     try:
         yield
     finally:
+        if hasattr(app.state, "rate_limiter"):
+            await app.state.rate_limiter.close()
         logger.info("Application shutdown complete: app=%s", settings.app_name)
 
 
@@ -175,12 +200,32 @@ def create_application(
                     headers={"WWW-Authenticate": "Bearer", "X-Request-ID": request_id},
                 )
         limiter = getattr(application.state, "rate_limiter", None)
-        if protected and limiter is not None and not limiter.allow(request.client.host if request.client else "unknown", request.url.path):
-            return JSONResponse(
-                status_code=429,
-                content={"error": {"code": "rate_limited", "message": "request rate limit exceeded", "request_id": request_id}},
-                headers={"Retry-After": str(app_settings.rate_limit_window_seconds), "X-Request-ID": request_id},
-            )
+        if protected and limiter is not None:
+            try:
+                if isinstance(limiter, RedisRateLimiter):
+                    decision = await limiter.allow(
+                        category="api",
+                        identity=request.state.user_id if request.state.authenticated else (request.client.host if request.client else "unknown"),
+                        path=request.url.path,
+                        limit=app_settings.rate_limit_requests,
+                        window_seconds=app_settings.rate_limit_window_seconds,
+                    )
+                    allowed = decision.allowed
+                else:
+                    allowed = limiter.allow(request.client.host if request.client else "unknown", request.url.path)
+            except RateLimitBackendUnavailable:
+                logger.error("rate_limit_backend_unavailable", extra={"request_id": request_id, "component": "rate_limiter"})
+                return JSONResponse(
+                    status_code=503,
+                    content={"error": {"code": "rate_limit_unavailable", "message": "Cartel cannot safely process this request right now.", "request_id": request_id}},
+                    headers={"X-Request-ID": request_id},
+                )
+            if not allowed:
+                return JSONResponse(
+                    status_code=429,
+                    content={"error": {"code": "rate_limited", "message": "request rate limit exceeded", "request_id": request_id}},
+                    headers={"Retry-After": str(app_settings.rate_limit_window_seconds), "X-Request-ID": request_id},
+                )
         started = monotonic()
         try:
             response = await call_next(request)
@@ -210,10 +255,20 @@ def create_application(
     application.include_router(api_router, prefix=app_settings.api_v1_prefix)
     configured_runtime = runtime or build_product_intelligence_runtime(app_settings)
     application.state.product_intelligence_runtime = configured_runtime
-    application.state.rate_limiter = _InMemoryRateLimiter(
-        limit=app_settings.rate_limit_requests,
-        window_seconds=app_settings.rate_limit_window_seconds,
+    application.state.rate_limiter = (
+        RedisRateLimiter(
+            url=app_settings.redis_url,
+            connect_timeout=app_settings.redis_connect_timeout_seconds,
+            operation_timeout=app_settings.redis_operation_timeout_seconds,
+            max_connections=app_settings.redis_max_connections,
+        )
+        if app_settings.is_production
+        else _InMemoryRateLimiter(
+            limit=app_settings.rate_limit_requests,
+            window_seconds=app_settings.rate_limit_window_seconds,
+        )
     )
+    application.state.rate_limiter_ready = True
     application.state.retail_observation_query = RetailObservationQueryService(
         observation_registry=configured_runtime.observation_registry,
         association_registry=configured_runtime.association_registry,
