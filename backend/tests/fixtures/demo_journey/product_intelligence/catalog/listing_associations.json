@@ -1,0 +1,33 @@
+{
+  "associations": [
+    {
+      "canonical_product_id": "demo-product-a",
+      "canonical_variant_id": "demo-variant-a",
+      "observation_id": "6f5022d7e1b98465adad86c92ccd2743409bea9129c072f273b7254cd3a6230b",
+      "platform": "blinkit",
+      "platform_listing_id": "demo-a-1"
+    },
+    {
+      "canonical_product_id": "demo-product-a",
+      "canonical_variant_id": "demo-variant-a",
+      "observation_id": "7e6dd19714e976ea20ed90d1ce91b5d1b9a191a9f209d7a2429b3957953772bb",
+      "platform": "blinkit",
+      "platform_listing_id": "demo-a-2"
+    },
+    {
+      "canonical_product_id": "demo-product-b",
+      "canonical_variant_id": "demo-variant-b",
+      "observation_id": "b4ee660e14418450806b0e5a4ebad5a7b2d78706f6e50ae1369ac397e9efe389",
+      "platform": "blinkit",
+      "platform_listing_id": "demo-b-1"
+    },
+    {
+      "canonical_product_id": "demo-product-b",
+      "canonical_variant_id": "demo-variant-b",
+      "observation_id": "331f7e5f642b24c56bbf76ae742ebefb85833a1d78b1b5bc4cbedbd4b8d80db6",
+      "platform": "blinkit",
+      "platform_listing_id": "demo-b-2"
+    }
+  ],
+  "schema_version": 1
+}

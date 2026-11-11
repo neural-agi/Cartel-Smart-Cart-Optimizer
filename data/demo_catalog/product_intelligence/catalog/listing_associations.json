@@ -1,0 +1,117 @@
+{
+  "associations": [
+    {
+      "canonical_product_id": "cartel-demo-product-milk",
+      "canonical_variant_id": "cartel-demo-variant-milk-500ml",
+      "observation_id": "822ce2e453e349a57b45b4c497b6b80e6f35c760c29c36d9eab04ee75c8d7ce4",
+      "platform": "CARTEL_DEMO",
+      "platform_listing_id": "cartel-demo-listing-milk-500ml-a"
+    },
+    {
+      "canonical_product_id": "cartel-demo-product-milk",
+      "canonical_variant_id": "cartel-demo-variant-milk-500ml",
+      "observation_id": "b9ee86656693be2cb05064b1152064ae61d8ff2bab5a9b5b2021f316ae761d35",
+      "platform": "CARTEL_DEMO",
+      "platform_listing_id": "cartel-demo-listing-milk-500ml-b"
+    },
+    {
+      "canonical_product_id": "cartel-demo-product-milk",
+      "canonical_variant_id": "cartel-demo-variant-milk-1l",
+      "observation_id": "4a11edc4402a702643f0f9f1339616f1e9cf9eeccdbf829ddb16ddc283610d5f",
+      "platform": "CARTEL_DEMO",
+      "platform_listing_id": "cartel-demo-listing-milk-1l-a"
+    },
+    {
+      "canonical_product_id": "cartel-demo-product-milk",
+      "canonical_variant_id": "cartel-demo-variant-milk-1l",
+      "observation_id": "cf1a1f29284ee67d786c987ae844f7724e0f1f04e4bffb4360d15aae5e1f9f34",
+      "platform": "CARTEL_DEMO",
+      "platform_listing_id": "cartel-demo-listing-milk-1l-b"
+    },
+    {
+      "canonical_product_id": "cartel-demo-product-atta",
+      "canonical_variant_id": "cartel-demo-variant-atta-1kg",
+      "observation_id": "80aec81ddb44e152d5b56042993ef6d6a440dd9b1719e9a17e7c52efccad36f5",
+      "platform": "CARTEL_DEMO",
+      "platform_listing_id": "cartel-demo-listing-atta-1kg-a"
+    },
+    {
+      "canonical_product_id": "cartel-demo-product-atta",
+      "canonical_variant_id": "cartel-demo-variant-atta-1kg",
+      "observation_id": "9e0f0ce794bc8c769aa30e81666825d2aa9b31780a28f80baed2b47e58526cc7",
+      "platform": "CARTEL_DEMO",
+      "platform_listing_id": "cartel-demo-listing-atta-1kg-b"
+    },
+    {
+      "canonical_product_id": "cartel-demo-product-atta",
+      "canonical_variant_id": "cartel-demo-variant-atta-5kg",
+      "observation_id": "85c0ff0044883fd4d334a5156a083960815aa8e99acd8541f8d3f42c05502eee",
+      "platform": "CARTEL_DEMO",
+      "platform_listing_id": "cartel-demo-listing-atta-5kg-a"
+    },
+    {
+      "canonical_product_id": "cartel-demo-product-atta",
+      "canonical_variant_id": "cartel-demo-variant-atta-5kg",
+      "observation_id": "6daf4e086d7b9ece68c3ff04ac494039f56cdd6322fe9c84e91a2fd67ade0136",
+      "platform": "CARTEL_DEMO",
+      "platform_listing_id": "cartel-demo-listing-atta-5kg-b"
+    },
+    {
+      "canonical_product_id": "cartel-demo-product-rice",
+      "canonical_variant_id": "cartel-demo-variant-rice-1kg",
+      "observation_id": "82fa90871a6947db59689262c937704e4459d769ac338c11948b0e897216a36a",
+      "platform": "CARTEL_DEMO",
+      "platform_listing_id": "cartel-demo-listing-rice-1kg-a"
+    },
+    {
+      "canonical_product_id": "cartel-demo-product-rice",
+      "canonical_variant_id": "cartel-demo-variant-rice-1kg",
+      "observation_id": "ff5b6a8eea6161a109defaee45a4ca15013fb91c6d63c2d86f16d59be9969191",
+      "platform": "CARTEL_DEMO",
+      "platform_listing_id": "cartel-demo-listing-rice-1kg-b"
+    },
+    {
+      "canonical_product_id": "cartel-demo-product-rice",
+      "canonical_variant_id": "cartel-demo-variant-rice-5kg",
+      "observation_id": "b80032fc2c9d3a7fffec9a753f56c61c0608f189f9a378c6f4257500fa8796e1",
+      "platform": "CARTEL_DEMO",
+      "platform_listing_id": "cartel-demo-listing-rice-5kg-a"
+    },
+    {
+      "canonical_product_id": "cartel-demo-product-rice",
+      "canonical_variant_id": "cartel-demo-variant-rice-5kg",
+      "observation_id": "69681da653859f85eac6ad27fb98f25c18b9567ce704bd33dd3f87285aec76cc",
+      "platform": "CARTEL_DEMO",
+      "platform_listing_id": "cartel-demo-listing-rice-5kg-b"
+    },
+    {
+      "canonical_product_id": "cartel-demo-product-oil",
+      "canonical_variant_id": "cartel-demo-variant-oil-1l",
+      "observation_id": "61920434ace8227401a213005c643e871f4d99397bd457e8f8bf02b79f9fe598",
+      "platform": "CARTEL_DEMO",
+      "platform_listing_id": "cartel-demo-listing-oil-1l-a"
+    },
+    {
+      "canonical_product_id": "cartel-demo-product-oil",
+      "canonical_variant_id": "cartel-demo-variant-oil-1l",
+      "observation_id": "abab6a3f62227b0ebed5ee9305afa7681b1997de0faa4b9366bf20d6aa6199e8",
+      "platform": "CARTEL_DEMO",
+      "platform_listing_id": "cartel-demo-listing-oil-1l-b"
+    },
+    {
+      "canonical_product_id": "cartel-demo-product-oil",
+      "canonical_variant_id": "cartel-demo-variant-oil-2l",
+      "observation_id": "85bf64c852869fa4b72c383446c14f4a698ea556bb960ec353522158ba8c8a7f",
+      "platform": "CARTEL_DEMO",
+      "platform_listing_id": "cartel-demo-listing-oil-2l-a"
+    },
+    {
+      "canonical_product_id": "cartel-demo-product-oil",
+      "canonical_variant_id": "cartel-demo-variant-oil-2l",
+      "observation_id": "21fa0ea00d3bf75d089c0e79e3f093eb06d569d9a4b6b9a87aa8b9535fb24eb6",
+      "platform": "CARTEL_DEMO",
+      "platform_listing_id": "cartel-demo-listing-oil-2l-b"
+    }
+  ],
+  "schema_version": 1
+}
