@@ -76,6 +76,7 @@ class Settings(BaseSettings):
     planning_feasibility: str | None = Field(default=None, alias="PLANNING_FEASIBILITY")
     planning_feasibility_evidence: str = Field(default="", alias="PLANNING_FEASIBILITY_EVIDENCE")
     optimization_policy_version: str = Field(default="policy-v1", alias="OPTIMIZATION_POLICY_VERSION")
+    demo_fixtures_enabled: bool = Field(default=False, alias="DEMO_FIXTURES_ENABLED")
     scraper_timeout_seconds: float = Field(
         default=15.0,
         alias="SCRAPER_TIMEOUT_SECONDS",
@@ -174,6 +175,18 @@ class Settings(BaseSettings):
     outbox_retry_max_seconds: float = Field(default=300.0, alias="OUTBOX_RETRY_MAX_SECONDS")
     outbox_lease_seconds: int = Field(default=300, alias="OUTBOX_LEASE_SECONDS")
     outbox_poll_interval_seconds: float = Field(default=1.0, alias="OUTBOX_POLL_INTERVAL_SECONDS")
+    # Credential vault key management. The default provider is fail-closed.
+    # ``development_env`` is explicitly development-only and is rejected
+    # outside development. No cloud KMS/HSM integration exists in this repo.
+    vault_key_provider: Literal["unavailable", "development_env"] = Field(
+        default="unavailable",
+        alias="VAULT_KEY_PROVIDER",
+    )
+    vault_dev_keys: SecretStr = Field(default=SecretStr(""), alias="VAULT_DEV_KEYS")
+    vault_active_key_version: str = Field(
+        default="",
+        alias="VAULT_ACTIVE_KEY_VERSION",
+    )
 
     @field_validator(
         "app_name",
@@ -403,8 +416,11 @@ class Settings(BaseSettings):
     def validate_database_url(cls, value: SecretStr | None) -> SecretStr | None:
         if value is not None:
             parsed = urlsplit(value.get_secret_value())
-            if parsed.scheme not in {"postgresql", "postgresql+psycopg"} or not parsed.hostname:
-                raise ValueError("DATABASE_URL must identify a PostgreSQL database")
+            if parsed.scheme != "postgresql+psycopg" or not parsed.hostname:
+                raise ValueError(
+                    "DATABASE_URL must use the postgresql+psycopg:// scheme "
+                    "(the psycopg2 driver is not installed)"
+                )
         return value
 
     @field_validator("public_origin")
@@ -419,6 +435,8 @@ class Settings(BaseSettings):
     def validate_runtime_configuration(self) -> "Settings":
         if self.auth_required and not self.configured_auth_tokens:
             raise ValueError("AUTH_TOKENS must be configured when AUTH_REQUIRED is true")
+        if self.app_env == "production" and self.demo_fixtures_enabled:
+            raise ValueError("DEMO_FIXTURES_ENABLED must be false in production")
         if self.app_env == "production":
             if not self.auth_required:
                 raise ValueError("AUTH_REQUIRED must be true in production")
