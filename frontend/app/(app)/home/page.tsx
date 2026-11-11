@@ -20,8 +20,8 @@ const actions = [
   },
   {
     href: "/cart",
-    label: "View your cart",
-    description: "Review the items you are considering.",
+    label: "Review your basket",
+    description: "Review the items saved in your shopping lists.",
     icon: ShoppingCart,
   },
   {
@@ -90,7 +90,7 @@ export default function HomePage() {
             <div>
               <h2 id="activity-heading" className="font-semibold">Recent activity</h2>
               <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                Your recent carts and optimization results will appear here once activity is available.
+                Your recent baskets and optimization results will appear here once activity is available.
               </p>
             </div>
           </div>

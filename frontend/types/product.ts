@@ -16,7 +16,9 @@ export interface Product {
   price?: ProductMoney;
   availability?: string;
   imageUrl?: string;
-  evidenceState?: "registered_governed_observation";
+  evidenceState?: "registered_governed_observation" | "demo_fixture" | "synthetic_demo";
+  synthetic?: boolean;
+  fixtureProvenance?: string;
   observedAt?: string;
   parserVersion?: string;
   variantAttributes?: readonly { name: string; value: string; role: string; assertionStatus: string }[];

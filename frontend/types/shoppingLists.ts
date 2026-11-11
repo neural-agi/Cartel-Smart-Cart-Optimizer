@@ -10,6 +10,7 @@ export interface ShoppingListItem {
   source_platform: string | null;
   source_listing_id: string | null;
   source_observation_id: string | null;
+  evidence_class: "live" | "demo_fixture" | "synthetic_demo";
   created_at: string;
   updated_at: string;
 }

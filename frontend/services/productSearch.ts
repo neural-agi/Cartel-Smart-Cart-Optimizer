@@ -45,7 +45,8 @@ function parseProductSearchResponse(value: unknown): ProductSearchResult {
     if (required.some((field) => typeof candidate[field] !== "string" || !candidate[field])) {
       throw new Error(`Product search returned incomplete item at position ${index}.`);
     }
-    if (candidate.evidence_state !== "registered_governed_observation"
+    const evidenceState = candidate.evidence_state;
+    if ((evidenceState !== "registered_governed_observation" && evidenceState !== "demo_fixture" && evidenceState !== "synthetic_demo")
       || typeof candidate.observed_at !== "string"
       || Number.isNaN(Date.parse(candidate.observed_at))) {
       throw new Error(`Product search returned unverified evidence at position ${index}.`);
@@ -75,7 +76,11 @@ function parseProductSearchResponse(value: unknown): ProductSearchResult {
       availability: typeof candidate.availability_signal === "string"
         ? candidate.availability_signal
         : undefined,
-      evidenceState: candidate.evidence_state,
+      evidenceState,
+      synthetic: evidenceState === "synthetic_demo" || candidate.synthetic === true,
+      fixtureProvenance: typeof candidate.fixture_provenance === "string"
+        ? candidate.fixture_provenance
+        : undefined,
       observedAt: typeof candidate.observed_at === "string" ? candidate.observed_at : undefined,
       parserVersion: typeof candidate.parser_version === "string" ? candidate.parser_version : undefined,
       normalizationVersion: typeof candidate.normalization_version === "string" ? candidate.normalization_version : undefined,

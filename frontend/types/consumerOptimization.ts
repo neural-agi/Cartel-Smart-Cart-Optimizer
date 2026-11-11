@@ -17,8 +17,13 @@ export interface ConsumerOptimizationOffer {
   observed_at: string;
   parser_version: string;
   normalization_version: string;
-  availability: string;
-  observation_state: "latest_governed_observation";
+  availability: string | null;
+  evidence_class: "live" | "demo_fixture" | "synthetic_demo";
+  is_synthetic: boolean;
+  observation_state: "latest_governed_observation" | "synthetic_demo_observation";
+  tax_status: "UNKNOWN" | "INCLUDED" | "EXCLUDED";
+  fees_status: "unknown";
+  checkout_total: null;
   source_reference: string;
 }
 
@@ -27,6 +32,8 @@ export interface ConsumerOptimizationItem {
   query: string;
   quantity: number;
   resolution_status: "unresolved" | "exact_confirmed";
+  evidence_class: "live" | "demo_fixture" | "synthetic_demo";
+  synthetic?: boolean;
   canonical_product_id: string | null;
   canonical_variant_id: string | null;
   source_platform: string | null;

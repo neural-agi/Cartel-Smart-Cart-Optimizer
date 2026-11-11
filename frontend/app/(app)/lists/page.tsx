@@ -142,7 +142,7 @@ export default function ShoppingListsPage() {
                 <Button variant="outline" size="sm" onClick={() => void toggleArchive()} disabled={saving}>
                   <Archive className="h-4 w-4" aria-hidden="true" />{selected.archived ? "Restore list" : "Archive"}
                 </Button>
-                {!selected.archived && selected.items.length > 0 && <Button size="sm" onClick={() => router.push(`/optimize?list_id=${encodeURIComponent(selected.id)}&revision=${selected.revision}`)}>Optimize list</Button>}
+                {!selected.archived && selected.items.length > 0 && <Button size="sm" data-testid="optimize-list" onClick={() => router.push(`/optimize?list_id=${encodeURIComponent(selected.id)}&revision=${selected.revision}`)}>Optimize list</Button>}
               </div>
 
               {!selected.archived && <form onSubmit={addItem} className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_7rem_auto]">
@@ -153,8 +153,8 @@ export default function ShoppingListsPage() {
 
               {selected.items.length === 0 ? <div className="border-t border-border py-10"><h3 className="font-medium">This list is empty</h3><p className="mt-2 text-sm text-muted-foreground">Search verified products or add an item to review above.</p></div> :
                 <div className="divide-y divide-border border-y border-border">
-                  {selected.items.map((item) => <article key={item.id} className="flex flex-wrap items-center justify-between gap-4 py-4">
-                    <div className="min-w-0 flex-1"><h3 className="font-medium">{item.display_name ?? item.query}</h3><p className="mt-1 text-xs text-muted-foreground">{item.resolution_status === "exact_confirmed" ? "Exact product saved" : "Request saved · product match still unresolved"}{item.unit ? ` · ${item.unit}` : ""}</p></div>
+                  {selected.items.map((item) => <article key={item.id} data-testid="shopping-list-item" className="flex flex-wrap items-center justify-between gap-4 py-4">
+                    <div className="min-w-0 flex-1"><h3 className="font-medium">{item.display_name ?? item.query}</h3><p className="mt-1 text-xs text-muted-foreground">{item.resolution_status === "exact_confirmed" ? item.evidence_class === "synthetic_demo" ? "Synthetic demo selection · not live retailer evidence" : item.evidence_class === "demo_fixture" ? "Demo fixture selection · not live retailer evidence" : "Exact product saved" : "Request saved · product match still unresolved"}{item.unit ? ` · ${item.unit}` : ""}</p>{(item.evidence_class === "synthetic_demo" || item.evidence_class === "demo_fixture") && <p className="mt-1 inline-flex rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-800">{item.evidence_class === "synthetic_demo" ? "Synthetic demo" : "Demo fixture"}</p>}</div>
                     <div className="flex items-center gap-2"><QuantityControl label={item.display_name ?? item.query} value={item.quantity} disabled={saving || selected.archived} onChange={(quantity) => void changeQuantity(item.id, quantity)} /><Button variant="ghost" size="icon-sm" aria-label={`Remove ${item.query}`} disabled={saving || selected.archived} onClick={() => void removeItem(item.id)}><Trash2 className="h-4 w-4" aria-hidden="true" /></Button></div>
                   </article>)}
                 </div>}

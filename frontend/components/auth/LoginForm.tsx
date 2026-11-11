@@ -78,7 +78,7 @@ export default function LoginForm() {
         <h1 className="mt-2 text-2xl font-semibold">Sign in to Cartel</h1>
         {configuredProviders.length > 0 && <>
           <div className="mt-7 grid gap-2">
-            {configuredProviders.map((provider) => <Button key={provider} type="button" variant="outline" className="w-full" disabled={pending} onClick={() => { router.push(`/api/v2/auth/${provider}/start?next=${encodeURIComponent(safeNextPath())}`); }}>
+            {configuredProviders.map((provider) => <Button key={provider} type="button" variant="outline" className="w-full" disabled={pending} onClick={() => { window.location.assign(`/api/v2/auth/${provider}/start?next=${encodeURIComponent(safeNextPath())}`); }}>
               Continue with {providerLabels[provider]}
             </Button>)}
           </div>
