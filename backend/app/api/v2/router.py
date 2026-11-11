@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 
 from app.api.v2.auth import router as auth_router
+from app.api.v2.connections import router as connections_router
 from app.api.v2.me import router as me_router
 from app.api.v2.lists import router as lists_router
 from app.api.v2.products import router as products_router
@@ -13,3 +14,4 @@ router.include_router(me_router)
 router.include_router(lists_router)
 router.include_router(products_router)
 router.include_router(optimizations_router)
+router.include_router(connections_router)

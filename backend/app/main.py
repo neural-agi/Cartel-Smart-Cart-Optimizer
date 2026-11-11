@@ -60,7 +60,11 @@ from app.workers.background_jobs import DurableJobStore
 from app.auth.email_delivery import FileEmailDelivery, SmtpEmailDelivery
 from app.auth.email_delivery import EmailDelivery
 from app.auth.service import resolve_session, require_csrf, AuthFailure
-from sqlalchemy.exc import SQLAlchemyError
+from app.credential_vault.service import CredentialVault
+from app.retailer_adapters.registry import (
+    RetailerAdapterRegistry,
+    build_default_registry,
+)
 from app.api.v2.router import router as v2_router
 
 
@@ -121,6 +125,8 @@ def create_application(
     runtime: ProductIntelligenceRuntime | None = None,
     email_delivery: EmailDelivery | None = None,
     rate_limiter: RedisRateLimiter | None = None,
+    credential_vault: CredentialVault | None = None,
+    adapter_registry: RetailerAdapterRegistry | None = None,
 ) -> FastAPI:
     app_settings = settings or get_settings()
     docs_url = "/docs" if app_settings.docs_enabled else None
@@ -222,7 +228,14 @@ def create_application(
                     headers={"Retry-After": str(app_settings.rate_limit_window_seconds), REQUEST_ID_HEADER: request_id},
                 )
                 return response
-        protected = request.url.path.startswith(f"{app_settings.api_v1_prefix}/") and not request.url.path.endswith("/health") and not request.url.path.endswith("/ready")
+        connections_prefix = "/api/v2/connections"
+        connections_path = request.url.path == connections_prefix or request.url.path.startswith(
+            f"{connections_prefix}/"
+        )
+        protected = (
+            request.url.path.startswith(f"{app_settings.api_v1_prefix}/")
+            or connections_path
+        ) and not request.url.path.endswith("/health") and not request.url.path.endswith("/ready")
         if protected and app_settings.auth_required:
             consumer_paths = {
                 f"{app_settings.api_v1_prefix}/products/search",
@@ -230,6 +243,7 @@ def create_application(
                 f"{app_settings.api_v1_prefix}/cart/candidates",
                 f"{app_settings.api_v1_prefix}/cart/plan",
             }
+            is_consumer_path = request.url.path in consumer_paths or connections_path
             authorization = request.headers.get("Authorization", "")
             cookie_token = request.cookies.get("cartel_session", "")
             try:
@@ -237,7 +251,7 @@ def create_application(
                     request.state.user_id = authenticate_bearer(authorization, app_settings)
                     request.state.authenticated = True
                     request.state.auth_method = "operator_bearer"
-                elif request.url.path in consumer_paths and cookie_token:
+                elif is_consumer_path and cookie_token:
                     with application.state.db_session_factory() as db:
                         resolved = resolve_session(db, cookie_token, app_settings.auth_idle_days)
                         if resolved is None:
@@ -255,13 +269,13 @@ def create_application(
                         request.state.user_id = str(resolved[1].id)
                         request.state.authenticated = True
                         request.state.auth_method = "consumer_session"
-                elif cookie_token and request.url.path not in consumer_paths:
+                elif cookie_token and not is_consumer_path:
                     return JSONResponse(
                         status_code=403,
                         content={"detail": {"code": "operator_authentication_required", "request_id": request_id}},
                         headers={REQUEST_ID_HEADER: request_id},
                     )
-                elif request.url.path not in consumer_paths:
+                elif not is_consumer_path:
                     request.state.user_id = authenticate_bearer(authorization, app_settings)
                     request.state.authenticated = True
                     request.state.auth_method = "operator_bearer"
@@ -362,6 +376,16 @@ def create_application(
         operation_timeout=app_settings.redis_operation_timeout_seconds,
         max_connections=app_settings.redis_max_connections,
     )
+    # The API uses the vault only to revoke active secrets on disconnect. The
+    # default key provider is fail-closed and revocation does not need keys.
+    application.state.credential_vault = credential_vault or CredentialVault.from_settings(
+        app_settings
+    )
+    application.state.adapter_registry = (
+        adapter_registry
+        if adapter_registry is not None
+        else build_default_registry()
+    )
     application.state.retail_observation_query = RetailObservationQueryService(
         observation_registry=configured_runtime.observation_registry,
         association_registry=configured_runtime.association_registry,
@@ -375,11 +399,13 @@ def create_application(
         catalog=configured_runtime.catalog,
         association_registry=configured_runtime.association_registry,
         observation_registry=configured_runtime.observation_registry,
+        include_synthetic=app_settings.demo_fixtures_enabled,
     )
     application.state.product_search = ProductSearchService(
         catalog=configured_runtime.catalog,
         association_registry=configured_runtime.association_registry,
         observation_registry=configured_runtime.observation_registry,
+        include_fixtures=app_settings.demo_fixtures_enabled,
     )
     checkout_store = FilesystemCheckoutObservationCorrelationStore(
         app_settings.data_dir / "cost_intelligence" / "checkout_captures"

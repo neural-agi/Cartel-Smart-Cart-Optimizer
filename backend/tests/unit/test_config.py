@@ -100,6 +100,26 @@ def test_production_rejects_disabled_bearer_authentication() -> None:
         _settings(app_env="production", app_debug=False, docs_enabled=False)
 
 
+def test_demo_fixtures_are_disabled_by_default() -> None:
+    assert _settings().demo_fixtures_enabled is False
+
+
+def test_production_rejects_demo_fixtures() -> None:
+    with pytest.raises(
+        ValidationError,
+        match="DEMO_FIXTURES_ENABLED must be false in production",
+    ):
+        _settings(
+            app_env="production",
+            app_debug=False,
+            docs_enabled=False,
+            auth_required=True,
+            auth_tokens="release-user=release-token",
+            public_origin="https://cartel.example",
+            demo_fixtures_enabled=True,
+        )
+
+
 def test_startup_diagnostics_exclude_secret_values(monkeypatch: pytest.MonkeyPatch) -> None:
     settings = _settings(postgres_password="super-secret-password")
     application = create_application(settings)
