@@ -1,17 +1,17 @@
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
+from unittest.mock import patch
 
 import pytest
-from unittest.mock import patch
 
 from app.data_ingestion import (
     CaptureType,
     CompletenessState,
     InMemoryObservationRegistry,
+    NormalizedObservation,
     ObservationCompleteness,
     ObservationFieldReference,
     ObservationRegistrationConflict,
-    NormalizedObservation,
     Platform,
     RawArtifactReference,
 )
@@ -23,7 +23,7 @@ def _observation(name: str = "Milk") -> NormalizedObservation:
         artifact_id="artifact-1",
         job_id="job-1",
         attempt_id="attempt-1",
-        platform=Platform.BLINKIT,
+        platform=Platform.ZEPTO,
         capture_type=CaptureType.SEARCH_RESULTS,
         content_digest="digest",
         storage_reference="opaque",
@@ -34,7 +34,7 @@ def _observation(name: str = "Milk") -> NormalizedObservation:
     evidence = EvidenceReference(source_type="raw_artifact", source_id="artifact-1")
     field = ObservationFieldReference(evidence_reference=evidence, locator="products[1].name")
     return NormalizedObservation(
-        platform=Platform.BLINKIT,
+        platform=Platform.ZEPTO,
         source_record_id="1",
         raw_artifact_reference=artifact,
         normalized_name=name,

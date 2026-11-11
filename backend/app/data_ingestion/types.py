@@ -18,6 +18,7 @@ from app.data_ingestion.enums import (
     Platform,
     TaxStatus,
 )
+from app.data_ingestion.timestamp_integrity import require_timezone_aware
 from app.cost_intelligence.shared.money import Money
 
 
@@ -71,6 +72,11 @@ class AcquisitionResult(_FrozenContract):
     location_longitude: float | None = None
 
     _validate_strings = field_validator("source_reference", "content_type", "evaluation_scope", "termination_reason")(_non_empty)
+
+    @field_validator("capture_timestamp")
+    @classmethod
+    def _capture_timestamp_utc(cls, value: datetime) -> datetime:
+        return require_timezone_aware(value)
 
     @model_validator(mode="after")
     def _validate_coverage(self) -> Self:
@@ -228,6 +234,11 @@ class RawArtifactReference(_FrozenContract):
         "content_type",
         "source_reference",
     )(_non_empty)
+
+    @field_validator("capture_timestamp")
+    @classmethod
+    def _capture_timestamp_utc(cls, value: datetime) -> datetime:
+        return require_timezone_aware(value)
 
 
 class JobFailure(_FrozenContract):

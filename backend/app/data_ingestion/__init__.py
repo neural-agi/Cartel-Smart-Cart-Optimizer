@@ -43,6 +43,15 @@ from app.data_ingestion.observation_registry import (
     ObservationRegistrationConflict,
     ObservationRegistry,
 )
+from app.data_ingestion.timestamp_integrity import (
+    CaptureTimestampRejection,
+    CaptureTimestampRejectionReason,
+    Clock,
+    InvalidCaptureTimestamp,
+    SystemClock,
+    normalize_capture_timestamp,
+    require_timezone_aware,
+)
 
 __all__ = [
     "AttemptOutcome",
@@ -80,4 +89,11 @@ __all__ = [
     "FilesystemObservationRegistry",
     "ObservationRegistrationConflict",
     "ObservationRegistry",
+    "CaptureTimestampRejection",
+    "CaptureTimestampRejectionReason",
+    "Clock",
+    "InvalidCaptureTimestamp",
+    "SystemClock",
+    "normalize_capture_timestamp",
+    "require_timezone_aware",
 ]
