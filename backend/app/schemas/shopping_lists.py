@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -84,6 +85,7 @@ class ShoppingListItemResponse(BaseModel):
     source_platform: str | None
     source_listing_id: str | None
     source_observation_id: str | None
+    evidence_class: Literal["live", "demo_fixture", "synthetic_demo"] = "live"
     created_at: datetime
     updated_at: datetime
 

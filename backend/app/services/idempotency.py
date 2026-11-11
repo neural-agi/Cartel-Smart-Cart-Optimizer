@@ -85,7 +85,7 @@ def claim(
         metrics.inc("cartel_idempotency_total", operation=operation, outcome="replay")
         return existing
     metrics.inc("cartel_idempotency_total", operation=operation, outcome="new")
-    return None
+    return record
 
 
 def complete(record: IdempotencyRecord | None, *, status_code: int, response_body: dict) -> None:

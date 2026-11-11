@@ -7,6 +7,13 @@ from urllib.parse import urlsplit
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.data_ingestion.observation_registry.interface import ObservationRegistry
+from app.data_ingestion.timestamp_integrity import (
+    Clock,
+    InvalidCaptureTimestamp,
+    SystemClock,
+    normalize_capture_timestamp,
+)
+from app.demo_catalog import is_synthetic_demo_platform
 from app.product_intelligence.catalog.association_storage import (
     FilesystemCanonicalListingAssociationRegistry,
 )
@@ -16,6 +23,7 @@ from app.product_intelligence.models import (
     ProductLifecycleStatus,
     VariantLifecycleStatus,
 )
+from app.retailer_policy import blinkit_consumer_eligible, is_blinkit
 
 
 class ProductSearchRequest(BaseModel):
@@ -59,6 +67,8 @@ class ProductSearchItem(BaseModel):
     identity_attributes: tuple[ProductSearchAttribute, ...] = Field(default_factory=tuple)
     variant_attributes: tuple[ProductSearchAttribute, ...] = Field(default_factory=tuple)
     evidence_state: str
+    synthetic: bool = False
+    fixture_provenance: str | None = None
     observed_at: datetime
     parser_version: str
     normalization_version: str
@@ -82,8 +92,64 @@ class ProductSearchResult(BaseModel):
     items: tuple[ProductSearchItem, ...] = Field(default_factory=tuple)
 
 
+_FIXTURE_MARKERS = (
+    "demo-", "demo_", "demo:", "fixture-", "fixture_", "fixture:",
+    "synthetic-", "synthetic_", "synthetic:", "development-seed",
+)
+
+
+def is_explicit_fixture(observation) -> bool:
+    """Return whether an observation is explicitly marked as fixture evidence.
+
+    Fixture observations are never admitted as live retailer evidence.  This
+    helper exists so a separately gated demo lane can label them honestly
+    instead of silently presenting them as governed live observations.
+    """
+    artifact = getattr(observation, "raw_artifact_reference", None)
+    if artifact is None:
+        return False
+    completeness = getattr(observation, "completeness", None)
+    provenance_values = (
+        getattr(observation, "parser_version", ""),
+        getattr(observation, "normalization_version", ""),
+        getattr(artifact, "artifact_id", ""),
+        getattr(artifact, "content_digest", ""),
+        getattr(artifact, "storage_reference", ""),
+        getattr(completeness, "basis", ""),
+        getattr(artifact, "source_reference", ""),
+    )
+    if any(
+        str(value).casefold().strip().startswith(_FIXTURE_MARKERS)
+        for value in provenance_values
+    ):
+        return True
+    try:
+        parsed = urlsplit(str(getattr(artifact, "source_reference", "")))
+    except ValueError:
+        return False
+    return parsed.scheme == "fixture" or (parsed.hostname or "").casefold().endswith(".invalid")
+
+
+def is_synthetic_demo_observation(observation) -> bool:
+    """Return whether an observation belongs to the explicitly marked demo source.
+
+    The platform identity alone is not sufficient: the record must also carry
+    the explicit fixture/synthetic provenance markers enforced by
+    :func:`is_explicit_fixture`.  This keeps ``CARTEL_DEMO`` from ever being
+    mistaken for live retailer evidence.
+    """
+
+    if observation is None:
+        return False
+    return is_synthetic_demo_platform(
+        getattr(observation, "platform", None)
+    ) and is_explicit_fixture(observation)
+
+
 def has_supported_retailer_evidence(platform: str, observation) -> bool:
     """Return whether an observation has a supported, non-fixture retailer source."""
+    if is_blinkit(platform) and not blinkit_consumer_eligible():
+        return False
     allowed_hosts = {"BLINKIT": frozenset({"blinkit.com", "www.blinkit.com"})}.get(
         platform.upper(), frozenset()
     )
@@ -108,12 +174,7 @@ def has_supported_retailer_evidence(platform: str, observation) -> bool:
         observation.completeness.basis,
     )
     no_fixture_markers = all(
-        not value.casefold().strip().startswith(
-            (
-                "demo-", "demo_", "demo:", "fixture-", "fixture_", "fixture:",
-                "synthetic-", "synthetic_", "synthetic:", "development-seed",
-            )
-        )
+        not value.casefold().strip().startswith(_FIXTURE_MARKERS)
         for value in provenance_values
     )
     provider_source_is_supported = (
@@ -159,12 +220,31 @@ def has_supported_retailer_evidence(platform: str, observation) -> bool:
     return True
 
 
-def latest_governed_observation_ids(associations, observation_registry) -> frozenset[str]:
-    """Return only unambiguous latest observations for native retailer listings."""
+def latest_governed_observation_ids(
+    associations,
+    observation_registry,
+    *,
+    clock: Clock | None = None,
+) -> frozenset[str]:
+    """Return only unambiguous latest observations for native retailer listings.
+
+    Inadmissible capture timestamps are excluded before grouping so an invalid
+    observation can never win "latest" and suppress a valid one. The existing
+    supersession and equal-timestamp ambiguity rules are otherwise unchanged.
+    """
+    validation_clock = clock or SystemClock()
     grouped: dict[tuple[str, str], list[tuple[object, object]]] = {}
     for association in associations:
         observation = observation_registry.get(association.observation_id)
         if observation is None or not has_supported_retailer_evidence(association.platform, observation):
+            continue
+        try:
+            normalize_capture_timestamp(
+                observation.raw_artifact_reference.capture_timestamp,
+                artifact_id=observation.raw_artifact_reference.artifact_id,
+                clock=validation_clock,
+            )
+        except InvalidCaptureTimestamp:
             continue
         retailer_product_id = dict(observation.platform_identifiers)["retailer_product_id"]
         grouped.setdefault((association.platform, retailer_product_id), []).append(
@@ -207,10 +287,14 @@ class ProductSearchService:
         catalog: FilesystemAuthoritativeCatalog,
         association_registry: FilesystemCanonicalListingAssociationRegistry,
         observation_registry: ObservationRegistry,
+        include_fixtures: bool = False,
+        clock: Clock | None = None,
     ) -> None:
         self._catalog = catalog
         self._association_registry = association_registry
         self._observation_registry = observation_registry
+        self._include_fixtures = include_fixtures
+        self._clock = clock or SystemClock()
 
     def search(self, request: ProductSearchRequest) -> ProductSearchResult:
         query = request.query.strip()
@@ -225,11 +309,15 @@ class ProductSearchService:
             variant.canonical_variant_id: variant for variant in state.variants
         }
         current_observations = latest_governed_observation_ids(
-            self._association_registry.all(), self._observation_registry
+            self._association_registry.all(),
+            self._observation_registry,
+            clock=self._clock,
         )
         query_folded = query.casefold()
         items: list[ProductSearchItem] = []
         for association in self._association_registry.all():
+            if is_blinkit(association.platform):
+                continue
             product = products.get(association.canonical_product_id)
             variant = variants.get(association.canonical_variant_id)
             if product is None or variant is None:
@@ -257,11 +345,14 @@ class ProductSearchService:
             if query_folded not in searchable:
                 continue
             observation = self._observation_registry.get(association.observation_id)
-            if (
-                observation is None
-                or association.observation_id not in current_observations
-                or not has_supported_retailer_evidence(association.platform, observation)
-            ):
+            if observation is None:
+                continue
+            live_supported = has_supported_retailer_evidence(association.platform, observation)
+            synthetic_supported = is_synthetic_demo_observation(observation)
+            fixture_supported = self._include_fixtures and is_explicit_fixture(observation)
+            if not live_supported and not fixture_supported:
+                continue
+            if live_supported and association.observation_id not in current_observations:
                 continue
             price = observation.observed_selling_price
             platform_identifiers = dict(observation.platform_identifiers)
@@ -291,7 +382,17 @@ class ProductSearchService:
                         )
                         for attribute in variant.variant_identity_attributes
                     ),
-                    evidence_state="registered_governed_observation",
+                    evidence_state=(
+                        "registered_governed_observation"
+                        if live_supported
+                        else "synthetic_demo"
+                        if synthetic_supported
+                        else "demo_fixture"
+                    ),
+                    synthetic=synthetic_supported,
+                    fixture_provenance=(
+                        None if live_supported else observation.completeness.basis
+                    ),
                     observed_at=artifact.capture_timestamp,
                     parser_version=observation.parser_version,
                     normalization_version=observation.normalization_version,

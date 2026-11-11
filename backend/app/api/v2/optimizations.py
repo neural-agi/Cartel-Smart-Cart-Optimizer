@@ -9,13 +9,17 @@ from typing import Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
-from starlette.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
+from starlette.responses import JSONResponse
 
-from app.api.v2.dependencies import ConsumerPrincipal, current_consumer, csrf_protected
-from app.cart_optimization.automatic_planning import AutomaticCartItem, AutomaticPlanningRequest, AutomaticPlanningStatus
+from app.api.v2.dependencies import ConsumerPrincipal, csrf_protected, current_consumer
+from app.cart_optimization.automatic_planning import (
+    AutomaticCartItem,
+    AutomaticPlanningRequest,
+    AutomaticPlanningStatus,
+)
 from app.cart_optimization.providers import PlanningProviderUnavailable
 from app.db.models import (
     OptimizationAllocationRecord,
@@ -24,13 +28,17 @@ from app.db.models import (
     ShoppingList,
 )
 from app.db.session import get_db
+from app.retailer_policy import is_blinkit
 from app.services.cart_candidate_discovery import (
     CartCandidateDiscoveryItemRequest,
     CartCandidateDiscoveryRequest,
     PersistedCandidateReadiness,
 )
 from app.services.idempotency import claim, complete, idempotency_key
-
+from app.services.product_search import (
+    is_explicit_fixture,
+    is_synthetic_demo_observation,
+)
 
 router = APIRouter(prefix="/optimizations", tags=["consumer-optimizations"])
 
@@ -163,14 +171,27 @@ def create_optimization(
     settings = request.app.state.settings
     policy_version = settings.optimization_policy_version
     list_items = sorted(shopping_list.items, key=lambda item: str(item.id))
-    catalog = request.app.state.product_intelligence_runtime.catalog
+    runtime = request.app.state.product_intelligence_runtime
+    catalog = runtime.catalog
     requested = []
     for item in list_items:
         product = catalog.get_product(item.canonical_product_id) if item.canonical_product_id else None
         variant = catalog.get_variant(item.canonical_variant_id) if item.canonical_variant_id else None
+        observation = runtime.observation_registry.get(item.source_observation_id) if item.source_observation_id else None
+        is_synthetic = observation is not None and is_synthetic_demo_observation(observation)
         requested.append({
             "item_id": str(item.id), "query": item.query, "quantity": item.quantity,
             "resolution_status": item.resolution_status,
+            "evidence_class": (
+                "policy_blocked"
+                if is_blinkit(item.source_platform)
+                else "synthetic_demo"
+                if is_synthetic
+                else "demo_fixture"
+                if observation is not None and is_explicit_fixture(observation)
+                else "live"
+            ),
+            "synthetic": is_synthetic,
             "canonical_product_id": item.canonical_product_id,
             "canonical_variant_id": item.canonical_variant_id,
             "canonical_product_revision": product.catalog_revision if product else None,
@@ -179,14 +200,39 @@ def create_optimization(
             "source_listing_id": item.source_listing_id,
             "source_observation_id": item.source_observation_id,
         })
-    exact_items = [item for item in list_items if item.resolution_status == "exact_confirmed" and item.canonical_product_id and item.canonical_variant_id]
+    legacy_fixture_item_ids = {
+        item["item_id"] for item in requested if item["evidence_class"] == "demo_fixture"
+    }
+    synthetic_item_ids = {
+        item["item_id"] for item in requested if item["evidence_class"] == "synthetic_demo"
+    }
+    blocked_item_ids = {
+        item["item_id"] for item in requested if item["evidence_class"] == "policy_blocked"
+    }
+    optimizer_exact_items = [
+        item for item in list_items
+        if item.resolution_status == "exact_confirmed"
+        and item.canonical_product_id
+        and item.canonical_variant_id
+        and str(item.id) not in legacy_fixture_item_ids
+        and str(item.id) not in synthetic_item_ids
+        and str(item.id) not in blocked_item_ids
+    ]
+    synthetic_exact_items = [
+        item for item in list_items
+        if item.resolution_status == "exact_confirmed"
+        and item.canonical_product_id
+        and item.canonical_variant_id
+        and str(item.id) in synthetic_item_ids
+    ]
+    discovery_items = optimizer_exact_items + synthetic_exact_items
     discovery = request.app.state.cart_candidate_discovery.discover(CartCandidateDiscoveryRequest(items=tuple(
         CartCandidateDiscoveryItemRequest(
             item_id=str(item.id), quantity=item.quantity,
             canonical_product_id=item.canonical_product_id,
             canonical_variant_id=item.canonical_variant_id,
-        ) for item in exact_items
-    ))) if exact_items else None
+        ) for item in discovery_items
+    ))) if discovery_items else None
 
     offers: list[dict[str, Any]] = []
     item_status: dict[str, str] = {}
@@ -223,7 +269,16 @@ def create_optimization(
                     "parser_version": candidate.observation.parser_version,
                     "normalization_version": candidate.observation.normalization_version,
                     "availability": candidate.observation.availability_signal,
-                    "observation_state": "latest_governed_observation",
+                    "evidence_class": candidate.evidence_class,
+                    "is_synthetic": candidate.evidence_class == "synthetic_demo",
+                    "observation_state": (
+                        "synthetic_demo_observation"
+                        if candidate.evidence_class == "synthetic_demo"
+                        else "latest_governed_observation"
+                    ),
+                    "tax_status": candidate.observation.tax_status.value,
+                    "fees_status": "unknown",
+                    "checkout_total": None,
                     "source_reference": candidate.observation.raw_artifact_reference.source_reference,
                     "raw_content_digest": candidate.observation.raw_artifact_reference.content_digest,
                     "canonical_product_revision": product.catalog_revision,
@@ -263,12 +318,25 @@ def create_optimization(
         db.commit()
         return result
 
-    unresolved_items = [item for item in requested if item["resolution_status"] != "exact_confirmed" or item_status.get(item["item_id"]) != "candidates_available"]
+    synthetic_items = [item for item in requested if item["evidence_class"] == "synthetic_demo"]
+    legacy_fixture_items = [item for item in requested if item["evidence_class"] == "demo_fixture"]
+    unresolved_items = [
+        item for item in requested
+        if item["evidence_class"] in {"demo_fixture", "synthetic_demo", "policy_blocked"}
+        or item["resolution_status"] != "exact_confirmed"
+        or item_status.get(item["item_id"]) != "candidates_available"
+    ]
     status = "no_plan" if not requested else "unresolved" if unresolved_items else "unavailable"
     optimizer_result = None
     explanation = (
         "The shopping list revision contains no requested items; no plan was generated."
         if not requested else
+        "This list revision includes Blinkit evidence. Blinkit offers are unavailable pending written commercial-use authorization."
+        if blocked_item_ids else
+        "This list revision uses the Cartel Demo synthetic catalog. Observed synthetic prices and simulated availability are demonstration data, not live retailer evidence. Delivery fees, taxes, discounts, serviceability, and checkout totals are unknown, so no payable recommendation is produced."
+        if synthetic_items else
+        "This list revision includes demo fixture evidence. Cartel does not use fixture prices or availability to produce a payable recommendation."
+        if legacy_fixture_items else
         "One or more requested items lack exact, current governed retailer offers. No complete allocation was claimed."
         if unresolved_items else
         "Governed observed prices are available, but no correlated checkout ECE is available. They are not payable totals."
@@ -282,7 +350,7 @@ def create_optimization(
                 items=tuple(AutomaticCartItem(
                     item_id=str(item.id), canonical_product_id=item.canonical_product_id,
                     canonical_variant_id=item.canonical_variant_id, quantity=item.quantity,
-                ) for item in exact_items),
+                ) for item in optimizer_exact_items),
             ))
             if planned.optimization_result is not None:
                 optimizer_result = planned.optimization_result.model_dump(mode="json")
@@ -340,7 +408,7 @@ def create_optimization(
     db.add(record)
     db.flush()
     if optimizer_result:
-        _persist_plan_rows(db, record, result_data, {str(item.id): item for item in exact_items})
+        _persist_plan_rows(db, record, result_data, {str(item.id): item for item in optimizer_exact_items})
     db.refresh(record)
     result = _response(record)
     complete(replay, status_code=201, response_body=result.model_dump(mode="json"))
