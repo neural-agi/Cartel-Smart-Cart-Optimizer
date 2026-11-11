@@ -5,6 +5,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from app.schemas.health import HealthResponse, ReadinessResponse
 from app.core.metrics import metrics
+from app.core.rate_limit import RateLimitBackendUnavailable
 
 
 router = APIRouter()
@@ -42,7 +43,14 @@ async def readiness_check(request: Request, response: Response) -> ReadinessResp
         ),
         "database": "not_required",
         "rate_limiter": "ready" if hasattr(request.app.state, "rate_limiter") else "missing",
+        "redis": "missing",
     }
+    if hasattr(request.app.state, "rate_limiter"):
+        try:
+            await request.app.state.rate_limiter.ping()
+            checks["redis"] = "ready"
+        except RateLimitBackendUnavailable:
+            checks["redis"] = "unavailable"
     if settings.database_required:
         try:
             with request.app.state.db_session_factory() as db:
@@ -54,6 +62,7 @@ async def readiness_check(request: Request, response: Response) -> ReadinessResp
         "ready"
         if all(value != "missing" for value in checks.values())
         and checks["database"] != "unavailable"
+        and checks["redis"] != "unavailable"
         else "not_ready"
     )
     if status != "ready":
