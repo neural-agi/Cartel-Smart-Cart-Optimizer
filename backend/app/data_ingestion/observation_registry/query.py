@@ -8,6 +8,7 @@ from app.product_intelligence.catalog.association_storage import (
     FilesystemCanonicalListingAssociationRegistry,
 )
 from app.product_intelligence.catalog.resolution import CanonicalListingAssociation
+from app.retailer_policy import is_blinkit
 
 
 class RetailObservationQueryRecord(BaseModel):
@@ -46,6 +47,7 @@ class RetailObservationQueryService:
                 association=associations.get(observation.observation_id),
             )
             for observation in self._list_registry_observations()
+            if not is_blinkit(observation.platform)
         )
         return tuple(
             record
@@ -59,7 +61,7 @@ class RetailObservationQueryService:
 
     def get_observation(self, observation_id: str) -> RetailObservationQueryRecord | None:
         observation = self.observation_registry.get(observation_id)
-        if observation is None:
+        if observation is None or is_blinkit(observation.platform):
             return None
         return RetailObservationQueryRecord(
             observation_id=observation.observation_id,

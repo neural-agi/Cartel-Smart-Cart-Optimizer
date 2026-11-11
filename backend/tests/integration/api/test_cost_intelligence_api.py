@@ -2,18 +2,18 @@ from datetime import datetime, timezone
 
 from fastapi.testclient import TestClient
 
-from app.main import create_application
 from app.api.routes.cost_intelligence import CostIntelligenceEvaluateRequest
 from app.cart_optimization.enums import CoverageState
 from app.cart_optimization.types import CandidatePlanCoverage, CartOptimizationRequest
 from app.cost_intelligence.observation.types import CheckoutObservation
+from app.main import create_application
 from app.product_intelligence.models import EvidenceReference
 
 
 def _payload() -> dict:
     request = CostIntelligenceEvaluateRequest(
         observation=CheckoutObservation(
-            platform="blinkit",
+            platform="zepto",
             source_artifact_reference="checkout-artifact-1",
             capture_timestamp=datetime(2026, 1, 1, tzinfo=timezone.utc),
             parser_version="checkout-v1",
@@ -79,6 +79,17 @@ def test_pipeline_validation_failure_returns_deterministic_client_error() -> Non
 
     assert response.status_code == 422
     assert response.json()["detail"] == "cost context requires an evidence-backed observation"
+
+
+def test_blinkit_observation_is_rejected_with_policy_denial() -> None:
+    client = TestClient(create_application())
+    payload = _payload()
+    payload["observation"]["platform"] = "blinkit"
+
+    response = client.post("/api/v1/cost-intelligence/evaluate", json=payload)
+
+    assert response.status_code == 403
+    assert response.json()["detail"]["code"] == "blinkit_commercial_authorization_required"
 
 
 def test_response_contract_contains_serialized_stage_outputs() -> None:

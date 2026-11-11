@@ -4,14 +4,26 @@ from datetime import datetime, timezone
 import pytest
 
 from app.core.config import Settings
-from app.data_ingestion import CaptureContext, CaptureType, DownstreamMode, Platform, RequestParameters, ScrapeJob
-from app.retailer_data.contracts import AcquisitionMethod, LocationScope, RetailerAcquisitionOutcome, RetailerAcquisitionRequest, RequestExecutionState
+from app.data_ingestion import (
+    CaptureContext,
+    CaptureType,
+    DownstreamMode,
+    Platform,
+    RawArtifactReference,
+    RequestParameters,
+    ScrapeJob,
+)
+from app.retailer_data.contracts import (
+    AcquisitionMethod,
+    LocationScope,
+    RequestExecutionState,
+    RetailerAcquisitionOutcome,
+    RetailerAcquisitionRequest,
+)
 from app.retailer_data.providers import QuickCommerceRetailerDataProvider
-from app.scrapers.quickcommerce.parser import QuickCommerceSearchParser
-from app.data_ingestion import RawArtifactReference
+from app.retailer_policy import RetailerPolicyBlocked
 from app.scrapers.blinkit.bridge import BlinkitParserBridge
-from app.normalization.ingestion import DeterministicIngestionNormalizer
-from app.services.product_search import has_supported_retailer_evidence
+from app.scrapers.quickcommerce.parser import QuickCommerceSearchParser
 
 
 def _settings() -> Settings:
@@ -60,7 +72,7 @@ def test_parser_preserves_explicit_fields_and_missing_identity_fields() -> None:
     assert result.products[1].quantity is None
 
 
-def test_real_provider_envelope_replays_through_bridge_and_normalizer() -> None:
+def test_real_provider_envelope_parses_offline_but_bridge_denies() -> None:
     payload = json.dumps({
         "status": "success", "request_id": "provider-request",
         "credits_remaining": 99,
@@ -89,17 +101,18 @@ def test_real_provider_envelope_replays_through_bridge_and_normalizer() -> None:
         location_scope="test-location", evidence_quality="authoritative",
         provider_request_id="provider-request", location_latitude=22.4, location_longitude=88.4,
     )
-    batch = BlinkitParserBridge().build_batch(extracted, artifact)
-    observations = DeterministicIngestionNormalizer().normalize(batch, currency_code="INR")
-    assert observations[0].platform_identifiers
-    identifiers = dict(observations[0].platform_identifiers)
-    assert identifiers["retailer_product_id"] == "19512"
-    assert identifiers["brand"] == "Amul"
-    assert identifiers["provider_request_id"] == "provider-request"
-    assert identifiers["location_latitude"] == "22.4"
-    assert observations[0].normalized_quantity == "500 ml"
-    assert observations[0].observed_selling_price is not None
-    assert has_supported_retailer_evidence("BLINKIT", observations[0])
+    # Offline parsing remains available for fixture replay.
+    assert extracted.platform == "blinkit"
+    assert extracted.products[0].retailer_product_id == "19512"
+    assert extracted.products[0].product_name == "Taaza Toned Milk"
+    assert extracted.products[0].brand == "Amul"
+    assert extracted.products[0].quantity == "500 ml"
+    assert extracted.products[0].displayed_price is not None
+    assert extracted.provider_request_id == "provider-request"
+
+    # The ingestion bridge is policy-blocked before normalization.
+    with pytest.raises(RetailerPolicyBlocked):
+        BlinkitParserBridge().build_batch(extracted, artifact)
 
 
 class _Response:
@@ -129,16 +142,13 @@ class _Client:
 
 
 @pytest.mark.asyncio
-async def test_provider_maps_success_without_logging_or_leaking_secret(monkeypatch) -> None:
+async def test_provider_blocks_blinkit_before_logging_or_leaking_secret(monkeypatch) -> None:
     import app.retailer_data.providers as module
     monkeypatch.setattr(module.httpx, "AsyncClient", _Client)
     result = await QuickCommerceRetailerDataProvider(_settings()).acquire(_request())
-    assert result.outcome is RetailerAcquisitionOutcome.SUCCESS
-    assert result.acquisition is not None
-    assert result.acquisition.provider_id == "quickcommerce"
-    assert result.acquisition.location_scope == "test-location"
-    assert b"test-only-secret" not in result.acquisition.payload
-    assert result.request_state is RequestExecutionState.HTTP_RESPONSE_RECEIVED
+    assert result.outcome is RetailerAcquisitionOutcome.POLICY_BLOCKED
+    assert result.acquisition is None
+    assert result.request_state is RequestExecutionState.NOT_ATTEMPTED
 
 
 @pytest.mark.asyncio
@@ -162,6 +172,6 @@ async def test_provider_maps_documented_http_failures(monkeypatch, status, outco
     import app.retailer_data.providers as module
     monkeypatch.setattr(module.httpx, "AsyncClient", Client)
     result = await QuickCommerceRetailerDataProvider(_settings()).acquire(_request())
-    assert result.outcome is outcome
+    assert result.outcome is RetailerAcquisitionOutcome.POLICY_BLOCKED
     assert result.acquisition is None
-    assert result.request_state is RequestExecutionState.HTTP_RESPONSE_RECEIVED
+    assert result.request_state is RequestExecutionState.NOT_ATTEMPTED

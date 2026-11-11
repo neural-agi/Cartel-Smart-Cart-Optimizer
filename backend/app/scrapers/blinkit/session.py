@@ -1,13 +1,13 @@
 from pathlib import Path
 from typing import Any
 
-from playwright.async_api import Browser, BrowserContext
+from playwright.async_api import Browser, BrowserContext, Page
 from playwright.async_api import Error as PlaywrightError
-from playwright.async_api import Page
 from playwright.async_api import TimeoutError as PlaywrightTimeoutError
 
 from app.core.config import Settings, get_settings
 from app.core.logging import get_logger
+from app.retailer_policy import ensure_retailer_allowed
 from app.scrapers.base.exceptions import ScraperRequestError
 from app.scrapers.utils.storage import persist_debug_artifact
 
@@ -32,6 +32,7 @@ class BlinkitBrowserSession:
         return self.settings.blinkit_session_state_path
 
     async def new_context(self, browser: Browser) -> BrowserContext:
+        ensure_retailer_allowed("BLINKIT", "browser acquisition")
         kwargs = {
             "user_agent": self.headers["user-agent"],
             "extra_http_headers": {
@@ -131,6 +132,7 @@ class BlinkitBrowserSession:
         return bool(locality and locality == expected and latitude_matches and longitude_matches)
 
     async def persist_state(self, context: BrowserContext) -> None:
+        ensure_retailer_allowed("BLINKIT", "browser session persistence")
         self.state_path.parent.mkdir(parents=True, exist_ok=True)
         await context.storage_state(path=str(self.state_path))
         try:

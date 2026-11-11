@@ -1,9 +1,13 @@
-import pytest
-from app.cost_intelligence.shared.money import Money
-from app.data_ingestion.observation_registry.filesystem import FilesystemObservationRegistry
 from datetime import datetime, timezone
+from decimal import Decimal
 
+import pytest
+
+from app.cost_intelligence.shared.money import Money
 from app.data_ingestion.enums import CaptureType, CompletenessState, Platform
+from app.data_ingestion.observation_registry.filesystem import (
+    FilesystemObservationRegistry,
+)
 from app.data_ingestion.types import (
     NormalizedObservation,
     ObservationCompleteness,
@@ -16,10 +20,6 @@ from app.product_intelligence.catalog.association_storage import (
 from app.product_intelligence.catalog.resolution import CanonicalListingAssociation
 from app.product_intelligence.catalog.service import FilesystemAuthoritativeCatalog
 from app.product_intelligence.catalog.storage import CatalogFilesystemStore
-from app.services.cart_candidate_discovery import (
-    CartCandidateDiscoveryRequest,
-    CartCandidateDiscoveryService,
-)
 from app.product_intelligence.models import (
     AttributeAssertion,
     BrandReference,
@@ -34,7 +34,10 @@ from app.product_intelligence.models import (
     QuantityDimension,
     VariantLifecycleStatus,
 )
-from decimal import Decimal
+from app.services.cart_candidate_discovery import (
+    CartCandidateDiscoveryRequest,
+    CartCandidateDiscoveryService,
+)
 
 
 def _product() -> Product:
@@ -98,12 +101,12 @@ def test_fixture_observation_is_not_allocation_ready_in_candidate_discovery(tmp_
 
     observation = NormalizedObservation.model_construct(
         source_record_id="listing-1",
-        platform=Platform.BLINKIT,
+        platform=Platform.ZEPTO,
         raw_artifact_reference=RawArtifactReference.model_construct(
             artifact_id="artifact-1",
             job_id="job-1",
             attempt_id="attempt-1",
-            platform=Platform.BLINKIT,
+            platform=Platform.ZEPTO,
             capture_type=CaptureType.SEARCH_RESULTS,
             content_digest="digest-1",
             storage_reference="observations/artifact-1",
@@ -132,7 +135,7 @@ def test_fixture_observation_is_not_allocation_ready_in_candidate_discovery(tmp_
     association_registry.register(
         CanonicalListingAssociation(
             observation_id=observation.observation_id,
-            platform="BLINKIT",
+            platform="ZEPTO",
             platform_listing_id="listing-1",
             canonical_product_id="product-amul-taaza",
             canonical_variant_id="variant-amul-taaza-500ml",

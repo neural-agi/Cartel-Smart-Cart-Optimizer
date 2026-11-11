@@ -15,10 +15,11 @@ from app.data_ingestion import (
     ScrapeAttempt,
     ScrapeJob,
 )
+from app.data_ingestion.artifact_store import ArtifactPublicationRequest, ArtifactStore
 from app.data_ingestion.enums import FailureCategory
-from app.data_ingestion.artifact_store import ArtifactStore
-from app.data_ingestion.artifact_store import ArtifactPublicationRequest
 from app.data_ingestion.identity import ArtifactIdentityBuilder
+from app.retailer_policy import RetailerPolicyBlocked, is_blinkit
+from app.demo_catalog import is_synthetic_demo_platform
 from app.schemas.extraction import RawExtractionResult
 from app.scrapers.blinkit.acquisition import BlinkitAcquisitionAdapter
 from app.scrapers.blinkit.bridge import BlinkitParserBridge
@@ -74,6 +75,54 @@ class LocalIngestionWorker:
                     failure=failure,
                     transition_timestamp=started_at,
                 )
+
+        if is_blinkit(job.platform):
+            failure = JobFailure(
+                category=FailureCategory.POLICY_BLOCKED,
+                message=(
+                    "Blinkit ingestion is blocked pending written commercial-use "
+                    "authorization"
+                ),
+                attempt_id=attempt_id,
+                retryable=False,
+            )
+            attempt = ScrapeAttempt(
+                job_id=job.job_id,
+                attempt_number=attempt_number,
+                outcome=AttemptOutcome.BLOCKED,
+                failure=failure,
+                started_at=started_at,
+                finished_at=datetime.now(timezone.utc),
+            )
+            return IngestionWorkerResult(
+                job_id=job.job_id,
+                attempt=attempt,
+                failed_stage="policy_blocked",
+            )
+
+        if is_synthetic_demo_platform(job.platform):
+            failure = JobFailure(
+                category=FailureCategory.POLICY_BLOCKED,
+                message=(
+                    "CARTEL_DEMO is a synthetic catalog source and has no "
+                    "acquisition capability"
+                ),
+                attempt_id=attempt_id,
+                retryable=False,
+            )
+            attempt = ScrapeAttempt(
+                job_id=job.job_id,
+                attempt_number=attempt_number,
+                outcome=AttemptOutcome.BLOCKED,
+                failure=failure,
+                started_at=started_at,
+                finished_at=datetime.now(timezone.utc),
+            )
+            return IngestionWorkerResult(
+                job_id=job.job_id,
+                attempt=attempt,
+                failed_stage="synthetic_no_acquisition",
+            )
 
         try:
             stage = "acquisition"
@@ -159,8 +208,10 @@ class LocalIngestionWorker:
                 parsed_batch=batch,
             )
         except Exception as exc:
-            failure_stage = stage
-            category = self._failure_category(stage)
+            if isinstance(exc, RetailerPolicyBlocked):
+                category = FailureCategory.POLICY_BLOCKED
+            else:
+                category = self._failure_category(stage)
             failure = JobFailure(
                 category=category,
                 message=f"{stage} failed: {type(exc).__name__}",
@@ -176,7 +227,11 @@ class LocalIngestionWorker:
             attempt = ScrapeAttempt(
                 job_id=job.job_id,
                 attempt_number=attempt_number,
-                outcome=AttemptOutcome.FAILED,
+                outcome=(
+                    AttemptOutcome.BLOCKED
+                    if category is FailureCategory.POLICY_BLOCKED
+                    else AttemptOutcome.FAILED
+                ),
                 failure=failure,
                 artifact_references=(artifact_reference,) if artifact_reference else tuple(),
                 started_at=started_at,

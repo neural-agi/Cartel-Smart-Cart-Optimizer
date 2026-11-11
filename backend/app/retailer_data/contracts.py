@@ -26,6 +26,7 @@ class RetailerAcquisitionOutcome(StrEnum):
     INVALID_RESPONSE = "invalid_response"
     INSUFFICIENT_EVIDENCE = "insufficient_evidence"
     LOCATION_UNAVAILABLE = "location_unavailable"
+    POLICY_BLOCKED = "policy_blocked"
 
 
 class AcquisitionMethod(StrEnum):

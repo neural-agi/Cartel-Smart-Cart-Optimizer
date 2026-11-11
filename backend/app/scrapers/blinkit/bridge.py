@@ -12,13 +12,15 @@ from app.data_ingestion import (
     RawArtifactReference,
 )
 from app.product_intelligence.models import EvidenceReference
-from app.schemas.extraction import RawExtractionResult, RawExtractedProduct
+from app.retailer_policy import ensure_retailer_allowed
+from app.schemas.extraction import RawExtractedProduct, RawExtractionResult
 
 
 class BlinkitParserBridge:
     parser_version = "blinkit-parser-v1"
 
     def build_batch(self, result: RawExtractionResult, artifact_reference: RawArtifactReference) -> ParsedRetailObservationBatch:
+        ensure_retailer_allowed(Platform.BLINKIT, "parser bridge ingestion")
         self._validate_input(result, artifact_reference)
         coverage = result.capture_coverage
         assert coverage is not None

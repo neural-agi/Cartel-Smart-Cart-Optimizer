@@ -13,8 +13,14 @@ from urllib.parse import urlsplit
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
 from app.data_ingestion import AcquisitionResult, CaptureCoverage, CaptureType
+from app.data_ingestion.timestamp_integrity import (
+    Clock,
+    SystemClock,
+    normalize_capture_timestamp,
+)
 from app.schemas.extraction import RawExtractionResult
 from app.scrapers.blinkit.parser import BlinkitProductParser
+from app.retailer_policy import RetailerPolicyBlocked, ensure_retailer_allowed
 
 MAX_EVIDENCE_BYTES = 10 * 1024 * 1024
 
@@ -75,9 +81,7 @@ class OperatorEvidenceManifest(BaseModel):
     def validate_capture_time(cls, value: datetime) -> datetime:
         if value.tzinfo is None or value.utcoffset() is None:
             raise ValueError("captured_at must include a timezone")
-        if value.astimezone(timezone.utc) > datetime.now(timezone.utc):
-            raise ValueError("captured_at cannot be in the future")
-        return value
+        return value.astimezone(timezone.utc)
 
     @model_validator(mode="after")
     def validate_capture_context(self) -> "OperatorEvidenceManifest":
@@ -117,11 +121,21 @@ class ValidatedOperatorEvidence(BaseModel):
     evidence_digest: str
 
 
-def load_operator_evidence(path: Path, *, parser: BlinkitProductParser | None = None) -> ValidatedOperatorEvidence:
+def load_operator_evidence(
+    path: Path,
+    *,
+    parser: BlinkitProductParser | None = None,
+    clock: Clock | None = None,
+) -> ValidatedOperatorEvidence:
     """Load and validate the sidecar and sanitized HTML before any persistence."""
     manifest_path = path.expanduser().resolve(strict=True)
     payload_json = json.loads(manifest_path.read_text(encoding="utf-8"))
     manifest = OperatorEvidenceManifest.model_validate(payload_json)
+    normalize_capture_timestamp(
+        manifest.captured_at,
+        artifact_id=f"operator-evidence:{manifest.payload_sha256[:12]}",
+        clock=clock or SystemClock(),
+    )
 
     evidence_root = manifest_path.parent.resolve(strict=True)
     payload_candidate = evidence_root / manifest.payload_file
@@ -207,6 +221,7 @@ class LocalOperatorEvidenceAdapter:
         self.evidence = evidence
 
     async def acquire_search(self, *, query: str, evaluation_scope: str) -> AcquisitionResult:
+        ensure_retailer_allowed(self.evidence.manifest.retailer, "operator evidence ingestion")
         manifest = self.evidence.manifest
         if manifest.query and query != manifest.query:
             raise ValueError("job query does not match evidence query")
@@ -228,6 +243,10 @@ class LocalOperatorEvidenceAdapter:
 
 async def import_validated_evidence(evidence: ValidatedOperatorEvidence, *, settings):
     """Run validated bytes through the existing worker/runtime and its registries."""
+    try:
+        ensure_retailer_allowed(evidence.manifest.retailer, "operator evidence import")
+    except RetailerPolicyBlocked as exc:
+        raise ValueError(exc.reason_code) from exc
     from app.data_ingestion import CaptureContext, CaptureType, DownstreamMode, Platform, RequestParameters, ScrapeJob
     from app.workers.bootstrap import build_product_intelligence_runtime
 

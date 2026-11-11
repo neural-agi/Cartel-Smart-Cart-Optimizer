@@ -1,8 +1,11 @@
 from fastapi import APIRouter, HTTPException, Request, status
 
 from app.cost_intelligence.observation.capture_contract import CheckoutCaptureRequest
-from app.cost_intelligence.observation.capture_service import CheckoutCaptureAdapterUnavailable
+from app.cost_intelligence.observation.capture_service import (
+    CheckoutCaptureAdapterUnavailable,
+)
 from app.data_ingestion.artifact_store import ArtifactStorageError
+from app.retailer_policy import RetailerPolicyBlocked
 
 router = APIRouter(prefix="/cart", tags=["cart"])
 
@@ -14,6 +17,11 @@ async def capture_checkout(request: CheckoutCaptureRequest, http_request: Reques
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="checkout capture is not configured")
     try:
         return await service.capture_async(request)
+    except RetailerPolicyBlocked as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"code": exc.reason_code},
+        ) from exc
     except CheckoutCaptureAdapterUnavailable as exc:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
     except ArtifactStorageError as exc:

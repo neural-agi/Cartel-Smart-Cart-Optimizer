@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-
 from app.core.config import Settings
 from app.data_ingestion import AcquisitionResult, CaptureCoverage, CaptureType
+from app.data_ingestion.timestamp_integrity import Clock, SystemClock
 from app.scrapers.base.types import RawHttpResponse
 from app.scrapers.blinkit.scraper import BlinkitScraper
+from app.retailer_policy import ensure_retailer_allowed
 
 
 class BlinkitAcquisitionAdapter:
@@ -18,17 +18,19 @@ class BlinkitAcquisitionAdapter:
         scraper: BlinkitScraper | None = None,
         *,
         settings: Settings | None = None,
+        clock: Clock | None = None,
     ) -> None:
         self._scraper = scraper or BlinkitScraper(settings=settings)
+        self._clock = clock or SystemClock()
 
     async def acquire_search(self, *, query: str | None, evaluation_scope: str) -> AcquisitionResult:
+        ensure_retailer_allowed("BLINKIT", "product discovery")
         if query is None:
             raise ValueError("live Blinkit acquisition requires an explicit search query")
         response = await self._scraper.acquire_search(query)
         return self._to_result(response, evaluation_scope=evaluation_scope)
 
-    @staticmethod
-    def _to_result(response: RawHttpResponse, *, evaluation_scope: str) -> AcquisitionResult:
+    def _to_result(self, response: RawHttpResponse, *, evaluation_scope: str) -> AcquisitionResult:
         content_type = response.content_type
         if content_type is None:
             content_type = response.headers.get("content-type")
@@ -45,7 +47,7 @@ class BlinkitAcquisitionAdapter:
             payload=response.body,
             source_reference=response.url,
             content_type=content_type.split(";", 1)[0].strip(),
-            capture_timestamp=datetime.now(timezone.utc),
+            capture_timestamp=self._clock.now(),
             evaluation_scope=evaluation_scope,
             pages_evaluated=1,
             pagination_complete=None,

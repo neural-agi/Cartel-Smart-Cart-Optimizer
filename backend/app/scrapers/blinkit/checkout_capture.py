@@ -10,7 +10,6 @@ import asyncio
 from collections.abc import Mapping
 from typing import Any, Protocol
 
-from app.scrapers.base.exceptions import ScraperRequestError, ScraperUnavailableError
 from app.core.config import Settings, get_settings
 from app.cost_intelligence.observation.capture_contract import (
     CheckoutCaptureArtifact,
@@ -19,6 +18,8 @@ from app.cost_intelligence.observation.capture_contract import (
 from app.cost_intelligence.observation.capture_service import (
     CheckoutCaptureAdapterUnavailable,
 )
+from app.retailer_policy import ensure_retailer_allowed
+from app.scrapers.base.exceptions import ScraperRequestError, ScraperUnavailableError
 from app.scrapers.blinkit.scraper import BlinkitScraper
 
 
@@ -59,6 +60,7 @@ class BlinkitCheckoutCaptureAdapter:
 
     def capture(self, request: CheckoutCaptureRequest) -> CheckoutCaptureArtifact:
         """Compatibility entry point for synchronous capture callers."""
+        ensure_retailer_allowed(self.platform, "checkout capture")
         try:
             asyncio.get_running_loop()
         except RuntimeError:
@@ -69,6 +71,7 @@ class BlinkitCheckoutCaptureAdapter:
         )
 
     async def acapture(self, request: CheckoutCaptureRequest) -> CheckoutCaptureArtifact:
+        ensure_retailer_allowed(self.platform, "checkout capture")
         self._validate_request(request)
         diagnostics = dict(await self._probe_request(request))
         reason = diagnostics.get("reason_code") or "blinkit_cart_identity_unverified"

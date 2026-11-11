@@ -22,7 +22,9 @@ from app.product_intelligence.catalog.identity_contract import (
     ProductIdentityProfile,
     RetailerProductIdentityEvidence,
 )
-from app.product_intelligence.catalog.resolution import DeterministicCanonicalListingResolver
+from app.product_intelligence.catalog.resolution import (
+    DeterministicCanonicalListingResolver,
+)
 from app.product_intelligence.catalog.retailer_identity import BlinkitIdentityAdapter
 from app.product_intelligence.catalog.types import CatalogState
 from app.product_intelligence.models import (
@@ -40,6 +42,7 @@ from app.product_intelligence.models import (
     QuantityDimension,
     VariantLifecycleStatus,
 )
+from app.retailer_policy import RetailerPolicyBlocked
 
 
 def _ref(name: str) -> EvidenceReference:
@@ -335,17 +338,13 @@ def test_exact_candidate_is_unresolved_when_another_eligible_candidate_is_ambigu
     assert "insufficient identity evidence" in result.reason
 
 
-def test_blinkit_adapter_does_not_infer_brand_or_pack_from_title_or_quantity():
-    evidence = BlinkitIdentityAdapter().adapt(_observation())
-    product, variant = _canonical()
-    result = _resolver().compare_identity(evidence, product, variant)
-    assert evidence.identity.brand is None
-    assert evidence.identity.pack is None
-    assert evidence.descriptive_title
-    assert result.state == IdentityResolutionState.UNRESOLVED
+def test_blinkit_identity_adapter_denies_adaptation():
+    with pytest.raises(RetailerPolicyBlocked) as error:
+        BlinkitIdentityAdapter().adapt(_observation())
+    assert error.value.reason_code == "blinkit_commercial_authorization_required"
 
 
-def test_existing_resolver_routes_blinkit_through_strict_adapter_when_configured():
+def test_existing_resolver_denies_blinkit_before_identity_adaptation():
     product, variant = _canonical()
     observation = _observation(title="Acme Dairy Milk Toned Plain 500 ml")
     resolver = DeterministicCanonicalListingResolver(
@@ -355,9 +354,8 @@ def test_existing_resolver_routes_blinkit_through_strict_adapter_when_configured
         variant_catalog_key=lambda _: ("canonical-product", ("500", "ml")),
         retailer_identity_adapters={"BLINKIT": BlinkitIdentityAdapter()},
     )
-    result = resolver.resolve(observation, CatalogState(products=(product,), variants=(variant,)))
-    assert result.status.value == "unresolved"
-    assert result.association is None
+    with pytest.raises(RetailerPolicyBlocked):
+        resolver.resolve(observation, CatalogState(products=(product,), variants=(variant,)))
 
 
 def test_identity_resolution_has_only_three_states_and_exact_only_carries_ids():

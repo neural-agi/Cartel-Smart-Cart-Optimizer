@@ -55,32 +55,15 @@ def _manifest(tmp_path, *, html=SYNTHETIC_CAPTURE, overrides=None):
     return path
 
 
-def test_local_evidence_flows_through_existing_pipeline_and_replays_idempotently(tmp_path):
+def test_local_blinkit_evidence_is_validated_but_import_is_blocked(tmp_path):
     path = _manifest(tmp_path)
     evidence = load_operator_evidence(path)
     settings = Settings(data_dir=tmp_path / "cartel-data")
 
-    first = asyncio.run(import_validated_evidence(evidence, settings=settings))
-    second = asyncio.run(import_validated_evidence(load_operator_evidence(path), settings=settings))
-
-    assert first.status == second.status == "completed_with_failures"
-    assert len(first.observations) == len(second.observations) == 1
-    record = first.observations[0]
-    replay = second.observations[0]
-    assert record.status.value == "association_unresolved"
-    assert record.observation.observation_id == replay.observation.observation_id
-    assert record.observation.platform_identifiers == (
-        ("retailer_product_id", "test-retailer-id"),
-        ("retailer_product_url", "https://blinkit.com/prn/synthetic-test-item/prid/test-retailer-id"),
-        ("source_index", "1"),
-    )
-    artifact = record.observation.raw_artifact_reference
-    assert artifact.source_reference == "https://blinkit.com/s/?q=Synthetic%20Test%20Item"
-    assert artifact.capture_timestamp == datetime.fromisoformat("2026-09-01T12:00:00+05:30")
-    assert artifact.content_digest == hashlib.sha256(SYNTHETIC_CAPTURE).hexdigest()
-
+    with pytest.raises(ValueError, match="blinkit_commercial_authorization_required"):
+        asyncio.run(import_validated_evidence(evidence, settings=settings))
     observations = FilesystemObservationRegistry(settings.data_dir / "product_intelligence/observations")
-    assert len(observations.list_all()) == 1
+    assert len(observations.list_all()) == 0
     catalog_root = settings.data_dir / "product_intelligence/catalog"
     catalog = FilesystemAuthoritativeCatalog(store=CatalogFilesystemStore(root_dir=catalog_root))
     associations = FilesystemCanonicalListingAssociationRegistry(

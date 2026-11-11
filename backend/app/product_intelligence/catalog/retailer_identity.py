@@ -12,6 +12,7 @@ from app.product_intelligence.catalog.identity_contract import (
     ProductIdentityProfile,
     RetailerProductIdentityEvidence,
 )
+from app.retailer_policy import ensure_retailer_allowed
 
 
 class RetailerIdentityAdapter(Protocol):
@@ -34,6 +35,7 @@ class BlinkitIdentityAdapter:
     _PRODUCT_PATH = re.compile(r"/prn/[^/]+/prid/([^/?#]+)")
 
     def adapt(self, observation: NormalizedObservation) -> RetailerProductIdentityEvidence:
+        ensure_retailer_allowed(self.platform, "retailer identity adaptation")
         if observation.platform.value != self.platform:
             raise ValueError("Blinkit adapter cannot adapt another retailer observation")
 

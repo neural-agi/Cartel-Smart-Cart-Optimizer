@@ -9,6 +9,7 @@ from app.cost_intelligence.pipeline.service import (
     CostIntelligencePipelineResult,
     CostIntelligencePipelineService,
 )
+from app.retailer_policy import is_blinkit
 
 
 class CostIntelligenceEvaluateRequest(BaseModel):
@@ -19,7 +20,7 @@ class CostIntelligenceEvaluateRequest(BaseModel):
         json_schema_extra={
             "example": {
                 "observation": {
-                    "platform": "blinkit",
+                    "platform": "zepto",
                     "source_artifact_reference": "checkout-artifact-1",
                     "capture_timestamp": "2026-01-01T00:00:00Z",
                     "parser_version": "checkout-v1",
@@ -91,6 +92,11 @@ pipeline_service = CostIntelligencePipelineService()
 def evaluate_cost_intelligence(
     request: CostIntelligenceEvaluateRequest,
 ) -> CostIntelligencePipelineResult:
+    if is_blinkit(request.observation.platform):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"code": "blinkit_commercial_authorization_required"},
+        )
     try:
         return pipeline_service.run(request.observation, request.optimization_request)
     except ValueError as exc:

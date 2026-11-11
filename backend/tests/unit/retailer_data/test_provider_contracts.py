@@ -69,14 +69,12 @@ def request() -> RetailerAcquisitionRequest:
 
 
 @pytest.mark.asyncio
-async def test_provider_success_is_location_scoped_and_preserves_metadata() -> None:
+async def test_provider_blocks_blinkit_before_adapter_execution() -> None:
     result = await BlinkitRetailerDataProvider(ProviderAdapter()).acquire(request())
-    assert result.outcome is RetailerAcquisitionOutcome.SUCCESS
+    assert result.outcome is RetailerAcquisitionOutcome.POLICY_BLOCKED
     assert result.location.scope_id == "gurugram-1849"
-    assert result.acquisition is not None
-    assert result.acquisition.provider_id == "blinkit-native"
-    assert result.acquisition.location_scope == "gurugram-1849"
-    assert result.evidence_quality is EvidenceQuality.AUTHORITATIVE
+    assert result.acquisition is None
+    assert result.request_state.value == "request_not_attempted"
 
 
 @pytest.mark.asyncio
@@ -90,8 +88,8 @@ async def test_provider_success_is_location_scoped_and_preserves_metadata() -> N
 )
 async def test_provider_failures_are_typed_and_carry_no_evidence(adapter, outcome, reason) -> None:
     result = await BlinkitRetailerDataProvider(adapter).acquire(request())
-    assert result.outcome is outcome
-    assert result.reason_code == reason
+    assert result.outcome is RetailerAcquisitionOutcome.POLICY_BLOCKED
+    assert result.reason_code == "blinkit_commercial_authorization_required"
     assert result.acquisition is None
 
 

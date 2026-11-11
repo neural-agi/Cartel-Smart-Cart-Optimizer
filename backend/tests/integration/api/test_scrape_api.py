@@ -1,10 +1,10 @@
 from fastapi.testclient import TestClient
 
 from app.core.config import Settings
-from app.data_ingestion import FilesystemObservationRegistry
+from app.cost_intelligence.shared.money import Money
+from app.data_ingestion import FilesystemObservationRegistry, Platform
 from app.main import create_application
 from app.product_intelligence.catalog.resolution import CanonicalListingAssociation
-from app.cost_intelligence.shared.money import Money
 from tests.integration.product_intelligence.test_vertical_pipeline import (
     _job,
     _resolver,
@@ -51,6 +51,33 @@ def test_scrape_endpoint_rejects_malformed_scrape_job() -> None:
     response = client.post("/api/v1/scrape", json={})
 
     assert response.status_code == 422
+
+
+def _blinkit_job():
+    return _job().model_copy(
+        update={
+            "platform": Platform.BLINKIT,
+            "parser_policy_version": "blinkit-parser-v1",
+        }
+    )
+
+
+def test_scrape_endpoint_rejects_blinkit_with_policy_denial(tmp_path) -> None:
+    client = _client(tmp_path, resolver=_resolver())
+
+    response = client.post("/api/v1/scrape", json=_blinkit_job().model_dump(mode="json"))
+
+    assert response.status_code == 403
+    assert response.json()["detail"]["code"] == "blinkit_commercial_authorization_required"
+
+
+def test_scrape_async_endpoint_rejects_blinkit_with_policy_denial(tmp_path) -> None:
+    client = _client(tmp_path, resolver=_resolver())
+
+    response = client.post("/api/v1/scrape/async", json=_blinkit_job().model_dump(mode="json"))
+
+    assert response.status_code == 403
+    assert response.json()["detail"]["code"] == "blinkit_commercial_authorization_required"
 
 
 def test_health_endpoint_remains_unchanged() -> None:
@@ -276,7 +303,7 @@ def test_cart_resolution_reports_unknown_variant_and_listing(tmp_path) -> None:
                 {
                     "item_id": "listing",
                     "quantity": 1,
-                    "platform": "blinkit",
+                    "platform": "zepto",
                     "platform_listing_id": "missing",
                 },
             ]
@@ -295,7 +322,7 @@ def test_cart_resolution_reports_missing_observation(tmp_path) -> None:
     associations.register(
         CanonicalListingAssociation(
             observation_id="missing-observation",
-            platform="blinkit",
+            platform="zepto",
             platform_listing_id="missing-observation-listing",
             canonical_product_id="product-amul-taaza",
             canonical_variant_id="variant-amul-taaza-500ml",
@@ -310,7 +337,7 @@ def test_cart_resolution_reports_missing_observation(tmp_path) -> None:
                 {
                     "item_id": "missing-observation",
                     "quantity": 1,
-                    "platform": "blinkit",
+                    "platform": "zepto",
                     "platform_listing_id": "missing-observation-listing",
                 }
             ]

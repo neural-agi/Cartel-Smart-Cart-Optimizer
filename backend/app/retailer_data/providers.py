@@ -3,21 +3,28 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
 from typing import Protocol
 
 import httpx
 
-from app.data_ingestion import AcquisitionResult, ScrapeJob
+from app.core.config import Settings
+from app.data_ingestion import (
+    AcquisitionResult,
+    CaptureCoverage,
+    CaptureType,
+    ScrapeJob,
+)
+from app.data_ingestion.timestamp_integrity import Clock, SystemClock
 from app.retailer_data.contracts import (
     AcquisitionMethod,
     EvidenceQuality,
     LocationScope,
+    RequestExecutionState,
     RetailerAcquisitionOutcome,
     RetailerAcquisitionRequest,
     RetailerAcquisitionResult,
-    RequestExecutionState,
 )
+from app.retailer_policy import RetailerPolicyBlocked, ensure_retailer_allowed
 from app.scrapers.base.exceptions import (
     ScraperAccessDeniedError,
     ScraperRequestError,
@@ -25,8 +32,6 @@ from app.scrapers.base.exceptions import (
 )
 from app.scrapers.blinkit.acquisition import BlinkitAcquisitionAdapter
 from app.scrapers.quickcommerce.parser import QuickCommerceSearchParser
-from app.data_ingestion import CaptureCoverage, CaptureType
-from app.core.config import Settings
 
 
 class RetailerDataProvider(Protocol):
@@ -55,6 +60,10 @@ class BlinkitRetailerDataProvider:
         self._adapter = adapter or BlinkitAcquisitionAdapter()
 
     async def acquire(self, request: RetailerAcquisitionRequest) -> RetailerAcquisitionResult:
+        try:
+            ensure_retailer_allowed(request.retailer, "retailer acquisition")
+        except RetailerPolicyBlocked:
+            return _failure(request, RetailerAcquisitionOutcome.POLICY_BLOCKED, "blinkit_commercial_authorization_required", None)
         try:
             acquisition = await self._adapter.acquire_search(
                 query=dict(request.job.request_parameters.values).get("query"),
@@ -97,11 +106,16 @@ class QuickCommerceRetailerDataProvider:
     provider_id = "quickcommerce"
     method = AcquisitionMethod.AUTHORIZED_THIRD_PARTY
 
-    def __init__(self, settings: Settings) -> None:
+    def __init__(self, settings: Settings, *, clock: Clock | None = None) -> None:
         self._settings = settings
         self._parser = QuickCommerceSearchParser()
+        self._clock = clock or SystemClock()
 
     async def acquire(self, request: RetailerAcquisitionRequest) -> RetailerAcquisitionResult:
+        try:
+            ensure_retailer_allowed(request.retailer, "QuickCommerce Blinkit acquisition")
+        except RetailerPolicyBlocked:
+            return _failure(request, RetailerAcquisitionOutcome.POLICY_BLOCKED, "blinkit_commercial_authorization_required", None)
         location = request.location
         query = dict(request.job.request_parameters.values).get("query")
         if location.latitude is None or location.longitude is None:
@@ -148,7 +162,7 @@ class QuickCommerceRetailerDataProvider:
         acquisition = AcquisitionResult(
             payload=response.content, source_reference=str(response.url),
             content_type=response.headers.get("content-type", "application/json").split(";", 1)[0],
-            capture_timestamp=datetime.now(timezone.utc), evaluation_scope=coverage.evaluation_scope,
+            capture_timestamp=self._clock.now(), evaluation_scope=coverage.evaluation_scope,
             pages_evaluated=1, pagination_complete=True,
             termination_reason=coverage.termination_reason, capture_type=CaptureType.SEARCH_RESULTS,
             capture_coverage=coverage, provider_id=self.provider_id,
@@ -193,6 +207,7 @@ class ProviderAcquisitionAdapter:
         self._location = location
 
     async def acquire_for_job(self, *, job: ScrapeJob, query: str | None, evaluation_scope: str) -> AcquisitionResult:
+        ensure_retailer_allowed(job.platform, "provider acquisition")
         request = RetailerAcquisitionRequest(
             retailer=job.platform,
             provider_id=self._provider.provider_id,

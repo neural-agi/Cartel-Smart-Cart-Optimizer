@@ -8,6 +8,7 @@ from app.scrapers.base.types import RawHttpResponse
 from app.scrapers.base.exceptions import ScraperUnavailableError
 from app.scrapers.blinkit.acquisition import BlinkitAcquisitionAdapter
 from app.scrapers.blinkit.scraper import BlinkitScraper
+from app.retailer_policy import RetailerPolicyBlocked
 
 
 class FakeBlinkitScraper:
@@ -28,23 +29,13 @@ class MissingContentTypeScraper:
 
 @pytest.mark.asyncio
 async def test_acquisition_result_preserves_real_response_facts() -> None:
-    result = await BlinkitAcquisitionAdapter(FakeBlinkitScraper()).acquire_search(query="milk", evaluation_scope="search:milk:blr")
-    assert result.payload == b"\x00blinkit-html"
-    assert result.source_reference == "https://blinkit.com/s/?q=milk"
-    assert result.content_type == "text/html"
-    assert result.capture_timestamp.tzinfo is not None
-    assert result.capture_timestamp.tzinfo == timezone.utc
-    assert result.evaluation_scope == "search:milk:blr"
-    assert result.pages_evaluated == 1
-    assert result.pagination_complete is None
-    assert result.capture_coverage.pagination_complete is None
-    assert "\\" not in result.source_reference
-    assert ":\\" not in result.source_reference
+    with pytest.raises(RetailerPolicyBlocked):
+        await BlinkitAcquisitionAdapter(FakeBlinkitScraper()).acquire_search(query="milk", evaluation_scope="search:milk:blr")
 
 
 @pytest.mark.asyncio
 async def test_missing_content_type_fails_closed() -> None:
-    with pytest.raises(ValueError, match="content type"):
+    with pytest.raises(RetailerPolicyBlocked):
         await BlinkitAcquisitionAdapter(MissingContentTypeScraper()).acquire_search(query="milk", evaluation_scope="search:milk")
 
 
@@ -94,10 +85,8 @@ async def test_access_denial_never_falls_back_to_browser(monkeypatch, status_cod
     browser_fallback = AsyncMock()
     monkeypatch.setattr(scraper, "_fetch_via_browser", browser_fallback)
 
-    with pytest.raises(ScraperAccessDeniedError) as error:
+    with pytest.raises(RetailerPolicyBlocked):
         await scraper.acquire_search("milk")
-
-    assert error.value.status_code == status_code
     browser_fallback.assert_not_awaited()
 
 
