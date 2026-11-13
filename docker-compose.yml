@@ -2,8 +2,8 @@ services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_DB: cartel
-      POSTGRES_USER: cartel
+      POSTGRES_DB: ${POSTGRES_DB:-cartel}
+      POSTGRES_USER: ${POSTGRES_USER:-cartel}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD from the deployment secret manager}
     volumes:
       - cartel-postgres:/var/lib/postgresql/data
@@ -11,7 +11,7 @@ services:
       - cartel
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U cartel -d cartel"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 12
@@ -28,25 +28,27 @@ services:
       retries: 12
 
   api:
+    working_dir: /app/backend
     build:
       context: .
       dockerfile: backend/Dockerfile
     environment:
       APP_NAME: Cartel
-      APP_ENV: production
-      APP_DEBUG: "false"
+      APP_ENV: ${APP_ENV:-production}
+      APP_DEBUG: ${APP_DEBUG:-false}
       APP_VERSION: 0.1.0
       API_V1_PREFIX: /api/v1
       LOG_LEVEL: INFO
       LOG_JSON: "true"
       DOCS_ENABLED: "false"
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
-      AUTH_REQUIRED: "true"
+      AUTH_REQUIRED: ${AUTH_REQUIRED:-true}
       AUTH_TOKENS: ${AUTH_TOKENS:?set AUTH_TOKENS as user_id=token pairs for the deployment environment}
       DATABASE_REQUIRED: "true"
       POSTGRES_HOST: postgres
-      POSTGRES_DB: cartel
-      POSTGRES_USER: cartel
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-cartel}
+      POSTGRES_USER: ${POSTGRES_USER:-cartel}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD from the deployment secret manager}
       REDIS_URL: redis://redis:6379/0
       REDIS_CONNECT_TIMEOUT_SECONDS: ${REDIS_CONNECT_TIMEOUT_SECONDS:-1}
@@ -58,11 +60,12 @@ services:
       AUTH_CHALLENGE_MINUTES: ${AUTH_CHALLENGE_MINUTES:-30}
       AUTH_RATE_LIMIT_REQUESTS: ${AUTH_RATE_LIMIT_REQUESTS:-8}
       PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:?set PUBLIC_ORIGIN to the browser-visible application origin}
-      SMTP_HOST: ${SMTP_HOST:?set SMTP_HOST to a configured mail relay}
+      # Required when EMAIL_DELIVERY_MODE=smtp; file mode needs only LOCAL_EMAIL_DIR.
+      SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_USERNAME: ${SMTP_USERNAME:-}
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
-      SMTP_FROM: ${SMTP_FROM:?set SMTP_FROM to the verified sender address}
+      SMTP_FROM: ${SMTP_FROM:-}
       SMTP_STARTTLS: ${SMTP_STARTTLS:-true}
       EMAIL_DELIVERY_MODE: ${EMAIL_DELIVERY_MODE:-smtp}
       LOCAL_EMAIL_DIR: ${LOCAL_EMAIL_DIR:-/tmp/cartel-email}
@@ -109,6 +112,7 @@ services:
       start_period: 10s
 
   worker:
+    working_dir: /app/backend
     build:
       context: .
       dockerfile: backend/Dockerfile
@@ -118,10 +122,11 @@ services:
       APP_DEBUG: ${APP_DEBUG:-false}
       DATABASE_REQUIRED: "true"
       POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
       POSTGRES_DB: ${POSTGRES_DB:-cartel}
       POSTGRES_USER: ${POSTGRES_USER:-cartel}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cartel}
-      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-cartel}:${POSTGRES_PASSWORD:-cartel}@postgres:5432/${POSTGRES_DB:-cartel}
+      REDIS_URL: redis://redis:6379/0
       DATA_DIR: /app/data
       RETAILER_DATA_PROVIDER_MODE: ${RETAILER_DATA_PROVIDER_MODE:-unavailable}
       QUICKCOMMERCE_API_BASE_URL: ${QUICKCOMMERCE_API_BASE_URL:-}
@@ -147,6 +152,8 @@ services:
     restart: unless-stopped
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
 
   frontend:
@@ -175,10 +182,10 @@ services:
       retries: 5
       start_period: 15s
 
-networks:
-  cartel:
-    driver: bridge
-
 volumes:
   cartel-data:
   cartel-postgres:
+
+networks:
+  cartel:
+    driver: bridge

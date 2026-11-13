@@ -13,6 +13,7 @@ def search_products(
     query: str,
     request: Request,
     limit: int = 20,
+    max_age_seconds: int | None = None,
 ) -> ProductSearchResult:
     service = getattr(request.app.state, "product_search", None)
     if service is None:
@@ -21,7 +22,9 @@ def search_products(
             detail="product search is not configured",
         )
     try:
-        return service.search(ProductSearchRequest(query=query, limit=limit))
+        return service.search(
+            ProductSearchRequest(query=query, limit=limit, max_age_seconds=max_age_seconds)
+        )
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,

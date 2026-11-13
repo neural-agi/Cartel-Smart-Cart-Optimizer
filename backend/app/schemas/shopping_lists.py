@@ -98,3 +98,24 @@ class ShoppingListResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     items: tuple[ShoppingListItemResponse, ...] = ()
+
+
+class OptimizationCreate(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    list_id: UUID
+    expected_revision: int = Field(ge=1)
+
+
+class OptimizationResponse(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    request_id: str
+    list_id: UUID
+    list_revision: int
+    input_digest: str
+    policy_version: str
+    status: str
+    input_snapshot: dict
+    result_snapshot: dict
+    created_at: datetime | None = None

@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from re import fullmatch
 from urllib.parse import urlsplit
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.data_ingestion.observation_registry.interface import ObservationRegistry
 from app.data_ingestion.timestamp_integrity import (
@@ -23,6 +23,7 @@ from app.product_intelligence.models import (
     ProductLifecycleStatus,
     VariantLifecycleStatus,
 )
+from app.retailer_data.persistence import FilesystemRetailerObservationStore
 from app.retailer_policy import blinkit_consumer_eligible, is_blinkit
 
 
@@ -31,6 +32,14 @@ class ProductSearchRequest(BaseModel):
 
     query: str
     limit: int = 20
+    max_age_seconds: int | None = None
+
+    @field_validator("max_age_seconds")
+    @classmethod
+    def _validate_max_age(cls, value: int | None) -> int | None:
+        if value is not None and value < 0:
+            raise ValueError("max_age_seconds must not be negative")
+        return value
 
 
 class ProductSearchMoney(BaseModel):
@@ -289,12 +298,14 @@ class ProductSearchService:
         observation_registry: ObservationRegistry,
         include_fixtures: bool = False,
         clock: Clock | None = None,
+        retailer_observation_store: FilesystemRetailerObservationStore | None = None,
     ) -> None:
         self._catalog = catalog
         self._association_registry = association_registry
         self._observation_registry = observation_registry
         self._include_fixtures = include_fixtures
         self._clock = clock or SystemClock()
+        self._retailer_observation_store = retailer_observation_store
 
     def search(self, request: ProductSearchRequest) -> ProductSearchResult:
         query = request.query.strip()
@@ -317,6 +328,8 @@ class ProductSearchService:
         items: list[ProductSearchItem] = []
         for association in self._association_registry.all():
             if is_blinkit(association.platform):
+                continue
+            if getattr(association, "association_status", "associated") != "associated":
                 continue
             product = products.get(association.canonical_product_id)
             variant = variants.get(association.canonical_variant_id)
@@ -345,26 +358,39 @@ class ProductSearchService:
             if query_folded not in searchable:
                 continue
             observation = self._observation_registry.get(association.observation_id)
-            if observation is None:
-                continue
-            live_supported = has_supported_retailer_evidence(association.platform, observation)
-            synthetic_supported = is_synthetic_demo_observation(observation)
-            fixture_supported = self._include_fixtures and is_explicit_fixture(observation)
-            if not live_supported and not fixture_supported:
-                continue
-            if live_supported and association.observation_id not in current_observations:
-                continue
-            price = observation.observed_selling_price
-            platform_identifiers = dict(observation.platform_identifiers)
-            artifact = observation.raw_artifact_reference
-            items.append(
-                ProductSearchItem(
-                    canonical_product_id=product.canonical_product_id,
-                    canonical_variant_id=variant.canonical_variant_id,
-                    canonical_display_name=product.canonical_display_name,
-                    brand=product.brand_reference.display_label,
-                    pack=self._pack_label(variant),
-                    identity_attributes=tuple(
+            retailer_observation = None
+            if observation is None and self._retailer_observation_store is not None:
+                retailer_observation = self._retailer_observation_store.get(association.observation_id)
+                if retailer_observation is not None and request.max_age_seconds is not None:
+                    if (
+                        retailer_observation.freshness_at(
+                            max_age=timedelta(seconds=request.max_age_seconds)
+                        ).value
+                        != "current"
+                    ):
+                        continue
+
+            if observation is not None:
+                live_supported = has_supported_retailer_evidence(
+                    association.platform, observation
+                )
+                synthetic_supported = is_synthetic_demo_observation(observation)
+                fixture_supported = self._include_fixtures and is_explicit_fixture(
+                    observation
+                )
+                if not live_supported and not fixture_supported:
+                    continue
+                if (
+                    live_supported
+                    and association.observation_id not in current_observations
+                ):
+                    continue
+                price = observation.observed_selling_price
+                availability_signal = observation.availability_signal
+                platform_identifiers = dict(observation.platform_identifiers)
+                artifact = observation.raw_artifact_reference
+                item_details = {
+                    "identity_attributes": tuple(
                         ProductSearchAttribute(
                             name=attribute.name,
                             value=attribute.value,
@@ -373,7 +399,7 @@ class ProductSearchService:
                         )
                         for attribute in product.identity_attributes
                     ),
-                    variant_attributes=tuple(
+                    "variant_attributes": tuple(
                         ProductSearchAttribute(
                             name=attribute.name,
                             value=attribute.value,
@@ -382,35 +408,84 @@ class ProductSearchService:
                         )
                         for attribute in variant.variant_identity_attributes
                     ),
-                    evidence_state=(
+                    "evidence_state": (
                         "registered_governed_observation"
                         if live_supported
                         else "synthetic_demo"
                         if synthetic_supported
                         else "demo_fixture"
                     ),
-                    synthetic=synthetic_supported,
-                    fixture_provenance=(
+                    "synthetic": synthetic_supported,
+                    "fixture_provenance": (
                         None if live_supported else observation.completeness.basis
                     ),
-                    observed_at=artifact.capture_timestamp,
-                    parser_version=observation.parser_version,
-                    normalization_version=observation.normalization_version,
-                    platform=association.platform,
-                    retailer_product_id=platform_identifiers.get("retailer_product_id"),
-                    retailer_product_url=platform_identifiers.get("retailer_product_url"),
-                    platform_listing_id=association.platform_listing_id,
-                    observation_id=association.observation_id,
-                    source_reference=self._safe_source_reference(artifact.source_reference),
-                    raw_artifact_id=artifact.artifact_id,
-                    raw_content_digest=artifact.content_digest,
-                    evidence_references=tuple(
+                    "observed_at": artifact.capture_timestamp,
+                    "parser_version": observation.parser_version,
+                    "normalization_version": observation.normalization_version,
+                    "retailer_product_id": platform_identifiers.get(
+                        "retailer_product_id"
+                    ),
+                    "retailer_product_url": platform_identifiers.get(
+                        "retailer_product_url"
+                    ),
+                    "source_reference": self._safe_source_reference(
+                        artifact.source_reference
+                    ),
+                    "raw_artifact_id": artifact.artifact_id,
+                    "raw_content_digest": artifact.content_digest,
+                    "evidence_references": tuple(
                         ProductSearchEvidenceReference(
                             source_type=reference.source_type,
                             source_id=reference.source_id,
                         )
                         for reference in observation.evidence_references
                     ),
+                }
+            elif retailer_observation is not None:
+                price = (
+                    retailer_observation.effective_price
+                    or retailer_observation.listed_price
+                )
+                availability_signal = retailer_observation.availability
+                item_details = {
+                    "identity_attributes": (),
+                    "variant_attributes": (),
+                    "evidence_state": "registered_retailer_observation",
+                    "synthetic": False,
+                    "fixture_provenance": None,
+                    "observed_at": retailer_observation.observed_at,
+                    "parser_version": retailer_observation.parser_version,
+                    "normalization_version": retailer_observation.schema_version,
+                    "retailer_product_id": None,
+                    "retailer_product_url": retailer_observation.source_url,
+                    "source_reference": self._safe_source_reference(
+                        retailer_observation.source_reference
+                        or retailer_observation.source_url
+                        or ""
+                    ),
+                    "raw_artifact_id": retailer_observation.source_artifact_reference,
+                    "raw_content_digest": retailer_observation.payload_digest,
+                    "evidence_references": tuple(
+                        ProductSearchEvidenceReference(
+                            source_type=source_type,
+                            source_id=source_id,
+                        )
+                        for source_type, source_id in retailer_observation.evidence_references
+                    ),
+                }
+            else:
+                continue
+
+            items.append(
+                ProductSearchItem(
+                    canonical_product_id=product.canonical_product_id,
+                    canonical_variant_id=variant.canonical_variant_id,
+                    canonical_display_name=product.canonical_display_name,
+                    brand=product.brand_reference.display_label,
+                    pack=self._pack_label(variant),
+                    platform=association.platform,
+                    platform_listing_id=association.platform_listing_id,
+                    observation_id=association.observation_id,
                     price=(
                         ProductSearchMoney(
                             currency=price.currency,
@@ -419,7 +494,8 @@ class ProductSearchService:
                         if price is not None
                         else None
                     ),
-                    availability_signal=observation.availability_signal,
+                    availability_signal=availability_signal,
+                    **item_details,
                 )
             )
 

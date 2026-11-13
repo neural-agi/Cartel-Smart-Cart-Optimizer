@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.responses import Response
 from starlette.responses import JSONResponse
 import re
+
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -25,6 +26,7 @@ from app.data_ingestion.observation_registry.query import RetailObservationQuery
 from app.services.cart_resolution import CartResolutionService
 from app.services.cart_candidate_discovery import CartCandidateDiscoveryService
 from app.services.product_search import ProductSearchService
+from app.retailer_data.persistence import FilesystemRetailerObservationStore
 from app.cart_optimization.planning import CartPlanningService
 from app.cart_optimization.automatic_planning import (
     AutomaticCartPlanningService,
@@ -78,7 +80,11 @@ async def lifespan(app: FastAPI):
     settings = getattr(app.state, "settings", None) or get_settings()
     configure_logging(log_level=settings.log_level, json_logs=settings.log_json)
     app.state.settings = settings
-    app.state.background_job_store = DurableJobStore(get_session_factory(settings), settings)
+    app.state.db_session_factory = get_session_factory(settings)
+    app.state.background_job_store = DurableJobStore(
+        app.state.db_session_factory, settings
+    )
+    app.state.rate_limiter_ready = True
 
     if settings.database_required:
         try:
@@ -87,12 +93,16 @@ async def lifespan(app: FastAPI):
         except SQLAlchemyError:
             logger.critical("database_startup_check_failed", extra={"component": "database"})
             raise
-    if settings.app_env == "production":
+    if settings.is_production:
         try:
             await app.state.rate_limiter.ping()
-        except RateLimitBackendUnavailable:
-            logger.critical("rate_limit_backend_startup_check_failed", extra={"component": "rate_limiter"})
-            raise RuntimeError("Redis rate-limit backend is unavailable")
+        except RateLimitBackendUnavailable as exc:
+            app.state.rate_limiter_ready = False
+            logger.critical(
+                "rate_limit_backend_startup_check_failed",
+                extra={"component": "rate_limiter"},
+            )
+            raise RuntimeError("Redis rate-limit backend is unavailable") from exc
 
     logger.info(
         "Application startup complete: app=%s env=%s version=%s",
@@ -115,7 +125,8 @@ async def lifespan(app: FastAPI):
     try:
         yield
     finally:
-        await app.state.rate_limiter.close()
+        if hasattr(app.state, "rate_limiter"):
+            await app.state.rate_limiter.close()
         dispose_engines()
         logger.info("Application shutdown complete: app=%s", settings.app_name)
 
@@ -143,7 +154,10 @@ def create_application(
         lifespan=lifespan,
     )
     application.state.settings = app_settings
-    application.state.background_job_store = DurableJobStore(get_session_factory(app_settings), app_settings)
+    application.state.db_session_factory = get_session_factory(app_settings)
+    application.state.background_job_store = DurableJobStore(
+        application.state.db_session_factory, app_settings
+    )
 
     @application.exception_handler(RequestValidationError)
     async def sanitized_validation_error(request: Request, exc: RequestValidationError):
@@ -186,6 +200,7 @@ def create_application(
             },
             headers={REQUEST_ID_HEADER: request_id} if request_id else None,
         )
+
     if app_settings.cors_origins:
         application.add_middleware(
             CORSMiddleware,
@@ -243,7 +258,19 @@ def create_application(
                 f"{app_settings.api_v1_prefix}/cart/candidates",
                 f"{app_settings.api_v1_prefix}/cart/plan",
             }
-            is_consumer_path = request.url.path in consumer_paths or connections_path
+            consumer_prefixes = (
+                f"{app_settings.api_v1_prefix}/lists",
+                f"{app_settings.api_v1_prefix}/optimizations",
+            )
+            is_consumer_path = (
+                request.url.path in consumer_paths
+                or connections_path
+                or any(
+                    request.url.path == prefix
+                    or request.url.path.startswith(f"{prefix}/")
+                    for prefix in consumer_prefixes
+                )
+            )
             authorization = request.headers.get("Authorization", "")
             cookie_token = request.cookies.get("cartel_session", "")
             try:
@@ -386,6 +413,7 @@ def create_application(
         if adapter_registry is not None
         else build_default_registry()
     )
+    application.state.rate_limiter_ready = True
     application.state.retail_observation_query = RetailObservationQueryService(
         observation_registry=configured_runtime.observation_registry,
         association_registry=configured_runtime.association_registry,
@@ -406,6 +434,9 @@ def create_application(
         association_registry=configured_runtime.association_registry,
         observation_registry=configured_runtime.observation_registry,
         include_fixtures=app_settings.demo_fixtures_enabled,
+        retailer_observation_store=FilesystemRetailerObservationStore(
+            app_settings.data_dir / "retailer_data" / "observations"
+        ),
     )
     checkout_store = FilesystemCheckoutObservationCorrelationStore(
         app_settings.data_dir / "cost_intelligence" / "checkout_captures"

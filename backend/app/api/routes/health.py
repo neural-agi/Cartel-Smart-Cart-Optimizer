@@ -42,7 +42,15 @@ async def readiness_check(request: Request, response: Response) -> ReadinessResp
             "ready" if not settings.auth_required or settings.configured_auth_tokens else "missing"
         ),
         "database": "not_required",
-        "rate_limiter": "ready" if hasattr(request.app.state, "rate_limiter") else "missing",
+        "rate_limiter": (
+            "ready"
+            if getattr(
+                request.app.state,
+                "rate_limiter_ready",
+                hasattr(request.app.state, "rate_limiter"),
+            )
+            else "missing"
+        ),
         "redis": "missing",
     }
     if hasattr(request.app.state, "rate_limiter"):
@@ -58,11 +66,14 @@ async def readiness_check(request: Request, response: Response) -> ReadinessResp
             checks["database"] = "ready"
         except SQLAlchemyError:
             checks["database"] = "unavailable"
+    else:
+        checks["database"] = "not_required"
+    redis_required = settings.is_production
     status = (
         "ready"
         if all(value != "missing" for value in checks.values())
         and checks["database"] != "unavailable"
-        and checks["redis"] != "unavailable"
+        and (checks["redis"] != "unavailable" or not redis_required)
         else "not_ready"
     )
     if status != "ready":
