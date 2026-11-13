@@ -1,4 +1,4 @@
-"""SQLAlchemy metadata base for durable application models."""
+"""SQLAlchemy metadata for durable consumer identity and application state."""
 
 from sqlalchemy.orm import DeclarativeBase
 

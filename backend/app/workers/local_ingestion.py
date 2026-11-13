@@ -15,10 +15,11 @@ from app.data_ingestion import (
     ScrapeAttempt,
     ScrapeJob,
 )
+from app.data_ingestion.artifact_store import ArtifactPublicationRequest, ArtifactStore
 from app.data_ingestion.enums import FailureCategory
-from app.data_ingestion.artifact_store import ArtifactStore
-from app.data_ingestion.artifact_store import ArtifactPublicationRequest
 from app.data_ingestion.identity import ArtifactIdentityBuilder
+from app.retailer_policy import RetailerPolicyBlocked, is_blinkit
+from app.demo_catalog import is_synthetic_demo_platform
 from app.schemas.extraction import RawExtractionResult
 from app.scrapers.blinkit.acquisition import BlinkitAcquisitionAdapter
 from app.scrapers.blinkit.bridge import BlinkitParserBridge
@@ -28,7 +29,7 @@ from app.retailer_data.persistence import FilesystemRetailerObservationStore
 
 
 class AcquisitionBoundary(Protocol):
-    async def acquire_search(self, *, query: str, evaluation_scope: str): ...
+    async def acquire_search(self, *, query: str | None, evaluation_scope: str): ...
 
 
 class ParserBoundary(Protocol):
@@ -81,15 +82,70 @@ class LocalIngestionWorker:
                     transition_timestamp=started_at,
                 )
 
+        if is_blinkit(job.platform):
+            failure = JobFailure(
+                category=FailureCategory.POLICY_BLOCKED,
+                message=(
+                    "Blinkit ingestion is blocked pending written commercial-use "
+                    "authorization"
+                ),
+                attempt_id=attempt_id,
+                retryable=False,
+            )
+            attempt = ScrapeAttempt(
+                job_id=job.job_id,
+                attempt_number=attempt_number,
+                outcome=AttemptOutcome.BLOCKED,
+                failure=failure,
+                started_at=started_at,
+                finished_at=datetime.now(timezone.utc),
+            )
+            return IngestionWorkerResult(
+                job_id=job.job_id,
+                attempt=attempt,
+                failed_stage="policy_blocked",
+            )
+
+        if is_synthetic_demo_platform(job.platform):
+            failure = JobFailure(
+                category=FailureCategory.POLICY_BLOCKED,
+                message=(
+                    "CARTEL_DEMO is a synthetic catalog source and has no "
+                    "acquisition capability"
+                ),
+                attempt_id=attempt_id,
+                retryable=False,
+            )
+            attempt = ScrapeAttempt(
+                job_id=job.job_id,
+                attempt_number=attempt_number,
+                outcome=AttemptOutcome.BLOCKED,
+                failure=failure,
+                started_at=started_at,
+                finished_at=datetime.now(timezone.utc),
+            )
+            return IngestionWorkerResult(
+                job_id=job.job_id,
+                attempt=attempt,
+                failed_stage="synthetic_no_acquisition",
+            )
+
         try:
             stage = "acquisition"
             report_transition(JobState.DEQUEUED, JobState.ACQUIRING, "acquisition started")
             query = self._query(job)
             evaluation_scope = self._evaluation_scope(job, query)
-            acquisition = await self._acquisition.acquire_search(
-                query=query,
-                evaluation_scope=evaluation_scope,
-            )
+            if hasattr(self._acquisition, "acquire_for_job"):
+                acquisition = await self._acquisition.acquire_for_job(
+                    job=job,
+                    query=query,
+                    evaluation_scope=evaluation_scope,
+                )
+            else:
+                acquisition = await self._acquisition.acquire_search(
+                    query=query,
+                    evaluation_scope=evaluation_scope,
+                )
             stage = "artifact_storage"
             payload_digest = hashlib.sha256(acquisition.payload).hexdigest()
             artifact_id = ArtifactIdentityBuilder().artifact_id(
@@ -115,15 +171,31 @@ class LocalIngestionWorker:
                 content_type=acquisition.content_type,
                 capture_timestamp=acquisition.capture_timestamp,
                 source_reference=acquisition.source_reference,
+                provider_id=acquisition.provider_id,
+                acquisition_method=acquisition.acquisition_method,
+                location_scope=acquisition.location_scope or job.capture_context.location_scope,
+                evidence_quality=acquisition.evidence_quality,
+                provider_request_id=acquisition.provider_request_id,
+                location_latitude=acquisition.location_latitude,
+                location_longitude=acquisition.location_longitude,
             )
             report_transition(JobState.ACQUIRING, JobState.ARTIFACT_CAPTURED, "artifact captured")
             stage = "parsing"
             report_transition(JobState.ARTIFACT_CAPTURED, JobState.PARSING, "parsing started")
-            extraction = self._parser.parse_content(
-                acquisition.payload,
-                query=query,
-                source_reference=acquisition.source_reference,
-            )
+            if acquisition.provider_id == "quickcommerce":
+                from app.scrapers.quickcommerce.parser import QuickCommerceSearchParser
+                extraction = QuickCommerceSearchParser().parse(
+                    acquisition.payload,
+                    query=query or "",
+                    source_reference=acquisition.source_reference,
+                    evaluation_scope=acquisition.evaluation_scope,
+                )
+            else:
+                extraction = self._parser.parse_content(
+                    acquisition.payload,
+                    query=query,
+                    source_reference=acquisition.source_reference,
+                )
             extraction = self._complete_extraction(extraction, acquisition)
             batch = self._bridge.build_batch(extraction, artifact_reference)
             report_transition(JobState.PARSING, JobState.PARSED, "parsing completed")
@@ -148,8 +220,10 @@ class LocalIngestionWorker:
                 parsed_batch=batch,
             )
         except Exception as exc:
-            failure_stage = stage
-            category = self._failure_category(stage)
+            if isinstance(exc, RetailerPolicyBlocked):
+                category = FailureCategory.POLICY_BLOCKED
+            else:
+                category = self._failure_category(stage)
             failure = JobFailure(
                 category=category,
                 message=f"{stage} failed: {type(exc).__name__}",
@@ -165,7 +239,11 @@ class LocalIngestionWorker:
             attempt = ScrapeAttempt(
                 job_id=job.job_id,
                 attempt_number=attempt_number,
-                outcome=AttemptOutcome.FAILED,
+                outcome=(
+                    AttemptOutcome.BLOCKED
+                    if category is FailureCategory.POLICY_BLOCKED
+                    else AttemptOutcome.FAILED
+                ),
                 failure=failure,
                 artifact_references=(artifact_reference,) if artifact_reference else tuple(),
                 started_at=started_at,
@@ -179,16 +257,17 @@ class LocalIngestionWorker:
             )
 
     @staticmethod
-    def _query(job: ScrapeJob) -> str:
+    def _query(job: ScrapeJob) -> str | None:
         values = dict(job.request_parameters.values)
         query = values.get("query")
-        if not query:
+        if not query and job.capture_type.value != "PRODUCT_DETAIL":
             raise ValueError("search job requires query request parameter")
         return query
 
     @staticmethod
-    def _evaluation_scope(job: ScrapeJob, query: str) -> str:
-        return f"{job.job_id}:search:{query}"
+    def _evaluation_scope(job: ScrapeJob, query: str | None) -> str:
+        scope = "product-detail" if query is None else f"search:{query}"
+        return f"{job.job_id}:{scope}"
 
     @staticmethod
     def _complete_extraction(result: RawExtractionResult, acquisition) -> RawExtractionResult:

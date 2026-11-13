@@ -52,6 +52,34 @@ class RegistryCheckoutObservationProvider:
         return None if correlation is None else correlation.observation
 
 
+class ProductionCheckoutObservationProvider:
+    """Reject fixture/test checkout artifacts at the consumer planning boundary."""
+
+    _fixture_markers = ("fixture://", "demo://", "synthetic://", "test://")
+
+    def __init__(self, provider: CheckoutObservationProvider) -> None:
+        self._provider = provider
+
+    def get_observation(self, *, plan_id: str, request_id: str) -> CheckoutObservation | None:
+        observation = self._provider.get_observation(plan_id=plan_id, request_id=request_id)
+        if observation is None:
+            return None
+        provenance = (
+            observation.source_artifact_reference,
+            observation.parser_version,
+            *(value for reference in observation.evidence_references for value in (reference.source_type, reference.source_id)),
+        )
+        if any(
+            value.casefold().strip().startswith(self._fixture_markers)
+            or value.casefold().strip().startswith(("fixture", "demo", "synthetic", "test-fixture"))
+            for value in provenance
+        ):
+            raise PlanningProviderUnavailable(
+                f"fixture checkout evidence is not consumer production evidence for plan {plan_id}"
+            )
+        return observation
+
+
 class UnavailableRetailerIdentityProvider:
     """Fail-closed adapter until an authoritative retailer registry is wired."""
 

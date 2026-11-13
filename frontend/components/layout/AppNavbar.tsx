@@ -14,6 +14,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import AppSidebar from "./AppSidebar";
+import CartelMark from "@/components/brand/CartelMark";
 
 export default function AppNavbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -31,9 +32,7 @@ export default function AppNavbar() {
           <Menu className="h-5 w-5" aria-hidden="true" />
         </Button>
 
-        <Link href="/home" className="text-xl font-bold tracking-tight">
-          Cartel
-        </Link>
+        <CartelMark />
 
         <div className="flex items-center gap-1">
           <Link

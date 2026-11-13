@@ -14,6 +14,8 @@ from app.product_intelligence.catalog.association_storage import (
 )
 from app.product_intelligence.catalog.resolution import CanonicalListingAssociation
 from app.product_intelligence.catalog.service import FilesystemAuthoritativeCatalog
+from app.product_intelligence.catalog.resolution import DeterministicCanonicalListingResolver
+from app.product_intelligence.catalog.types import CatalogState
 from app.product_intelligence.catalog.types import CatalogConflictError, CatalogValidationError
 from app.product_intelligence.models import Product, ProductVariant
 
@@ -32,6 +34,13 @@ class CatalogReviewItem(BaseModel):
     displayed_price: dict[str, object] | None = None
     availability_signal: str | None = None
     source_reference: str | None = None
+    retailer_product_url: str | None = None
+    brand: str | None = None
+    inventory_signal: str | None = None
+    store_id: str | None = None
+    provider_id: str | None = None
+    location_scope: str | None = None
+    capture_timestamp: str | None = None
     resolution_state: str = "unresolved"
 
 
@@ -61,17 +70,20 @@ class GovernedCatalogPopulationService:
         catalog: FilesystemAuthoritativeCatalog,
         association_registry: FilesystemCanonicalListingAssociationRegistry,
         observation_registry: ObservationRegistry,
+        resolver: DeterministicCanonicalListingResolver | None = None,
     ) -> None:
         self.catalog = catalog
         self.association_registry = association_registry
         self.observation_registry = observation_registry
+        self.resolver = resolver
 
     def build_review_queue(self) -> CatalogReviewQueue:
         items = [self._review_item(observation) for observation in self.observation_registry.list_all()]
         return CatalogReviewQueue(observations=tuple(sorted(items, key=lambda item: item.observation_id)))
 
     def import_manifest(self, manifest: CatalogPopulationManifest) -> CatalogPopulationManifest:
-        self._validate_manifest(manifest)
+        merged_state = self._validate_manifest(manifest)
+        self._validate_associations_against_resolver(manifest, merged_state)
         for product in sorted(manifest.products, key=lambda item: item.canonical_product_id):
             self.catalog.register_product(product)
         for variant in sorted(manifest.variants, key=lambda item: item.canonical_variant_id):
@@ -95,7 +107,7 @@ class GovernedCatalogPopulationService:
             encoding="utf-8",
         )
 
-    def _validate_manifest(self, manifest: CatalogPopulationManifest) -> None:
+    def _validate_manifest(self, manifest: CatalogPopulationManifest) -> CatalogState:
         product_ids = [item.canonical_product_id for item in manifest.products]
         variant_ids = [item.canonical_variant_id for item in manifest.variants]
         if len(product_ids) != len(set(product_ids)):
@@ -110,8 +122,10 @@ class GovernedCatalogPopulationService:
         variant_map.update({item.canonical_variant_id: item for item in manifest.variants})
         for product in manifest.products:
             self.catalog._validate_product(product)
+            self._validate_product_evidence(product)
         for variant in manifest.variants:
             self.catalog._validate_variant(variant)
+            self._validate_variant_evidence(variant)
             if variant.canonical_product_id not in product_map:
                 raise CatalogValidationError(
                     f"manifest variant parent Product missing: {variant.canonical_product_id}"
@@ -137,10 +151,53 @@ class GovernedCatalogPopulationService:
                 raise CatalogValidationError("association Variant is not in the manifest or catalog")
             if variant.canonical_product_id != association.canonical_product_id:
                 raise CatalogValidationError("association Variant belongs to another Product")
+        return CatalogState(products=tuple(product_map.values()), variants=tuple(variant_map.values()))
+
+    @staticmethod
+    def _validate_product_evidence(product: Product) -> None:
+        if not product.evidence_references:
+            raise CatalogValidationError("manifest Product requires canonical identity evidence")
+        if not product.brand_reference.evidence_references:
+            raise CatalogValidationError("manifest Product brand requires canonical identity evidence")
+        identity_attributes = [
+            item for item in product.identity_attributes if item.role == "identity_critical"
+        ]
+        if any(not item.evidence_references for item in identity_attributes):
+            raise CatalogValidationError(
+                "manifest Product identity-critical attributes require evidence"
+            )
+
+    @staticmethod
+    def _validate_variant_evidence(variant: ProductVariant) -> None:
+        if not variant.evidence_references:
+            raise CatalogValidationError("manifest Variant requires canonical pack/identity evidence")
+        if variant.pack_configuration.pack_configuration_status != "complete":
+            raise CatalogValidationError("manifest Variant pack configuration must be complete")
+
+    def _validate_associations_against_resolver(
+        self, manifest: CatalogPopulationManifest, state: CatalogState
+    ) -> None:
+        if not manifest.associations:
+            return
+        if self.resolver is None:
+            raise CatalogValidationError(
+                "association import requires an exact canonical identity resolver"
+            )
+        for association in manifest.associations:
+            observation = self.observation_registry.get(association.observation_id)
+            assert observation is not None
+            result = self.resolver.resolve(observation, state)
+            if result.status.value != "mapped" or result.association != association:
+                rationale = "; ".join(result.rationale) or "resolver did not produce an exact association"
+                raise CatalogValidationError(
+                    f"association failed exact identity validation for "
+                    f"observation {association.observation_id}: {rationale}"
+                )
 
     @staticmethod
     def _review_item(observation: NormalizedObservation) -> CatalogReviewItem:
         artifact = observation.raw_artifact_reference
+        identifiers = dict(getattr(observation, "platform_identifiers", ()))
         return CatalogReviewItem(
             observation_id=observation.observation_id,
             platform=observation.platform.value,
@@ -155,4 +212,15 @@ class GovernedCatalogPopulationService:
             ),
             availability_signal=observation.availability_signal,
             source_reference=artifact.source_reference if artifact is not None else None,
+            retailer_product_url=identifiers.get("retailer_product_url"),
+            brand=identifiers.get("brand"),
+            inventory_signal=identifiers.get("inventory"),
+            store_id=identifiers.get("store_id"),
+            provider_id=getattr(artifact, "provider_id", None) if artifact else None,
+            location_scope=getattr(artifact, "location_scope", None) if artifact else None,
+            capture_timestamp=(
+                artifact.capture_timestamp.isoformat()
+                if artifact is not None and getattr(artifact, "capture_timestamp", None) is not None
+                else None
+            ),
         )

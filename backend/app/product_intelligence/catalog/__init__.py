@@ -26,6 +26,24 @@ from app.product_intelligence.catalog.population import (
     CatalogReviewQueue,
     GovernedCatalogPopulationService,
 )
+from app.product_intelligence.catalog.identity_contract import (
+    CanonicalIdentityResolution,
+    IdentityComparison,
+    IdentityFact,
+    IdentityResolutionState,
+    PackIdentityEvidence,
+    ProductIdentityProfile,
+    RetailerProductIdentityEvidence,
+)
+from app.product_intelligence.catalog.retailer_identity import (
+    BlinkitIdentityAdapter,
+    RetailerIdentityAdapter,
+)
+from app.product_intelligence.catalog.operator_review import (
+    OperatorObservationDetail,
+    OperatorReviewAudit,
+    OperatorReviewService,
+)
 
 __all__ = [
     "CatalogConflictError",
@@ -46,4 +64,16 @@ __all__ = [
     "CatalogReviewItem",
     "CatalogReviewQueue",
     "GovernedCatalogPopulationService",
+    "CanonicalIdentityResolution",
+    "IdentityComparison",
+    "IdentityFact",
+    "IdentityResolutionState",
+    "PackIdentityEvidence",
+    "ProductIdentityProfile",
+    "RetailerProductIdentityEvidence",
+    "BlinkitIdentityAdapter",
+    "RetailerIdentityAdapter",
+    "OperatorObservationDetail",
+    "OperatorReviewAudit",
+    "OperatorReviewService",
 ]

@@ -39,6 +39,36 @@ def test_parse_html_preserves_blinkit_product_id_separately_from_source_index() 
     assert result.products[0].retailer_product_id == "637879"
 
 
+def test_card_product_reference_is_retained_only_when_blinkit_id_matches():
+    html = '''<div role="button" id="637879"><a href="/prn/country-delight-buffalo-fresh-milk/prid/637879"><span>Milk</span><span>500 ml</span><span>₹100</span><span>ADD</span></a></div>'''
+    result = BlinkitProductParser().parse_html(html, query="milk")
+    assert result.products[0].source_index == 1
+    assert result.products[0].retailer_product_id == "637879"
+    assert result.products[0].product_url == "https://blinkit.com/prn/country-delight-buffalo-fresh-milk/prid/637879"
+
+
+def test_card_product_reference_rejects_mismatched_or_foreign_urls():
+    parser = BlinkitProductParser()
+    mismatched = parser.parse_html(
+        '<div role="button" id="637879"><a href="https://blinkit.com/prn/product/prid/19512"><span>Milk</span><span>500 ml</span><span>₹100</span><span>ADD</span></a></div>',
+        query="milk",
+    )
+    foreign = parser.parse_html(
+        '<div role="button" id="637879"><a href="https://example.com/prn/product/prid/637879"><span>Milk</span><span>500 ml</span><span>₹100</span><span>ADD</span></a></div>',
+        query="milk",
+    )
+    assert mismatched.products[0].retailer_product_id == "637879"
+    assert mismatched.products[0].product_url is None
+    assert foreign.products[0].product_url is None
+
+
+def test_card_product_reference_ignores_unrelated_anchor_before_matching_blinkit_reference():
+    html = '''<div role="button" id="637879"><a href="/help">Help</a><a href="/prn/country-delight-buffalo-fresh-milk/prid/637879"><span>Milk</span><span>500 ml</span><span>₹100</span><span>ADD</span></a></div>'''
+    result = BlinkitProductParser().parse_html(html, query="milk")
+
+    assert result.products[0].product_url == "https://blinkit.com/prn/country-delight-buffalo-fresh-milk/prid/637879"
+
+
 def test_parse_content_extracts_retailer_product_id_from_product_jsonld() -> None:
     html = """
     <script type="application/ld+json">

@@ -1,0 +1,6 @@
+services:
+  api:
+    environment:
+      APP_ENV: development
+      PUBLIC_ORIGIN: http://localhost:3000
+      AUTH_COOKIE_SECURE: "false"

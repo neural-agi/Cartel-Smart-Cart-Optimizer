@@ -19,6 +19,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.core.metrics import metrics
 from app.db.models import IdempotencyRecord
 
 
@@ -110,8 +111,10 @@ def claim(
 
         if existing is not None:
             if existing.request_hash != digest:
+                metrics.inc("cartel_idempotency_total", operation=operation, outcome="conflict")
                 raise HTTPException(status_code=409, detail={"code": "idempotency_key_conflict"})
             if existing.status_code > 0:
+                metrics.inc("cartel_idempotency_total", operation=operation, outcome="replay")
                 return IdempotencyClaim(
                     action="replay",
                     record=existing,
@@ -142,6 +145,7 @@ def claim(
         try:
             db.add(record)
             db.flush()
+            metrics.inc("cartel_idempotency_total", operation=operation, outcome="new")
             return IdempotencyClaim(action="execute", record=record)
         except IntegrityError:
             # A competing insert can only win through the unique DB constraint.

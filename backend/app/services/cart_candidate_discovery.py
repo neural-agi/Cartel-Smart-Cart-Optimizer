@@ -5,12 +5,24 @@ from enum import StrEnum
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.data_ingestion.observation_registry.interface import ObservationRegistry
+from app.data_ingestion.timestamp_integrity import Clock, SystemClock
 from app.data_ingestion.types import NormalizedObservation
 from app.normalization.pricing.parser import GovernedRetailPriceParser
 from app.product_intelligence.catalog.association_storage import (
     FilesystemCanonicalListingAssociationRegistry,
 )
 from app.product_intelligence.catalog.service import FilesystemAuthoritativeCatalog
+from app.product_intelligence.models import (
+    IdentityStatus,
+    ProductLifecycleStatus,
+    VariantLifecycleStatus,
+)
+from app.retailer_policy import is_blinkit
+from app.services.product_search import (
+    has_supported_retailer_evidence,
+    is_synthetic_demo_observation,
+    latest_governed_observation_ids,
+)
 
 
 class CartCandidateDiscoveryStatus(StrEnum):
@@ -50,6 +62,7 @@ class PersistedListingCandidate(BaseModel):
     observation: NormalizedObservation
     readiness: PersistedCandidateReadiness
     readiness_reason: str | None = None
+    evidence_class: str = "live"
 
 
 class CartCandidateDiscoveryItem(BaseModel):
@@ -80,38 +93,65 @@ class CartCandidateDiscoveryService:
         association_registry: FilesystemCanonicalListingAssociationRegistry,
         observation_registry: ObservationRegistry,
         price_parser: GovernedRetailPriceParser | None = None,
+        clock: Clock | None = None,
+        include_synthetic: bool = False,
     ) -> None:
         self.catalog = catalog
         self.association_registry = association_registry
         self.observation_registry = observation_registry
         self.price_parser = price_parser or GovernedRetailPriceParser()
+        self._clock = clock or SystemClock()
+        self._include_synthetic = include_synthetic
 
     def discover(
         self, request: CartCandidateDiscoveryRequest
     ) -> CartCandidateDiscoveryResult:
         associations = self.association_registry.all()
+        current_observation_ids = latest_governed_observation_ids(
+            associations,
+            self.observation_registry,
+            clock=self._clock,
+        )
         return CartCandidateDiscoveryResult(
             items=tuple(
-                self._discover_item(item, associations) for item in request.items
+                self._discover_item(item, associations, current_observation_ids)
+                for item in request.items
             )
         )
 
-    def _discover_item(self, item, associations) -> CartCandidateDiscoveryItem:
+    def _discover_item(self, item, associations, current_observation_ids) -> CartCandidateDiscoveryItem:
         candidates: list[PersistedListingCandidate] = []
         for association in associations:
+            if is_blinkit(association.platform):
+                continue
             if (
                 association.canonical_product_id != item.canonical_product_id
                 or association.canonical_variant_id != item.canonical_variant_id
             ):
                 continue
-            if self.catalog.get_product(association.canonical_product_id) is None:
-                continue
-            if self.catalog.get_variant(association.canonical_variant_id) is None:
+            product = self.catalog.get_product(association.canonical_product_id)
+            variant = self.catalog.get_variant(association.canonical_variant_id)
+            if (
+                product is None
+                or variant is None
+                or variant.canonical_product_id != product.canonical_product_id
+                or product.product_identity_status is not IdentityStatus.established
+                or product.lifecycle_status is not ProductLifecycleStatus.active
+                or variant.variant_identity_status is not IdentityStatus.established
+                or variant.lifecycle_status is not VariantLifecycleStatus.active
+                or variant.pack_configuration.pack_configuration_status != "complete"
+            ):
                 continue
             observation = self.observation_registry.get(association.observation_id)
             if observation is None:
                 continue
-            readiness, readiness_reason = self._readiness(observation)
+            synthetic = is_synthetic_demo_observation(observation)
+            readiness, readiness_reason = self._readiness(
+                observation,
+                evidence_supported=has_supported_retailer_evidence(association.platform, observation),
+                is_current=association.observation_id in current_observation_ids,
+                synthetic_supported=synthetic and self._include_synthetic,
+            )
             candidates.append(
                 PersistedListingCandidate(
                     platform=association.platform,
@@ -122,6 +162,7 @@ class CartCandidateDiscoveryService:
                     observation=observation,
                     readiness=readiness,
                     readiness_reason=readiness_reason,
+                    evidence_class="synthetic_demo" if synthetic else "live",
                 )
             )
 
@@ -155,7 +196,12 @@ class CartCandidateDiscoveryService:
         )
 
     def _readiness(
-        self, observation: NormalizedObservation
+        self,
+        observation: NormalizedObservation,
+        *,
+        evidence_supported: bool = True,
+        is_current: bool = True,
+        synthetic_supported: bool = False,
     ) -> tuple[PersistedCandidateReadiness, str | None]:
         price = observation.observed_selling_price
         if price is None:
@@ -167,5 +213,26 @@ class CartCandidateDiscoveryService:
             return (
                 PersistedCandidateReadiness.not_ready_for_allocation,
                 "observed selling price uses an unsupported currency",
+            )
+        if is_synthetic_demo_observation(observation) and not synthetic_supported:
+            return (
+                PersistedCandidateReadiness.not_ready_for_allocation,
+                "synthetic demo evidence is not enabled",
+            )
+        if not synthetic_supported and not evidence_supported:
+            return (
+                PersistedCandidateReadiness.not_ready_for_allocation,
+                "observation does not have admissible non-fixture retailer provenance",
+            )
+        if not synthetic_supported and not is_current:
+            return (
+                PersistedCandidateReadiness.not_ready_for_allocation,
+                "observation is stale, superseded, or ambiguous",
+            )
+        availability = (observation.availability_signal or "").strip().casefold()
+        if availability not in {"available", "in_stock"}:
+            return (
+                PersistedCandidateReadiness.not_ready_for_allocation,
+                "observation does not explicitly establish current availability",
             )
         return PersistedCandidateReadiness.ready_for_allocation, None

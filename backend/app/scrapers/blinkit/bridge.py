@@ -12,13 +12,15 @@ from app.data_ingestion import (
     RawArtifactReference,
 )
 from app.product_intelligence.models import EvidenceReference
-from app.schemas.extraction import RawExtractionResult, RawExtractedProduct
+from app.retailer_policy import ensure_retailer_allowed
+from app.schemas.extraction import RawExtractedProduct, RawExtractionResult
 
 
 class BlinkitParserBridge:
     parser_version = "blinkit-parser-v1"
 
     def build_batch(self, result: RawExtractionResult, artifact_reference: RawArtifactReference) -> ParsedRetailObservationBatch:
+        ensure_retailer_allowed(Platform.BLINKIT, "parser bridge ingestion")
         self._validate_input(result, artifact_reference)
         coverage = result.capture_coverage
         assert coverage is not None
@@ -49,9 +51,25 @@ class BlinkitParserBridge:
         evidence = EvidenceReference(source_type="raw_artifact", source_id=artifact.artifact_id)
         fields = tuple(
             ObservationFieldReference(evidence_reference=evidence, locator=f"products[{source_id}].{name}")
-            for name in ("product_name", "quantity", "raw_category", "displayed_price", "mrp", "offer_text", "stock_availability", "raw_text")
+            for name in ("product_name", "brand", "quantity", "raw_category", "displayed_price", "mrp", "offer_text", "stock_availability", "raw_text")
         )
         identifiers = [("source_index", source_id)]
+        if product.brand:
+            identifiers.append(("brand", product.brand))
+        if product.retailer_store_id:
+            identifiers.append(("retailer_store_id", product.retailer_store_id))
+        if product.image_urls:
+            identifiers.append(("image_url", product.image_urls[0]))
+        for key, value in sorted(product.provider_metadata.items()):
+            if isinstance(value, (str, int, float, bool)):
+                identifiers.append((f"provider_{key}", str(value)))
+        if artifact.provider_request_id:
+            identifiers.append(("provider_request_id", artifact.provider_request_id))
+        if artifact.location_latitude is not None and artifact.location_longitude is not None:
+            identifiers.extend((
+                ("location_latitude", str(artifact.location_latitude)),
+                ("location_longitude", str(artifact.location_longitude)),
+            ))
         if product.retailer_product_id:
             identifiers.append(("retailer_product_id", product.retailer_product_id))
         if product.product_url:

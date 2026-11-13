@@ -68,4 +68,3 @@ class FileEmailDelivery:
             filename.write_bytes(message.as_bytes())
         except OSError as exc:
             raise EmailDeliveryUnavailable("local email capture failed") from exc
-

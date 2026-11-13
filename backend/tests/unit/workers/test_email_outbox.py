@@ -62,4 +62,3 @@ async def test_email_outbox_does_not_retry_configuration_failure():
     worker = EmailOutboxWorker(store, Delivery(EmailDeliveryUnavailable("email delivery is not configured")), Settings())
     await worker.run_once()
     assert store.failures == [(event_id, False)]
-

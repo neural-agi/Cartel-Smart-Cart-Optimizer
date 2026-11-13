@@ -1,4 +1,9 @@
-"""Seed explicit local demo catalog data for development execution only."""
+"""Seed explicit local demo catalog data for development execution only.
+
+Every record written here is fixture evidence.  It is deliberately marked with
+``demo``/``development-seed`` provenance so the live consumer evidence gates
+reject it, and so a separately enabled demo lane can label it honestly.
+"""
 
 from datetime import datetime, timezone
 
@@ -20,11 +25,21 @@ from app.product_intelligence.models import (
 )
 
 
+FIXTURE_CAPTURE_TIMESTAMP = datetime(2026, 1, 1, tzinfo=timezone.utc)
+FIXTURE_ITEMS = (
+    # item, listings (listing suffix, price in minor units, availability)
+    ("a", (("1", 10000, "available"), ("2", 11000, "available"))),
+    ("b", (("1", 10000, "unavailable"), ("2", 11000, None))),
+    # Demo Item C is intentionally unresolved: canonical identity exists, but
+    # there is no approved listing association or retailer observation.
+    ("c", ()),
+)
+
+
 def main() -> None:
     settings = get_settings()
     if settings.app_env == "production":
         raise RuntimeError("demo seed is disabled in production")
-    now = datetime.now(timezone.utc)
     products = []
     variants = []
     observations = FilesystemObservationRegistry(
@@ -35,7 +50,7 @@ def main() -> None:
             root_dir=settings.data_dir / "product_intelligence" / "catalog"
         )
     )
-    for item in ("a", "b"):
+    for item, listings in FIXTURE_ITEMS:
         product_id = f"demo-product-{item}"
         variant_id = f"demo-variant-{item}"
         products.append(Product(
@@ -62,20 +77,22 @@ def main() -> None:
             lifecycle_status=VariantLifecycleStatus.active,
             catalog_revision="demo-v1",
         ))
-        for index, price in ((1, 100), (2, 110)):
-            listing = f"demo-{item}-{index}"
+        for suffix, price, availability in listings:
+            listing = f"demo-{item}-{suffix}"
             observation = NormalizedObservation.model_construct(
                 platform=Platform.BLINKIT,
                 source_record_id=listing,
                 raw_artifact_reference=RawArtifactReference.model_construct(
-                    artifact_id=f"demo-artifact-{item}-{index}", job_id="demo-job",
+                    artifact_id=f"demo-artifact-{item}-{suffix}", job_id="demo-job",
                     attempt_id="demo-attempt", platform=Platform.BLINKIT,
                     capture_type=CaptureType.SEARCH_RESULTS, content_digest="demo-digest",
                     storage_reference="development-seed", content_type="application/json",
-                    capture_timestamp=now, source_reference=listing,
+                    capture_timestamp=FIXTURE_CAPTURE_TIMESTAMP,
+                    source_reference=f"fixture://{listing}",
                 ),
                 normalized_name=f"Demo Item {item.upper()}",
                 observed_selling_price=Money(currency="INR", minor_units=price),
+                availability_signal=availability,
                 tax_status=TaxStatus.UNKNOWN,
                 evidence_references=(), field_references=(),
                 completeness=ObservationCompleteness(
@@ -92,7 +109,10 @@ def main() -> None:
     CatalogFilesystemStore(
         root_dir=settings.data_dir / "product_intelligence" / "catalog"
     ).save(AuthoritativeCatalogRecord(products=products, variants=variants))
-    print("seeded development demo cart: demo-product-a, demo-product-b")
+    print(
+        "seeded development demo cart: "
+        + ", ".join(product.canonical_product_id for product in products)
+    )
 
 
 if __name__ == "__main__":

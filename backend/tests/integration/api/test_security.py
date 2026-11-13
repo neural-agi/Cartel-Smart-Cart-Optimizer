@@ -2,11 +2,28 @@ from fastapi.testclient import TestClient
 
 from app.core.config import Settings
 from app.main import create_application
+from app.core.rate_limit import RateLimitDecision
+
+
+class _TestRateLimiter:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    async def ping(self) -> None:
+        return None
+
+    async def close(self) -> None:
+        return None
+
+    async def allow(self, **kwargs) -> RateLimitDecision:
+        self.calls += 1
+        limit = kwargs["limit"]
+        return RateLimitDecision(allowed=self.calls <= limit, remaining=max(limit - self.calls, 0))
 
 
 def test_protected_api_rejects_missing_bearer_token(tmp_path) -> None:
     settings = Settings(_env_file=None, data_dir=tmp_path, auth_required=True, auth_tokens="user-1=secret-token")
-    with TestClient(create_application(settings)) as client:
+    with TestClient(create_application(settings, rate_limiter=_TestRateLimiter())) as client:
         response = client.get("/api/v1/products/search", params={"query": "milk"})
 
     assert response.status_code == 401
@@ -16,7 +33,7 @@ def test_protected_api_rejects_missing_bearer_token(tmp_path) -> None:
 
 def test_authenticated_request_exposes_no_token_in_response(tmp_path) -> None:
     settings = Settings(_env_file=None, data_dir=tmp_path, auth_required=True, auth_tokens="user-1=secret-token")
-    with TestClient(create_application(settings)) as client:
+    with TestClient(create_application(settings, rate_limiter=_TestRateLimiter())) as client:
         response = client.get(
             "/api/v1/products/search",
             params={"query": "milk"},
@@ -29,7 +46,7 @@ def test_authenticated_request_exposes_no_token_in_response(tmp_path) -> None:
 
 def test_auth_session_returns_identity_for_configured_bearer_token(tmp_path) -> None:
     settings = Settings(_env_file=None, data_dir=tmp_path, auth_required=True, auth_tokens="user-1=secret-token")
-    with TestClient(create_application(settings)) as client:
+    with TestClient(create_application(settings, rate_limiter=_TestRateLimiter())) as client:
         response = client.get(
             "/api/v1/auth/session",
             headers={"Authorization": "Bearer secret-token"},
@@ -65,10 +82,11 @@ def test_auth_session_does_not_claim_authentication_when_disabled(tmp_path) -> N
 
 
 def test_rate_limit_returns_structured_error(tmp_path) -> None:
-    settings = Settings(_env_file=None, data_dir=tmp_path, rate_limit_requests=1, rate_limit_window_seconds=60)
-    with TestClient(create_application(settings)) as client:
-        first = client.get("/api/v1/products/search", params={"query": "milk"})
-        second = client.get("/api/v1/products/search", params={"query": "bread"})
+    settings = Settings(_env_file=None, data_dir=tmp_path, auth_required=True, auth_tokens="user-1=secret-token", rate_limit_requests=1, rate_limit_window_seconds=60)
+    with TestClient(create_application(settings, rate_limiter=_TestRateLimiter())) as client:
+        headers = {"Authorization": "Bearer secret-token"}
+        first = client.get("/api/v1/products/search", params={"query": "milk"}, headers=headers)
+        second = client.get("/api/v1/products/search", params={"query": "bread"}, headers=headers)
 
     assert first.status_code == 200
     assert second.status_code == 429
@@ -89,3 +107,29 @@ def test_cors_preflight_allows_configured_origin(tmp_path) -> None:
 
     assert response.status_code == 200
     assert response.headers["access-control-allow-origin"] == "https://app.example"
+
+
+def test_consumer_signup_fails_honestly_when_email_delivery_is_unconfigured(tmp_path) -> None:
+    settings = Settings(_env_file=None, data_dir=tmp_path, public_origin="http://testserver")
+    with TestClient(create_application(settings), base_url="http://testserver") as client:
+        response = client.post(
+            "/api/v2/auth/signup",
+            headers={"Origin": "http://testserver"},
+            json={"email": "person@example.com", "password": "correct-horse-battery-staple"},
+        )
+    assert response.status_code == 503
+    assert response.json()["detail"]["code"] == "email_delivery_unavailable"
+    assert not response.headers.get("set-cookie")
+
+
+def test_request_validation_does_not_echo_plaintext_password(tmp_path) -> None:
+    settings = Settings(_env_file=None, data_dir=tmp_path, public_origin="http://testserver")
+    password = "not-long"
+    with TestClient(create_application(settings), base_url="http://testserver") as client:
+        response = client.post(
+            "/api/v2/auth/signup",
+            headers={"Origin": "http://testserver"},
+            json={"email": "person@example.com", "password": password},
+        )
+    assert response.status_code == 422
+    assert password not in response.text

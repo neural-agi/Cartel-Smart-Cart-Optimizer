@@ -19,4 +19,3 @@ Authentication, product search, list mutations, and current local optimization r
 Verification and password-recovery requests create an `email_outbox_events` row in the same PostgreSQL transaction as the challenge. The worker claims pending events with `FOR UPDATE SKIP LOCKED`, leases them, performs `EmailDelivery` I/O after commit, and records `sent`, retryable `pending`, or terminal `failed` state. Local `FileEmailDelivery` and production SMTP remain the provider implementations.
 
 Delivery is at-least-once. If SMTP accepts a message and the worker crashes before recording `sent`, the event can be retried and a duplicate email is possible. The outbox deduplicates logical event creation using the challenge identity, but it cannot provide exactly-once external email delivery.
-

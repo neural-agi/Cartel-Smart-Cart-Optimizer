@@ -4,7 +4,7 @@ import { ReactNode, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { apiFetch } from "@/lib/apiClient";
-import { AUTH_REQUIRED_EVENT, clearBearerToken, getBearerToken } from "@/lib/authSession";
+import { AUTH_REQUIRED_EVENT, clearAuthState, setCsrfToken } from "@/lib/authSession";
 
 interface AppAuthGuardProps {
   children: ReactNode;
@@ -17,34 +17,26 @@ export default function AppAuthGuard({ children }: AppAuthGuardProps) {
   useEffect(() => {
     let active = true;
     const sendToLogin = () => {
-      clearBearerToken();
+      clearAuthState();
       const next = `${window.location.pathname}${window.location.search}`;
       router.replace(`/login?next=${encodeURIComponent(next)}`);
     };
     const onAuthenticationRequired = () => sendToLogin();
     window.addEventListener(AUTH_REQUIRED_EVENT, onAuthenticationRequired);
 
-    const token = getBearerToken();
-    if (!token) {
-      sendToLogin();
-    } else {
-      void apiFetch("/api/v1/auth/session", { cache: "no-store" })
-        .then(async (response) => {
-          if (!response.ok) return null;
-          return (await response.json()) as { authenticated?: unknown; user_id?: unknown };
-        })
-        .then((session) => {
-          if (!active) return;
-          if (session?.authenticated === true && typeof session.user_id === "string") {
-            setAuthenticated(true);
-          } else {
-            sendToLogin();
-          }
-        })
-        .catch(() => {
-          if (active) sendToLogin();
-        });
-    }
+    void apiFetch("/api/v2/me", { cache: "no-store" })
+      .then(async (response) => response.ok ? await response.json() as { user_id?: unknown } : null)
+      .then(async (me) => {
+        if (!active) return;
+        if (!me || typeof me.user_id !== "string") return sendToLogin();
+        const csrfResponse = await fetch("/api/v2/auth/csrf", { cache: "no-store", credentials: "same-origin" });
+        if (!csrfResponse.ok) return sendToLogin();
+        const csrf = await csrfResponse.json() as { csrf_token?: unknown };
+        if (typeof csrf.csrf_token !== "string") return sendToLogin();
+        setCsrfToken(csrf.csrf_token);
+        setAuthenticated(true);
+      })
+      .catch(() => { if (active) sendToLogin(); });
 
     return () => {
       active = false;

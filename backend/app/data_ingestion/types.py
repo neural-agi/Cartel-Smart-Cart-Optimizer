@@ -18,6 +18,7 @@ from app.data_ingestion.enums import (
     Platform,
     TaxStatus,
 )
+from app.data_ingestion.timestamp_integrity import require_timezone_aware
 from app.cost_intelligence.shared.money import Money
 
 
@@ -62,8 +63,20 @@ class AcquisitionResult(_FrozenContract):
     capture_type: CaptureType
     warnings: tuple[str, ...] = Field(default_factory=tuple)
     capture_coverage: CaptureCoverage
+    provider_id: str | None = None
+    acquisition_method: str | None = None
+    location_scope: str | None = None
+    evidence_quality: str | None = None
+    provider_request_id: str | None = None
+    location_latitude: float | None = None
+    location_longitude: float | None = None
 
     _validate_strings = field_validator("source_reference", "content_type", "evaluation_scope", "termination_reason")(_non_empty)
+
+    @field_validator("capture_timestamp")
+    @classmethod
+    def _capture_timestamp_utc(cls, value: datetime) -> datetime:
+        return require_timezone_aware(value)
 
     @model_validator(mode="after")
     def _validate_coverage(self) -> Self:
@@ -204,6 +217,13 @@ class RawArtifactReference(_FrozenContract):
     content_type: str
     capture_timestamp: datetime
     source_reference: str
+    provider_id: str | None = None
+    acquisition_method: str | None = None
+    location_scope: str | None = None
+    evidence_quality: str | None = None
+    provider_request_id: str | None = None
+    location_latitude: float | None = None
+    location_longitude: float | None = None
 
     _validate_strings = field_validator(
         "artifact_id",
@@ -214,6 +234,11 @@ class RawArtifactReference(_FrozenContract):
         "content_type",
         "source_reference",
     )(_non_empty)
+
+    @field_validator("capture_timestamp")
+    @classmethod
+    def _capture_timestamp_utc(cls, value: datetime) -> datetime:
+        return require_timezone_aware(value)
 
 
 class JobFailure(_FrozenContract):

@@ -80,7 +80,7 @@ def _challenge(
     user: User,
     identity: Identity,
     purpose: str,
-) -> str:
+) -> tuple[str, VerificationChallenge]:
     now = datetime.now(timezone.utc)
     db.execute(
         update(VerificationChallenge)
@@ -92,16 +92,16 @@ def _challenge(
         .values(consumed_at=now)
     )
     raw = secrets.token_urlsafe(32)
-    db.add(
-        VerificationChallenge(
-            user_id=user.id,
-            identity_id=identity.id,
-            purpose=purpose,
-            token_hash=_digest(raw),
-            expires_at=now + timedelta(minutes=settings.auth_challenge_minutes),
-        )
+    challenge = VerificationChallenge(
+        user_id=user.id,
+        identity_id=identity.id,
+        purpose=purpose,
+        token_hash=_digest(raw),
+        expires_at=now + timedelta(minutes=settings.auth_challenge_minutes),
     )
-    return raw
+    db.add(challenge)
+    db.flush()
+    return raw, challenge
 
 
 def _queue_email(db: Session, *, challenge: VerificationChallenge, event_type: str,
@@ -123,8 +123,7 @@ def signup(db: Session, settings: Settings, email: str, password: str, request_i
     credential = PasswordCredential(user=user, password_hash=PASSWORD_HASHER.hash(password))
     db.add_all([user, identity, credential])
     db.flush()
-    raw = _challenge(db, settings, user, identity, "email_verification")
-    challenge = db.scalar(select(VerificationChallenge).where(VerificationChallenge.token_hash == _digest(raw)))
+    raw, challenge = _challenge(db, settings, user, identity, "email_verification")
     link = f"{settings.public_origin.rstrip('/')}/verify-email#token={raw}"
     _queue_email(db, challenge=challenge, event_type="email_verification", recipient=normalized,
                  subject="Verify your Cartel email", body=f"Verify your email using this link: {link}\nThis link expires soon.", request_id=request_id)
@@ -150,8 +149,7 @@ def resend_verification(db: Session, settings: Settings, email: str, request_id:
     identity = db.scalar(select(Identity).where(Identity.provider == "email_password", Identity.subject == normalized))
     if identity is None or identity.email_verified_at is not None or identity.user.status != "active":
         return
-    raw = _challenge(db, settings, identity.user, identity, "email_verification")
-    challenge = db.scalar(select(VerificationChallenge).where(VerificationChallenge.token_hash == _digest(raw)))
+    raw, challenge = _challenge(db, settings, identity.user, identity, "email_verification")
     link = f"{settings.public_origin.rstrip('/')}/verify-email#token={raw}"
     _queue_email(db, challenge=challenge, event_type="email_verification", recipient=normalized,
                  subject="Verify your Cartel email", body=f"Verify your email using this link: {link}\nThis link expires soon.", request_id=request_id)
@@ -362,9 +360,8 @@ def request_password_recovery(db: Session, settings: Settings, email: str, reque
     identity = db.scalar(select(Identity).where(Identity.provider == "email_password", Identity.subject == normalized))
     if identity is None or identity.email_verified_at is None or identity.user.status != "active":
         return
-    raw = _challenge(db, settings, identity.user, identity, "password_recovery")
+    raw, challenge = _challenge(db, settings, identity.user, identity, "password_recovery")
     link = f"{settings.public_origin.rstrip('/')}/reset-password#token={raw}"
-    challenge = db.scalar(select(VerificationChallenge).where(VerificationChallenge.token_hash == _digest(raw)))
     _queue_email(db, challenge=challenge, event_type="password_recovery", recipient=normalized,
                  subject="Reset your Cartel password", body=f"Reset your password using this link: {link}\nThis link expires soon.", request_id=request_id)
     db.commit()
@@ -398,4 +395,3 @@ def reset_password(db: Session, token: str, new_password: str, request_id: str) 
     )
     _audit(db, user.id, "password_reset", request_id)
     db.commit()
-

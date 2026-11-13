@@ -249,4 +249,3 @@ class EmailOutboxWorker:
 
     def stop(self) -> None:
         self.stop_event.set()
-

@@ -1,10 +1,10 @@
 from fastapi.testclient import TestClient
 
 from app.core.config import Settings
-from app.data_ingestion import FilesystemObservationRegistry
+from app.cost_intelligence.shared.money import Money
+from app.data_ingestion import FilesystemObservationRegistry, Platform
 from app.main import create_application
 from app.product_intelligence.catalog.resolution import CanonicalListingAssociation
-from app.cost_intelligence.shared.money import Money
 from tests.integration.product_intelligence.test_vertical_pipeline import (
     _job,
     _resolver,
@@ -53,6 +53,33 @@ def test_scrape_endpoint_rejects_malformed_scrape_job() -> None:
     assert response.status_code == 422
 
 
+def _blinkit_job():
+    return _job().model_copy(
+        update={
+            "platform": Platform.BLINKIT,
+            "parser_policy_version": "blinkit-parser-v1",
+        }
+    )
+
+
+def test_scrape_endpoint_rejects_blinkit_with_policy_denial(tmp_path) -> None:
+    client = _client(tmp_path, resolver=_resolver())
+
+    response = client.post("/api/v1/scrape", json=_blinkit_job().model_dump(mode="json"))
+
+    assert response.status_code == 403
+    assert response.json()["detail"]["code"] == "blinkit_commercial_authorization_required"
+
+
+def test_scrape_async_endpoint_rejects_blinkit_with_policy_denial(tmp_path) -> None:
+    client = _client(tmp_path, resolver=_resolver())
+
+    response = client.post("/api/v1/scrape/async", json=_blinkit_job().model_dump(mode="json"))
+
+    assert response.status_code == 403
+    assert response.json()["detail"]["code"] == "blinkit_commercial_authorization_required"
+
+
 def test_health_endpoint_remains_unchanged() -> None:
     with TestClient(create_application()) as client:
         response = client.get("/api/v1/health")
@@ -76,6 +103,21 @@ def test_health_and_readiness_expose_safe_operational_headers(tmp_path) -> None:
     assert readiness.status_code == 200
     assert readiness.json()["status"] == "ready"
     assert readiness.json()["checks"]["product_search"] == "ready"
+
+
+def test_readiness_stays_ready_when_checkout_provider_is_explicitly_unavailable(tmp_path) -> None:
+    application = create_application(Settings(
+        _env_file=None,
+        data_dir=tmp_path,
+        checkout_capture_adapter_mode="unavailable",
+        checkout_observation_provider_mode="unavailable",
+    ))
+    with TestClient(application) as client:
+        response = client.get("/ready")
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "ready"
+    assert response.json()["checks"]["checkout_capture"] == "unavailable"
 
 
 def test_configured_cors_allows_only_declared_origin(tmp_path) -> None:
@@ -157,7 +199,7 @@ def test_observation_query_endpoint_returns_persisted_observation_with_associati
     assert associations.all()
 
 
-def test_product_search_returns_governed_catalog_listing_after_ingestion(tmp_path) -> None:
+def test_product_search_excludes_non_retailer_fixture_source_after_ingestion(tmp_path) -> None:
     runtime, _catalog, _associations = _runtime(tmp_path, resolver=_resolver())
     client = TestClient(create_application(runtime=runtime))
 
@@ -169,14 +211,7 @@ def test_product_search_returns_governed_catalog_listing_after_ingestion(tmp_pat
     assert response.status_code == 200
     body = response.json()
     assert body["query"] == "amul"
-    assert len(body["items"]) == 1
-    item = body["items"][0]
-    assert item["canonical_product_id"] == "product-amul-taaza"
-    assert item["canonical_variant_id"] == "variant-amul-taaza-500ml"
-    assert item["platform"] == "BLINKIT"
-    assert item["platform_listing_id"]
-    assert item["observation_id"]
-    assert "price" in item
+    assert body["items"] == []
 
 
 def test_product_search_rejects_blank_query(tmp_path) -> None:
@@ -268,7 +303,7 @@ def test_cart_resolution_reports_unknown_variant_and_listing(tmp_path) -> None:
                 {
                     "item_id": "listing",
                     "quantity": 1,
-                    "platform": "blinkit",
+                    "platform": "zepto",
                     "platform_listing_id": "missing",
                 },
             ]
@@ -287,7 +322,7 @@ def test_cart_resolution_reports_missing_observation(tmp_path) -> None:
     associations.register(
         CanonicalListingAssociation(
             observation_id="missing-observation",
-            platform="blinkit",
+            platform="zepto",
             platform_listing_id="missing-observation-listing",
             canonical_product_id="product-amul-taaza",
             canonical_variant_id="variant-amul-taaza-500ml",
@@ -302,7 +337,7 @@ def test_cart_resolution_reports_missing_observation(tmp_path) -> None:
                 {
                     "item_id": "missing-observation",
                     "quantity": 1,
-                    "platform": "blinkit",
+                    "platform": "zepto",
                     "platform_listing_id": "missing-observation-listing",
                 }
             ]
@@ -367,7 +402,7 @@ def test_cart_candidate_discovery_returns_persisted_listing_candidate(tmp_path) 
 
     assert response.status_code == 200
     item = response.json()["items"][0]
-    assert item["status"] == "candidates_available"
+    assert item["status"] == "candidates_not_ready"
     candidate = next(
         candidate
         for candidate in item["candidates"]
@@ -375,7 +410,8 @@ def test_cart_candidate_discovery_returns_persisted_listing_candidate(tmp_path) 
     )
     assert candidate["observation_id"] == priced.observation_id
     assert candidate["platform"] == association["platform"]
-    assert candidate["readiness"] == "ready_for_allocation"
+    assert candidate["readiness"] == "not_ready_for_allocation"
+    assert candidate["readiness_reason"] == "observation does not have admissible non-fixture retailer provenance"
 
 
 def test_cart_candidate_discovery_preserves_deterministic_item_and_candidate_order(tmp_path) -> None:

@@ -1,6 +1,7 @@
 import pytest
 
 from app.scrapers.blinkit.scraper import BlinkitScraper
+from app.retailer_policy import RetailerPolicyBlocked
 from app.scrapers.base.types import RawHttpResponse
 
 
@@ -10,14 +11,14 @@ PRODUCT_URL = "https://blinkit.com/prn/country-delight-buffalo-fresh-milk/prid/6
 def test_product_reference_rejects_host_or_id_mismatch() -> None:
     scraper = BlinkitScraper()
 
-    with pytest.raises(ValueError):
+    with pytest.raises(RetailerPolicyBlocked):
         __import__("asyncio").run(
             scraper.acquire_product(
                 "https://example.com/prn/item/prid/637879",
                 expected_retailer_product_id="637879",
             )
         )
-    with pytest.raises(ValueError):
+    with pytest.raises(RetailerPolicyBlocked):
         __import__("asyncio").run(
             scraper.acquire_product(PRODUCT_URL, expected_retailer_product_id="19512")
         )
@@ -39,8 +40,6 @@ async def test_product_reference_reuses_browser_path_and_expected_id(monkeypatch
         )
 
     monkeypatch.setattr(scraper, "_fetch_via_browser", fetch)
-    response = await scraper.acquire_product(PRODUCT_URL, expected_retailer_product_id="637879")
-
-    assert response.status_code == 200
-    assert calls["query"] == "637879"
-    assert calls["target_url"] == PRODUCT_URL
+    with pytest.raises(RetailerPolicyBlocked):
+        await scraper.acquire_product(PRODUCT_URL, expected_retailer_product_id="637879")
+    assert calls == {}

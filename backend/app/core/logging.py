@@ -13,12 +13,18 @@ class JsonFormatter(logging.Formatter):
             "level": record.levelname,
             "logger": record.name,
             "message": record.getMessage(),
+            "component": getattr(record, "component", record.name),
+            "event": getattr(record, "event", record.getMessage().split(" ", 1)[0]),
         }
         if record.exc_info:
             payload["exception"] = self.formatException(record.exc_info)
         request_id = getattr(record, "request_id", None)
         if request_id:
             payload["request_id"] = request_id
+        for field in ("http_method", "http_path", "status_code", "duration_ms", "component", "event", "job_id", "job_type", "attempt", "outcome", "outbox_event_id"):
+            value = getattr(record, field, None)
+            if value is not None:
+                payload[field] = value
         return json.dumps(payload, ensure_ascii=True)
 
 

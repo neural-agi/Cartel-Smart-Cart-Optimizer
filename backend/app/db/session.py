@@ -68,4 +68,3 @@ def get_db(request: Request) -> Generator[Session, None, None]:
         raise
     finally:
         session.close()
-

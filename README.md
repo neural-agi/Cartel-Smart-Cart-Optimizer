@@ -7,13 +7,14 @@
 **Product Identity · Retailer Evidence · Cost Intelligence · Shopping Lists**
 
 [![Build](https://github.com/neural-agi/Cartel-Smart-Cart-Optimizer/actions/workflows/ci.yml/badge.svg)](https://github.com/neural-agi/Cartel-Smart-Cart-Optimizer/actions/workflows/ci.yml)
+[![Version](https://img.shields.io/badge/version-0.1.0-blue?style=for-the-badge)](https://github.com/neural-agi/Cartel-Smart-Cart-Optimizer)
 [![Python](https://img.shields.io/badge/python-3.12-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
 [![License](https://img.shields.io/badge/license-MIT-green?style=for-the-badge)](LICENSE)
 [![Status](https://img.shields.io/badge/status-active%20development-yellow?style=for-the-badge)](https://github.com/neural-agi/Cartel-Smart-Cart-Optimizer)
 
 Cartel is being built to answer a practical question: **what is the cheapest trustworthy way to fulfil a grocery list right now?** It combines governed product identity, retailer observations, persistent shopping lists, and deterministic planning. It deliberately distinguishes an observed listing price from a verified checkout total.
 
-[Why Cartel](#-why-cartel) · [Current capabilities](#-current-capabilities) · [Architecture](#-architecture) · [Quick start](#-quick-start) · [API](#-consumer-api) · [Roadmap](#-roadmap)
+[Why Cartel](#-why-cartel) · [Current capabilities](#-current-capabilities) · [Architecture](#️-architecture) · [Quick start](#-quick-start) · [API](#-consumer-api) · [Roadmap](#️-roadmap)
 
 </div>
 
@@ -37,15 +38,19 @@ The long-term goal is cross-retailer basket optimization. The current implementa
 |---|---|
 | Consumer accounts | Email/password authentication, email verification and recovery flows, server-managed sessions, CSRF protection, session revocation, and configured Google/GitHub sign-in flows |
 | Shopping lists | Persistent, owner-scoped lists and items, quantity changes, item removal, and list lifecycle operations |
-| Product search | Searches the governed catalog and returns products/variants with supporting retailer evidence where the current rules permit selection |
+| Product search | Searches the governed catalog and returns products/variants with supporting retailer evidence where the active consumer policy permits selection |
 | Product identity | Explicit `EXACT_MATCH`, `MISMATCH`, and `UNRESOLVED` outcomes; ambiguous or incomplete evidence does not become an exact association |
-| Retailer acquisition | Provider boundary and acquisition-to-observation ingestion path; a configured QuickCommerce API integration can retrieve Blinkit listing data |
+| Retailer acquisition | Provider boundary and acquisition-to-observation ingestion path. Provider use requires explicit configuration and permitted access; Blinkit consumer search remains disabled by commercial policy |
 | Optimization | Persisted optimization requests, plans, and allocations using the deterministic planner; unsupported checkout totals remain unresolved/unavailable |
 | Mutation safety | PostgreSQL-backed idempotency for supported consumer mutations, with replay and payload-conflict handling |
 | Runtime | FastAPI, PostgreSQL-backed application state, Redis-backed production rate limiting, durable background jobs, and email outbox processing |
 | Auditability | Evidence provenance, durable records for consumer operations, and deterministic ingestion/review boundaries |
 
 These capabilities are not all equivalent to end-to-end production readiness. The current app does not yet have a verified live retailer checkout and confirmed-order flow, and the canonical catalog still requires governed admission and review.
+
+### Retailer commercial policy
+
+Blinkit consumer search is disabled by commercial policy: the consumer eligibility check for Blinkit returns `False`. Operator acquisition, review, and import tooling remains available for governed evidence capture, but it does not make Blinkit listings consumer-searchable. No Blinkit access, browser readiness, TLS termination, or hosted deployment readiness is claimed by this repository.
 
 ## ⚖️ What Cartel does not claim yet
 
@@ -57,6 +62,7 @@ Cartel does **not** currently guarantee a live, final payable total for every re
 - Blinkit checkout access/evidence remains a blocker for verified live checkout-derived effective cost. Other retailer integrations are also incomplete.
 - Apple and phone/OTP sign-in are not currently supported as complete consumer authentication flows. Apple provider configuration is not the same as an implemented Apple sign-in integration.
 - Canonical catalog and retailer-evidence artifact boundaries still use filesystem-backed persistence in the current MVP. PostgreSQL is the source of truth for mutable consumer application records; this does not mean every product-intelligence artifact has moved to PostgreSQL.
+- The Compose topology and public deployment path have not been validated on a production host. DNS, TLS certificates, reverse-proxy policy, firewall rules, secret delivery, backup integrity, and restore procedures remain deployment-owner responsibilities.
 
 When evidence is missing, Cartel should return an unresolved or unavailable result rather than inventing savings, fees, stock, or a total.
 
@@ -152,17 +158,246 @@ Canonical Product / Variant Resolution
 
 Identity resolution considers the governed, identity-critical attributes and complete pack identity. Price, availability, capture age, and a retailer product ID do not prove that two records describe the same product. Canonical IDs are stable identifiers assigned through the governed catalog process; they are not derived from retailer IDs.
 
-The acquisition pipeline preserves provenance and supports deterministic replay. The current QuickCommerce integration can retrieve Blinkit listing data when correctly configured, but a successful provider response alone does not mean that the item has been admitted to the canonical catalog or is selectable by a consumer.
+The acquisition pipeline preserves provenance and supports deterministic replay. A successful provider response alone does not mean that the item has been admitted to the canonical catalog or is selectable by a consumer. Retailer eligibility is evaluated separately, and Blinkit consumer search is currently disabled by commercial policy.
+
+## 🧭 Engineering process
+
+Every major subsystem follows the same development lifecycle:
+
+Research → RFC → Contract Freeze → Implementation → Validation
+
+Architecture decisions are documented and reviewed before production code is written, allowing implementation to proceed against stable, deterministic contracts.
+
+## 📥 Real data ingestion
+
+Raw data acquisition: captured, validated, stored, and made deterministically replayable.
+
+```text
+Scrape Jobs
+    │
+    ▼
+Capture Context
+    │
+    ▼
+Raw Artifacts
+    │
+    ▼
+Validation & Normalization
+    │
+    ▼
+Deterministic Storage
+    │
+    ▼
+Replay & Audit Trail
+```
+
+### 🚧 Data acquisition — active integration
+
+- RFC: Data Ingestion Architecture
+- Lifecycle contracts: job scheduling, context capture, artifact storage
+- Deterministic serialization contracts and identity builders
+- Filesystem-backed observation, artifact, catalog, association, and planning-record persistence is implemented for the current MVP boundaries.
+- Deterministic replay and serialization are implemented across ingestion, catalog, planning, checkout fixtures, and optimization boundaries.
+- Durable scrape-job lifecycle persistence
+- Append-only lifecycle transition history
+- Observation registration and downstream Product Intelligence handoff
+
+**Implementation status**
+
+- Filesystem-backed lifecycle, storage, observation registration, catalog, planning, checkout-capture, and deterministic replay boundaries are implemented for the current MVP.
+- Retailer acquisition requires explicit provider configuration and permitted access. Blinkit consumer search remains disabled by commercial policy, and live checkout capture remains unavailable.
+- BigBasket and Zepto remain incomplete.
+
+## 🔬 Product Intelligence Pipeline
+
+Match products deterministically across platforms using evidence-backed reasoning.
+
+```text
+Scrape / Ingestion
+      │
+      ▼
+Normalized Observation
+      │
+      ▼
+Evidence Publication
+      │
+      ▼
+Canonical Catalog
+      │
+      ▼
+Candidate Catalog Snapshot
+      │
+      ▼
+Evidence Registry
+      │
+      ▼
+Candidate Generation
+      │
+      ▼
+Product Matching
+      │
+      ▼
+Variant Matching
+      │
+      ├── unresolved / ambiguous ──► Review Queue
+      │
+      ▼
+Assertion Manager
+      │
+      ▼
+Product Intelligence Execution
+      │
+      ▼
+Cost Intelligence
+```
+
+> The frozen `v0.1.0-deploy.1` Compose topology was validated locally. This working tree adds PostgreSQL-backed consumer identity, shopping lists, optimization records, and credential-vault migrations, and changes the Compose services/volumes; that updated topology has not been runtime-validated on a production host. Public-host DNS/TLS/proxy/firewall/secret delivery, backup integrity and restore testing, public-origin reachability, and live Blinkit checkout remain unverified or unavailable.
+
+The system processes retail observations through ingestion, normalization, observation registration, canonical catalog resolution, and Product Intelligence execution. The current executable pipeline continues from normalized observations into canonical Product/ProductVariant resolution and Product Intelligence execution. Canonical catalog persistence and lifecycle governance are filesystem-backed MVP infrastructure.
+
+### 🚧 Product Intelligence Foundation — active development
+
+- Canonical product schema + domain models
+- Matching architecture + governance contracts
+- Deterministic matching framework
+- Canonical catalog boundary and governance contracts
+- Filesystem-backed catalog persistence and deterministic snapshot construction
+
+### ✅ Product Intelligence — MVP implemented
+
+- Evidence Registry
+- Deterministic Candidate Generation
+- Deterministic Product Matching
+- Deterministic Variant Matching
+- Deterministic Review Queue
+- Deterministic Assertion Manager
+- Product Intelligence execution trigger
+- Canonical catalog persistence and deterministic snapshot construction
+- End-to-end Product Intelligence execution path — implemented and tested
+- Audit trails & deterministic replay
+- Canonical assertion pipeline
+
+Every stage consumes immutable governed inputs and produces deterministic, replayable outputs with a complete audit trail.
+
+### ✅ Canonical Catalog — MVP implemented
+
+- Governed canonical Product and ProductVariant identity
+- Manually curated canonical catalog
+- Stable externally assigned canonical IDs
+- Filesystem-backed catalog persistence
+- Product/Variant listing association
+- Deterministic CandidateCatalogSnapshot construction
+- Fail-closed duplicate and conflict handling
+- Approved, active, parent-consistent entities only
+
+Product Intelligence resolves observations against an externally/curated canonical catalog. Matching and candidate generation do not create canonical Product or ProductVariant entities.
+
+Canonical identity is governed separately from platform identity. Platform identifiers, observation IDs, timestamps, and runtime metadata do not define canonical Product or ProductVariant identity.
+
+The MVP includes a filesystem-backed authoritative catalog path with deterministic canonical resolution, snapshot construction, catalog population tooling, and candidate discovery.
+
+The canonical catalog and observation stores remain filesystem-backed. PostgreSQL backs the consumer identity, shopping-list, optimization, idempotency, background-job, and email-outbox slices; catalog persistence has not yet migrated.
+
+### 🚧 Execution lifecycle — production hardening
+
+- Deterministic ScrapeJob identity
+- Durable ScrapeAttempt records
+- Append-only lifecycle transition history
+- Filesystem-backed lifecycle state projection
+- Retry and attempt identity contracts
+
+The implementation persists acquisition and parsing lifecycle transitions. Lifecycle terminal-state ownership remains a separate hardening area; this does not negate the locally validated single-instance Compose deployment.
+
+Retry semantics are contractually defined, including a maximum of three attempts and retryable failure categories. Filesystem persistence is used by the runtime; operational backup integrity and restore testing on a deployment host remain unverified.
+
+The scrape API is wired into the ingestion and Product Intelligence runtime path, with filesystem-backed runtime dependencies.
+
+Product Intelligence execution is implemented and tested. Lifecycle terminal-state ownership remains an application hardening concern; public-host deployment and recovery are not verified by local Compose validation.
 
 ## 💰 Cost intelligence and optimization
 
-The planning system is designed to evaluate the entire list, including candidate retailer allocations and supported cost constraints. It distinguishes the following evidence levels:
+Evaluate what a cart will actually cost: price, fees, offers, memberships, rewards.
+
+```text
+Checkout Observation
+        │
+        ▼
+Cost Context
+        │
+        ▼
+Offer Evaluation
+        │
+        ▼
+Fee Evaluation
+        │
+        ▼
+Membership Evaluation
+        │
+        ▼
+Effective Cost Computation
+        │
+        ▼
+Cart Optimization Input
+```
+
+**Completed**
+
+- Checkout Observation, Cost Context, Offer Evaluation
+- Offer Evaluation Orchestrator
+- Deterministic result models
+
+**Implemented**
+
+- Fee Evaluation
+- Membership Evaluation
+- Effective Cost Computation
+
+The planning system evaluates the entire list, including candidate retailer allocations and supported cost constraints. It distinguishes the following evidence levels:
 
 - **Observed listing data:** a captured listing price or availability signal. It may be useful for discovery but is not a checkout quote.
 - **Provisional planning result:** a result computed from incomplete or non-checkout-backed evidence. It must be labelled accordingly.
 - **Verified immediate payable cost:** a checkout-backed figure based on item subtotal plus mandatory immediate fees/taxes minus immediate discounts, using supported evidence.
 
 Deferred cashback, points, and similar rewards are kept separate from immediate payable cost. Missing fees or checkout evidence are unknown, not zero. The current live checkout evidence boundary prevents Cartel from claiming verified checkout totals for unsupported retailer flows.
+
+## 🛍️ Cart optimization pipeline
+
+Recommend the cheapest full cart, including cross-platform splits.
+
+```text
+Input: Grocery list + platform state
+         │
+         ▼
+Enumerate Options
+(single platform vs multi-platform splits)
+         │
+         ▼
+Rank by Effective Cost
+         │
+         ▼
+Apply Constraints
+(membership, loyalty, minimums)
+         │
+         ▼
+Generate Recommendation
+         │
+         ▼
+Audit Trail & Replay Reference
+```
+
+**Completed**
+
+- RFC and architecture design
+- Immutable request and result contracts
+- Identity builders
+- Request builder
+- Service layer
+- Orchestrator
+
+**Implemented**
+
+- Optimization engine for the currently supported deterministic planning path
+- Multi-platform recommendation logic remains limited by retailer availability and checkout evidence
 
 ## 🔐 Security and reliability
 
@@ -195,7 +430,7 @@ cp .env.example .env
 # copy .env.example .env
 ```
 
-Edit `.env` before starting. Set a unique `POSTGRES_PASSWORD` and non-empty `AUTH_TOKENS` entries in the documented `user_id=token` format. Use unique high-entropy secrets; do not copy example values into a deployment. Configure external provider credentials only when you intend to run that provider.
+Edit `.env` before starting. Set a unique `POSTGRES_PASSWORD`, non-empty `AUTH_TOKENS` entries in the documented `user_id=token` format, and a `PUBLIC_ORIGIN` matching the browser-visible origin. For local file-based email, keep `EMAIL_DELIVERY_MODE=file`; for SMTP delivery, also set `SMTP_HOST` and `SMTP_FROM`. Use unique high-entropy secrets; do not copy example values into a deployment. Configure external provider credentials only when you intend to run that provider.
 
 Validate the Compose configuration and start the stack:
 
@@ -204,17 +439,22 @@ docker compose config
 docker compose up --build
 ```
 
+Apply database migrations explicitly. Migrations are a separate deployment operation and are not run automatically by the API container:
+
+```bash
+docker compose run --rm api alembic upgrade head
+```
+
 When the stack is running:
 
-| Service | URL |
+| Service | Access |
 |---|---|
-| Consumer web app | `http://localhost:3000` |
-| API | `http://localhost:8000` |
-| Basic health | `http://localhost:8000/health` |
-| Readiness | `http://localhost:8000/ready` |
-| API health | `http://localhost:8000/api/v1/health` |
+| Consumer web app | `http://localhost:3000` (bound to `127.0.0.1` by default) |
+| API | Internal Compose network only at `http://api:8000`; not host-published |
+| Basic health | `docker compose exec -T api python -c "import urllib.request; print(urllib.request.urlopen('http://127.0.0.1:8000/health').status)"` |
+| Readiness | `docker compose exec -T api python -c "import urllib.request; print(urllib.request.urlopen('http://127.0.0.1:8000/ready').status)"` |
 
-Interactive API documentation is available only when `DOCS_ENABLED=true`; it is disabled by the production Compose configuration.
+Interactive API documentation is available only when `DOCS_ENABLED=true`; it is disabled by the production Compose configuration. The browser uses the same-origin frontend `/api/*` proxy, so public CORS is normally unnecessary.
 
 Stop the stack with:
 
@@ -222,7 +462,7 @@ Stop the stack with:
 docker compose down
 ```
 
-The Compose configuration uses PostgreSQL and Redis alongside the API and background worker. Review the current Compose file and `docs/setup.md` for deployment-specific settings. Persisted volumes and bind mounts may outlive containers; `docker compose down` does not automatically remove persisted data.
+The Compose configuration uses PostgreSQL and Redis alongside the API and background worker. PostgreSQL and Redis are not published on host ports by default. Review the current Compose file and [`docs/setup.md`](docs/setup.md) for deployment-specific settings. Persisted volumes may outlive containers; `docker compose down` does not automatically remove persisted data.
 
 ### Local backend development
 
@@ -311,7 +551,7 @@ Cartel-Smart-Cart-Optimizer/
 ├── frontend/                       # Consumer web app and API clients
 ├── docs/                           # Architecture, setup, governance, and research
 ├── scripts/                        # Evidence ingestion and catalog review utilities
-├── data/                            # Local/runtime artifacts where configured
+├── data/                           # Local/runtime artifacts where configured
 ├── docker-compose.yml
 ├── .env.example
 └── LICENSE
@@ -333,6 +573,9 @@ Use the current consumer product architecture and shipping strategy documents as
 - [`docs/research_analysis.md`](docs/research_analysis.md) — Cross-platform pricing research
 - [`docs/architecture/real_data_ingestion_rfc.md`](docs/architecture/real_data_ingestion_rfc.md) — Real data ingestion RFC
 - [`docs/architecture/cart_optimization_contract.md`](docs/architecture/cart_optimization_contract.md) — Cart optimization contracts
+- [`docs/canonical_source_provider_contract.md`](docs/canonical_source_provider_contract.md) — Canonical source provider contract
+- [`docs/consumer_product_evidence_ingestion.md`](docs/consumer_product_evidence_ingestion.md) — Consumer evidence ingestion
+- [`docs/background_jobs.md`](docs/background_jobs.md) — Durable jobs and email outbox
 - [`docs/setup.md`](docs/setup.md) — Local setup guidance
 
 Documentation paths may evolve as architecture documents are consolidated; the code and current architecture source of truth should be checked when they disagree with older notes.

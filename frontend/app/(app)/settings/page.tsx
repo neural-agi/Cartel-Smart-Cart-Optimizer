@@ -1,10 +1,12 @@
 "use client";
 
-import { Monitor, Moon, Sun } from "lucide-react";
+import { Monitor, Moon, Sun, Settings2 } from "lucide-react";
 import { useTheme } from "next-themes";
 
 import AppShell from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/button";
+import PageHeader from "@/components/consumer/PageHeader";
+import StatePanel from "@/components/consumer/StatePanel";
 
 const themes = [
   { value: "light", label: "Light", icon: Sun },
@@ -19,11 +21,7 @@ export default function SettingsPage() {
   return (
     <AppShell>
       <div className="space-y-8">
-        <header className="space-y-2">
-          <p className="text-sm font-medium text-primary">Preferences</p>
-          <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Settings.</h1>
-          <p className="max-w-2xl text-muted-foreground">Adjust the preferences currently supported by the frontend.</p>
-        </header>
+        <PageHeader eyebrow="Preferences" title="Settings" description="Adjust the preferences currently supported by Cartel on this device." />
 
         <section aria-labelledby="appearance-heading" className="rounded-2xl border border-border bg-card p-6 sm:p-8">
           <h2 id="appearance-heading" className="font-semibold">Appearance</h2>
@@ -51,12 +49,7 @@ export default function SettingsPage() {
           </div>
         </section>
 
-        <section className="rounded-2xl border border-dashed border-border px-6 py-8">
-          <h2 className="font-semibold">More settings will appear here</h2>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-            Notifications, retailer preferences, and account controls are intentionally unavailable until their contracts and backend behavior exist.
-          </p>
-        </section>
+        <StatePanel icon={Settings2} title="More preferences are not available yet" description="Notifications, retailer preferences, and additional account controls will appear when Cartel can support them reliably." />
       </div>
     </AppShell>
   );

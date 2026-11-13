@@ -26,10 +26,11 @@ from app.product_intelligence.models import (
     QuantityDimension,
     VariantLifecycleStatus,
 )
+from app.cost_intelligence.shared.money import Money
 from app.retailer_data.association import GovernedRetailerAssociationService
 from app.retailer_data.blinkit import BlinkitRetailerDataProvider
 from app.retailer_data.persistence import FilesystemRetailerObservationStore
-from app.retailer_data.types import AssociationStatus
+from app.retailer_data.types import AssociationStatus, RetailerObservation
 from app.schemas.extraction import ProductAvailability, RawExtractedProduct, RawExtractionResult
 from app.services.product_search import ProductSearchRequest, ProductSearchService
 
@@ -126,9 +127,42 @@ def test_association_requires_existing_canonical_variant(tmp_path):
         service.associate(observation, canonical_variant_id="missing")
 
 
-def test_associated_retailer_observation_reaches_governed_search(tmp_path):
+def test_associated_non_blinkit_retailer_observation_reaches_governed_search(tmp_path):
+    """The retailer-observation fallback works for an allowed, non-Blinkit retailer.
+
+    Blinkit evidence is deliberately excluded from consumer search by the
+    commercial-policy boundary, so the equivalent reachability fixture uses a
+    different retailer identity.
+    """
     catalog, registry = _canonical(tmp_path)
-    observation = BlinkitRetailerDataProvider().normalize(_result())[0]
+    observed_at = datetime(2026, 10, 1, tzinfo=timezone.utc)
+    observation = RetailerObservation(
+        observation_id=RetailerObservation.deterministic_id(
+            provider="zepto",
+            retailer_listing_id="listing-1",
+            observed_at=observed_at,
+            payload_digest="digest-1",
+        ),
+        provider="zepto",
+        retailer="zepto",
+        retailer_listing_id="listing-1",
+        source_url="https://zepto.example.in/product/listing-1",
+        observed_at=observed_at,
+        acquired_at=observed_at,
+        title="Milk",
+        quantity_text="500 ml",
+        normalized_quantity="500 ml",
+        listed_price=Money(currency="INR", minor_units=2500),
+        effective_price=Money(currency="INR", minor_units=2500),
+        currency="INR",
+        availability="in_stock",
+        source_artifact_reference="artifact-1",
+        source_reference="https://zepto.example.in/product/listing-1",
+        payload_digest="digest-1",
+        parser_version="zepto-parser-v1",
+        schema_version="retailer-observation-v1",
+        evidence_references=(("retailer_artifact", "artifact-1"),),
+    )
     FilesystemRetailerObservationStore(tmp_path / "observations").register(observation)
     association = GovernedRetailerAssociationService(catalog=catalog, registry=registry).associate(
         observation, canonical_variant_id="variant-1"
@@ -146,6 +180,7 @@ def test_associated_retailer_observation_reaches_governed_search(tmp_path):
     ).search(ProductSearchRequest(query="milk"))
 
     assert association.association_status == AssociationStatus.associated.value
+    assert association.platform == "zepto"
     assert len(result.items) == 1
     assert result.items[0].canonical_variant_id == "variant-1"
     assert result.items[0].platform_listing_id == "listing-1"

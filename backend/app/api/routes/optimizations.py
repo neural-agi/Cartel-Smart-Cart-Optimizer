@@ -25,8 +25,19 @@ from app.db.models import (
     ShoppingList,
 )
 from app.db.session import get_db
+from app.product_intelligence.models import (
+    IdentityStatus,
+    ProductLifecycleStatus,
+    VariantLifecycleStatus,
+)
+from app.retailer_policy import is_blinkit
 from app.schemas.shopping_lists import OptimizationCreate, OptimizationResponse
 from app.services.idempotency import claim, complete, idempotency_key
+from app.services.product_search import (
+    has_supported_retailer_evidence,
+    is_explicit_fixture,
+    latest_governed_observation_ids,
+)
 
 
 router = APIRouter(prefix="/optimizations", tags=["consumer-optimizations"])
@@ -100,32 +111,64 @@ def _persist_plans(db: Session, record: OptimizationRequestRecord, optimizer_res
 
 
 def _run_planner(request: Request, request_id: str, items: list[Any]) -> tuple[str, dict[str, Any], dict[str, Any] | None]:
-    exact = [
-        item for item in items
-        if item.resolution_status == "exact_confirmed"
-        and item.canonical_product_id and item.canonical_variant_id
-    ]
-    if len(exact) != len(items):
-        unresolved = [str(item.id) for item in items if item not in exact]
-        return "unresolved", {"unresolved_item_ids": unresolved, "offers": [], "observed_listing_prices": []}, None
-    if not items:
-        return "no_plan", {"unresolved_item_ids": [], "offers": [], "observed_listing_prices": []}, None
-
     runtime = request.app.state.product_intelligence_runtime
+    current_observations = latest_governed_observation_ids(
+        runtime.association_registry.all(), runtime.observation_registry
+    )
+    unresolved_ids: list[str] = []
+    exact: list[Any] = []
     requested_items = []
     for item in items:
+        if (
+            item.resolution_status != "exact_confirmed"
+            or not item.canonical_product_id
+            or not item.canonical_variant_id
+            or is_blinkit(item.source_platform)
+        ):
+            unresolved_ids.append(str(item.id))
+            continue
         product = runtime.catalog.get_product(item.canonical_product_id)
         variant = runtime.catalog.get_variant(item.canonical_variant_id)
+        association = next((
+            candidate for candidate in runtime.association_registry.all()
+            if candidate.platform == item.source_platform
+            and candidate.platform_listing_id == item.source_listing_id
+            and candidate.observation_id == item.source_observation_id
+        ), None)
+        observation = (
+            runtime.observation_registry.get(item.source_observation_id)
+            if item.source_observation_id
+            else None
+        )
+        demo_selected = (
+            observation is not None
+            and request.app.state.settings.demo_fixtures_enabled
+            and is_explicit_fixture(observation)
+        )
         if (
-            product is None or variant is None
+            product is None
+            or variant is None
             or variant.canonical_product_id != product.canonical_product_id
-            or product.product_identity_status.value != "established"
-            or product.lifecycle_status.value != "active"
-            or variant.variant_identity_status.value != "established"
-            or variant.lifecycle_status.value != "active"
+            or product.product_identity_status is not IdentityStatus.established
+            or product.lifecycle_status is not ProductLifecycleStatus.active
+            or variant.variant_identity_status is not IdentityStatus.established
+            or variant.lifecycle_status is not VariantLifecycleStatus.active
             or variant.pack_configuration.pack_configuration_status != "complete"
+            or association is None
+            or association.canonical_product_id != product.canonical_product_id
+            or association.canonical_variant_id != variant.canonical_variant_id
+            or association.observation_id != item.source_observation_id
+            or observation is None
+            or is_blinkit(association.platform)
+            or not (
+                has_supported_retailer_evidence(association.platform, observation)
+                or demo_selected
+            )
+            or (observation.observation_id not in current_observations and not demo_selected)
         ):
-            return "unresolved", {"unresolved_item_ids": [str(item.id)], "offers": [], "observed_listing_prices": []}, None
+            unresolved_ids.append(str(item.id))
+            continue
+        exact.append(item)
         requested_items.append({
             "item_id": str(item.id),
             "query": item.query,
@@ -136,11 +179,16 @@ def _run_planner(request: Request, request_id: str, items: list[Any]) -> tuple[s
             "canonical_variant_revision": variant.catalog_revision,
         })
 
+    if unresolved_ids:
+        return "unresolved", {"unresolved_item_ids": unresolved_ids, "offers": [], "observed_listing_prices": []}, None
+    if not items:
+        return "no_plan", {"unresolved_item_ids": [], "offers": [], "observed_listing_prices": []}, None
+
     status_value = "unavailable"
     optimizer_json = None
     explanation = "The current planner has no complete current checkout evidence; observed listing prices are not payable totals."
     try:
-        planned = request.app.state.automatic_cart_planning.plan(AutomaticPlanningRequest(
+        planned = request.app.state.consumer_automatic_planning.plan(AutomaticPlanningRequest(
             cart_id=request_id,
             items=tuple(AutomaticCartItem(
                 item_id=str(item.id),

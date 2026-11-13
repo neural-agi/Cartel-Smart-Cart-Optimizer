@@ -6,7 +6,6 @@ import hashlib
 from dataclasses import dataclass
 
 from redis.asyncio import Redis
-
 from app.core.metrics import metrics
 
 
@@ -53,15 +52,7 @@ class RedisRateLimiter:
         digest = hashlib.sha256(f"{identity}\0{path}".encode()).hexdigest()
         return f"cartel:ratelimit:v1:{category}:{digest}"
 
-    async def allow(
-        self,
-        *,
-        category: str,
-        identity: str,
-        path: str,
-        limit: int,
-        window_seconds: int,
-    ) -> RateLimitDecision:
+    async def allow(self, *, category: str, identity: str, path: str, limit: int, window_seconds: int) -> RateLimitDecision:
         key = self._key(category, identity, path)
         try:
             current = int(await self._redis.eval(_INCREMENT_SCRIPT, 1, key, window_seconds))
@@ -69,11 +60,7 @@ class RedisRateLimiter:
             metrics.inc("cartel_rate_limit_requests_total", category=category, outcome="redis_error")
             raise RateLimitBackendUnavailable from exc
         remaining = max(limit - current, 0)
-        metrics.inc(
-            "cartel_rate_limit_requests_total",
-            category=category,
-            outcome="allowed" if current <= limit else "limited",
-        )
+        metrics.inc("cartel_rate_limit_requests_total", category=category, outcome="allowed" if current <= limit else "limited")
         return RateLimitDecision(allowed=current <= limit, remaining=remaining)
 
     async def ping(self) -> None:

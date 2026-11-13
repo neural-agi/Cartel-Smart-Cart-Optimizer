@@ -82,4 +82,3 @@ def downgrade() -> None:
     op.drop_table("shopping_list_items")
     op.drop_index("ix_shopping_lists_user_updated", table_name="shopping_lists")
     op.drop_table("shopping_lists")
-

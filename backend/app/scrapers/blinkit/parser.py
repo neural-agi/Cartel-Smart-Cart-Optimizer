@@ -2,6 +2,7 @@ import json
 import re
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import urljoin, urlsplit
 
 from bs4 import BeautifulSoup
 from bs4.element import Tag
@@ -23,6 +24,7 @@ class BlinkitProductParser:
 
     platform = "blinkit"
     parser_version = "blinkit-parser-v1"
+    base_url = "https://blinkit.com"
 
     def parse_file(self, source_path: Path, *, query: str | None = None) -> RawExtractionResult:
         logger.info("blinkit_parser_read_start path=%s", str(source_path))
@@ -136,7 +138,10 @@ class BlinkitProductParser:
                     source_index=source_index,
                     platform=self.platform,
                     retailer_product_id=product_id.strip(),
-                    product_url=record.get("url") if isinstance(record.get("url"), str) else None,
+                    product_url=self._verified_product_url(
+                        record.get("url") if isinstance(record.get("url"), str) else None,
+                        expected_product_id=product_id.strip(),
+                    ),
                     product_name=name.strip(),
                     displayed_price=displayed_price,
                     stock_availability=stock,
@@ -224,6 +229,10 @@ class BlinkitProductParser:
             source_index=source_index,
             platform=self.platform,
             retailer_product_id=card.get("id") if (card.get("id") or "").strip() else None,
+            product_url=self._card_product_url(
+                card,
+                expected_product_id=(card.get("id") or "").strip() or None,
+            ),
             product_name=product_name,
             displayed_price=displayed_price,
             mrp=mrp,
@@ -232,6 +241,35 @@ class BlinkitProductParser:
             offer_text=offer_text,
             raw_text=raw_text,
         )
+
+    def _card_product_url(self, card: Tag, *, expected_product_id: str | None) -> str | None:
+        for anchor in card.find_all("a", href=True):
+            if not isinstance(anchor, Tag):
+                continue
+            product_url = self._verified_product_url(
+                urljoin(self.base_url, str(anchor.get("href"))),
+                expected_product_id=expected_product_id,
+            )
+            if product_url is not None:
+                return product_url
+        return None
+
+    def _verified_product_url(
+        self,
+        value: str | None,
+        *,
+        expected_product_id: str,
+    ) -> str | None:
+        if not value:
+            return None
+        candidate = urljoin(self.base_url, value)
+        parsed = urlsplit(candidate)
+        if parsed.scheme != "https" or parsed.netloc not in {"blinkit.com", "www.blinkit.com"}:
+            return None
+        match = re.fullmatch(r"/prn/[^/]+/prid/([^/?#]+)", parsed.path)
+        if match is None or match.group(1) != expected_product_id:
+            return None
+        return f"https://blinkit.com{parsed.path}"
 
     def _extract_stock(self, tokens: list[str]) -> str | None:
         joined = " ".join(tokens).lower()

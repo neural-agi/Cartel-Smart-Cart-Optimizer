@@ -1,0 +1,17 @@
+services:
+  api:
+    environment:
+      APP_ENV: development
+      APP_DEBUG: "false"
+      AUTH_COOKIE_SECURE: "false"
+      PUBLIC_ORIGIN: http://frontend:3000
+      EMAIL_DELIVERY_MODE: file
+      LOCAL_EMAIL_DIR: /tmp/cartel-email
+      SMTP_HOST: local-capture-disabled
+      SMTP_FROM: cartel-local@localhost
+      SMTP_STARTTLS: "false"
+    volumes:
+      - cartel-test-email:/tmp/cartel-email
+
+volumes:
+  cartel-test-email:

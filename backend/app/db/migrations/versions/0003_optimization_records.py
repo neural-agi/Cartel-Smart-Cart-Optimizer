@@ -83,4 +83,3 @@ def downgrade() -> None:
     op.drop_table("optimization_plans")
     op.drop_index("ix_optimization_requests_owner_created", table_name="optimization_requests")
     op.drop_table("optimization_requests")
-

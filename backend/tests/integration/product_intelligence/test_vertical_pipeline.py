@@ -6,18 +6,19 @@ from decimal import Decimal
 import pytest
 
 from app.data_ingestion import (
-    JobState,
     AcquisitionResult,
     CaptureContext,
     CaptureCoverage,
     CaptureType,
     DownstreamMode,
     InMemoryObservationRegistry,
+    JobState,
     Platform,
     RequestParameters,
     ScrapeJob,
 )
 from app.data_ingestion.artifact_store import LocalFilesystemArtifactStore
+from app.data_ingestion.lifecycle_store import FilesystemScrapeJobLifecycleStore
 from app.normalization.ingestion import DeterministicIngestionNormalizer
 from app.product_intelligence.assertions import DeterministicAssertionManager
 from app.product_intelligence.candidate_generation import (
@@ -31,7 +32,10 @@ from app.product_intelligence.catalog import (
     FilesystemCanonicalListingAssociationStore,
 )
 from app.product_intelligence.catalog.storage import CatalogFilesystemStore
-from app.product_intelligence.evidence import EvidenceFilesystemStore, FilesystemEvidenceRegistry
+from app.product_intelligence.evidence import (
+    EvidenceFilesystemStore,
+    FilesystemEvidenceRegistry,
+)
 from app.product_intelligence.execution import (
     ProductIntelligenceExecutionStatus,
     ProductIntelligenceExecutionTrigger,
@@ -59,12 +63,10 @@ from app.product_intelligence.orchestrator.service import (
     DeterministicProductIntelligenceOrchestrator,
 )
 from app.product_intelligence.review import DeterministicReviewQueueManager
-from app.scrapers.blinkit.bridge import BlinkitParserBridge
+from app.workers.job_execution_coordinator import JobExecutionCoordinator
 from app.workers.local_ingestion import LocalIngestionWorker
 from app.workers.product_intelligence_runtime import ProductIntelligenceRuntime
-from app.workers.job_execution_coordinator import JobExecutionCoordinator
-from app.data_ingestion.lifecycle_store import FilesystemScrapeJobLifecycleStore
-
+from tests.support.fixture_pipeline import ZeptoFixtureParser, ZeptoFixtureParserBridge
 
 FIXTURE_HTML = b'''<!doctype html>
 <html><body>
@@ -82,7 +84,7 @@ class FixtureAcquisition:
         )
         return AcquisitionResult(
             payload=FIXTURE_HTML,
-            source_reference="https://fixture.invalid/blinkit/search?q=milk",
+            source_reference="https://fixture.invalid/zepto/search?q=milk",
             content_type="text/html",
             capture_timestamp=datetime(2026, 1, 1, tzinfo=timezone.utc),
             evaluation_scope=evaluation_scope,
@@ -97,7 +99,7 @@ class FixtureAcquisition:
 
 def _job() -> ScrapeJob:
     return ScrapeJob(
-        platform=Platform.BLINKIT,
+        platform=Platform.ZEPTO,
         capture_type=CaptureType.SEARCH_RESULTS,
         request_parameters=RequestParameters(values=(("query", "milk"),)),
         capture_context=CaptureContext(
@@ -107,7 +109,7 @@ def _job() -> ScrapeJob:
             location_scope="fixture",
             session_scope="e2e",
         ),
-        parser_policy_version="blinkit-parser-v1",
+        parser_policy_version="zepto-fixture-parser-v1",
         normalization_policy_version="normalizer-v1",
         downstream_mode=DownstreamMode.NONE,
         job_contract_version="fixture-v1",
@@ -210,7 +212,8 @@ def _runtime(tmp_path, *, resolver):
                 root=tmp_path / "artifacts",
                 store_namespace="runtime",
             ),
-            bridge=BlinkitParserBridge(),
+            parser=ZeptoFixtureParser(),
+            bridge=ZeptoFixtureParserBridge(),
         ),
         normalizer=DeterministicIngestionNormalizer(),
         observation_registry=InMemoryObservationRegistry(),
@@ -237,7 +240,7 @@ def _resolver(*, missing_product: bool = False):
 
 
 @pytest.mark.asyncio
-async def test_blinkit_observation_reaches_product_intelligence_end_to_end(tmp_path) -> None:
+async def test_zepto_observation_reaches_product_intelligence_end_to_end(tmp_path) -> None:
     catalog = FilesystemAuthoritativeCatalog(
         store=CatalogFilesystemStore(root_dir=tmp_path / "catalog")
     )
@@ -253,8 +256,8 @@ async def test_blinkit_observation_reaches_product_intelligence_end_to_end(tmp_p
             root=tmp_path / "artifacts",
             store_namespace="e2e",
         ),
-        parser=None,
-        bridge=BlinkitParserBridge(),
+        parser=ZeptoFixtureParser(),
+        bridge=ZeptoFixtureParserBridge(),
     )
     ingestion_result = await worker.execute(_job())
     assert ingestion_result.parsed_batch is not None
@@ -321,7 +324,7 @@ async def test_blinkit_observation_reaches_product_intelligence_end_to_end(tmp_p
     assert result.pipeline_result.product_match_result.selected_product.canonical_product_id == product.canonical_product_id
     assert result.pipeline_result.variant_match_result.outcome.value == "unresolved"
     assert result.pipeline_request is not None
-    assert result.pipeline_request.platform_listing.platform.lower() == "blinkit"
+    assert result.pipeline_request.platform_listing.platform.lower() == "zepto"
     assert result.pipeline_request.platform_listing.platform_listing_id == observation.source_record_id
     assert result.pipeline_request.listing_observation.source_artifact_reference == observation.raw_artifact_reference.artifact_id
     assert result.pipeline_request.evidence_bundles
@@ -352,7 +355,7 @@ async def test_scrape_job_runtime_entrypoint_returns_product_intelligence_result
     assert record.execution.association is not None
     assert record.execution.association.canonical_product_id == "product-amul-taaza"
     assert record.execution.association.canonical_variant_id == "variant-amul-taaza-500ml"
-    assert association_registry.get("BLINKIT", "1") is not None
+    assert association_registry.get("ZEPTO", "1") is not None
     assert len(catalog.load_state().products) == 1
 
 
@@ -398,4 +401,4 @@ async def test_runtime_unresolved_association_does_not_execute_product_intellige
     assert record.execution is not None
     assert record.execution.status is ProductIntelligenceExecutionStatus.association_unresolved
     assert record.execution.pipeline_result is None
-    assert association_registry.list_for_listing("BLINKIT", "1") == tuple()
+    assert association_registry.list_for_listing("ZEPTO", "1") == tuple()

@@ -7,6 +7,7 @@ from typing import Protocol
 
 from app.cost_intelligence.shared.money import Money
 from app.normalization.pricing.parser import GovernedRetailPriceParser
+from app.retailer_policy import ensure_retailer_allowed
 from app.schemas.extraction import RawExtractionResult, RawExtractedProduct
 from app.scrapers.blinkit.parser import BlinkitProductParser
 from app.retailer_data.types import RetailerObservation
@@ -29,6 +30,7 @@ class BlinkitRetailerDataProvider:
         self.price_parser = price_parser or GovernedRetailPriceParser()
 
     async def acquire(self, query: str) -> tuple[RetailerObservation, ...]:
+        ensure_retailer_allowed(self.provider, "retailer acquisition")
         if self.acquisition is None:
             raise RuntimeError("Blinkit acquisition dependency is not configured")
         response = await self.acquisition.acquire_search(query)

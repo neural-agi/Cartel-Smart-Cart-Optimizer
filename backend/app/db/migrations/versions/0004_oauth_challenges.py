@@ -32,4 +32,3 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.drop_index("ix_oauth_challenges_expires", table_name="oauth_challenges")
     op.drop_table("oauth_challenges")
-

@@ -12,7 +12,6 @@ from app.core.config import get_settings
 from app.data_ingestion.enums import JobState
 from app.data_ingestion.types import LifecycleTransition, ScrapeAttempt
 
-
 LIFECYCLE_ROOT_DIRNAME = "data_ingestion"
 LIFECYCLE_SUBDIR = "lifecycle"
 LIFECYCLE_FILENAME = "job.json"
@@ -67,10 +66,10 @@ class PersistedScrapeJobLifecycle(BaseModel):
 _VALID_NEXT_STATES: dict[JobState, set[JobState]] = {
     JobState.CREATED: {JobState.QUEUED, JobState.INVALID, JobState.CANCEL_REQUESTED, JobState.EXPIRED},
     JobState.QUEUED: {JobState.DEQUEUED, JobState.CANCEL_REQUESTED, JobState.EXPIRED},
-    JobState.DEQUEUED: {JobState.ACQUIRING, JobState.RETRY_SCHEDULED, JobState.CANCEL_REQUESTED, JobState.FAILED, JobState.INVALID, JobState.EXPIRED},
+    JobState.DEQUEUED: {JobState.ACQUIRING, JobState.RETRY_SCHEDULED, JobState.BLOCKED, JobState.CANCEL_REQUESTED, JobState.FAILED, JobState.INVALID, JobState.EXPIRED},
     JobState.ACQUIRING: {JobState.ARTIFACT_CAPTURED, JobState.RETRY_SCHEDULED, JobState.BLOCKED, JobState.FAILED, JobState.CANCEL_REQUESTED, JobState.DEAD_LETTERED},
-    JobState.ARTIFACT_CAPTURED: {JobState.PARSING, JobState.CANCEL_REQUESTED, JobState.FAILED, JobState.DEAD_LETTERED},
-    JobState.PARSING: {JobState.PARSED, JobState.RETRY_SCHEDULED, JobState.FAILED, JobState.DEAD_LETTERED, JobState.CANCEL_REQUESTED},
+    JobState.ARTIFACT_CAPTURED: {JobState.PARSING, JobState.BLOCKED, JobState.CANCEL_REQUESTED, JobState.FAILED, JobState.DEAD_LETTERED},
+    JobState.PARSING: {JobState.PARSED, JobState.RETRY_SCHEDULED, JobState.BLOCKED, JobState.FAILED, JobState.DEAD_LETTERED, JobState.CANCEL_REQUESTED},
     JobState.PARSED: {JobState.NORMALIZING, JobState.CANCEL_REQUESTED, JobState.FAILED, JobState.DEAD_LETTERED},
     JobState.NORMALIZING: {JobState.NORMALIZED, JobState.RETRY_SCHEDULED, JobState.FAILED, JobState.DEAD_LETTERED, JobState.CANCEL_REQUESTED},
     JobState.NORMALIZED: {JobState.REGISTERING_OBSERVATION, JobState.CANCEL_REQUESTED, JobState.FAILED, JobState.DEAD_LETTERED},

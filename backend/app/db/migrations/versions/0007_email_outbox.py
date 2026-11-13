@@ -48,4 +48,3 @@ def downgrade() -> None:
     op.drop_index("ix_email_outbox_leases", table_name="email_outbox_events")
     op.drop_index("ix_email_outbox_claim", table_name="email_outbox_events")
     op.drop_table("email_outbox_events")
-

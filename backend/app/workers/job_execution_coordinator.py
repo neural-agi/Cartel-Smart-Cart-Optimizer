@@ -3,9 +3,9 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from app.data_ingestion import (
-    IngestionWorkerResult,
-    FailureCategory,
     AttemptOutcome,
+    FailureCategory,
+    IngestionWorkerResult,
     JobFailure,
     JobState,
     LifecycleTransition,
@@ -13,7 +13,10 @@ from app.data_ingestion import (
     ScrapeJob,
 )
 from app.data_ingestion.lifecycle_store import FilesystemScrapeJobLifecycleStore
-from app.workers.product_intelligence_runtime import ProductIntelligenceRuntime, ProductIntelligenceRuntimeResult
+from app.workers.product_intelligence_runtime import (
+    ProductIntelligenceRuntime,
+    ProductIntelligenceRuntimeResult,
+)
 
 
 class JobExecutionCoordinator:
@@ -50,11 +53,19 @@ class JobExecutionCoordinator:
         if worker_result.parsed_batch is None:
             final_attempt = self._handle_failure(job, worker_result)
             self.lifecycle_store.record_attempt(final_attempt)
+            blocked = (
+                worker_result.attempt.failure is not None
+                and worker_result.attempt.failure.category is FailureCategory.POLICY_BLOCKED
+            )
             return ProductIntelligenceRuntimeResult(
                 job_id=worker_result.job_id,
-                status="ingestion_failed",
+                status="policy_blocked" if blocked else "ingestion_failed",
                 worker_result=worker_result,
-                rationale=(worker_result.failed_stage or "ingestion failed",),
+                rationale=(
+                    ("blinkit_commercial_authorization_required",)
+                    if blocked
+                    else (worker_result.failed_stage or "ingestion failed",)
+                ),
             )
 
         self.record_transition(job, JobState.PARSED, JobState.NORMALIZING, "normalization started", attempt_number=attempt_number)
@@ -126,6 +137,22 @@ class JobExecutionCoordinator:
                 retryable=True,
             )
         number = worker_result.attempt.attempt_number
+        if failure.category is FailureCategory.POLICY_BLOCKED:
+            if current is not None and current is not JobState.BLOCKED:
+                self.record_transition(
+                    job,
+                    current,
+                    JobState.BLOCKED,
+                    "policy blocked",
+                    attempt_number=number,
+                    failure=failure,
+                )
+            return worker_result.attempt.model_copy(
+                update={
+                    "outcome": AttemptOutcome.BLOCKED,
+                    "finished_at": datetime.now(timezone.utc),
+                }
+            )
         retryable = failure.retryable and number < 3
         next_state = JobState.RETRY_SCHEDULED if retryable else (
             JobState.DEAD_LETTERED if failure.retryable else JobState.FAILED

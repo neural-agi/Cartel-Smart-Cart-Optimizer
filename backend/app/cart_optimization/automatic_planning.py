@@ -45,6 +45,7 @@ from app.services.cart_candidate_discovery import (
     CartCandidateDiscoveryItemRequest,
     CartCandidateDiscoveryRequest,
     CartCandidateDiscoveryService,
+    PersistedCandidateReadiness,
 )
 from app.cart_optimization.candidate_enrichment import CandidateAllocationEnrichment, CandidateAllocationEnrichmentService
 from app.cost_intelligence.observation.types import CheckoutObservation
@@ -173,6 +174,8 @@ class AutomaticCartPlanningService:
             for item in discovery.items:
                 allocations: list[CandidateItemAllocation] = []
                 for candidate in item.candidates:
+                    if candidate.readiness is not PersistedCandidateReadiness.ready_for_allocation:
+                        continue
                     retailer_id = self._retailer_provider.retailer_id(
                         item_id=item.item_id,
                         platform=candidate.platform,

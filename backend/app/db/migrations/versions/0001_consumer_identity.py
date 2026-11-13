@@ -93,4 +93,3 @@ def downgrade() -> None:
     op.drop_index("ix_identities_user_id", table_name="identities")
     op.drop_table("identities")
     op.drop_table("users")
-

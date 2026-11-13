@@ -1,5 +1,4 @@
 """Small dependency-free metrics registry with bounded labels."""
-
 from __future__ import annotations
 
 import re
@@ -10,6 +9,10 @@ _UUID = re.compile(r"[0-9a-fA-F]{8}-[0-9a-fA-F-]{27,}")
 _NUMBER = re.compile(r"(?<![A-Za-z])\d+(?![A-Za-z])")
 
 
+def normalized_route(path: str) -> str:
+    return _NUMBER.sub(":n", _UUID.sub(":id", path or "/"))[:256]
+
+
 class Metrics:
     def __init__(self) -> None:
         self._lock = Lock()
@@ -17,12 +20,12 @@ class Metrics:
         self._histograms: dict[tuple[str, tuple[tuple[str, str], ...]], list[float]] = defaultdict(list)
 
     def inc(self, name: str, **labels: str | int) -> None:
-        key = (name, tuple(sorted((key, str(value)) for key, value in labels.items())))
+        key = (name, tuple(sorted((k, str(v)) for k, v in labels.items())))
         with self._lock:
             self._counters[key] += 1
 
     def observe(self, name: str, value: float, **labels: str | int) -> None:
-        key = (name, tuple(sorted((key, str(value)) for key, value in labels.items())))
+        key = (name, tuple(sorted((k, str(v)) for k, v in labels.items())))
         with self._lock:
             if len(self._histograms[key]) < 2000:
                 self._histograms[key].append(value)

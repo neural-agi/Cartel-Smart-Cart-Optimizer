@@ -9,6 +9,10 @@ class Platform(StrEnum):
     INSTAMART = "INSTAMART"
     BIGBASKET = "BIGBASKET"
     FLIPKART_MINUTES = "FLIPKART_MINUTES"
+    # Retailer-independent synthetic source used only by the explicitly gated
+    # Cartel Demo catalog. It has no acquisition, connection, credential, cart,
+    # or checkout capability and must never be treated as live retailer data.
+    CARTEL_DEMO = "CARTEL_DEMO"
 
 
 class CaptureType(StrEnum):
@@ -39,6 +43,7 @@ class FailureCategory(StrEnum):
     QUEUE_LEASE_EXPIRY = "QUEUE_LEASE_EXPIRY"
     CANCELLATION = "CANCELLATION"
     MALFORMED_REQUEST = "MALFORMED_REQUEST"
+    POLICY_BLOCKED = "POLICY_BLOCKED"
     UNSUPPORTED_PLATFORM = "UNSUPPORTED_PLATFORM"
     UNSUPPORTED_CAPTURE_TYPE = "UNSUPPORTED_CAPTURE_TYPE"
     EMPTY_RESULTS_WITH_COMPLETENESS_EVIDENCE = "EMPTY_RESULTS_WITH_COMPLETENESS_EVIDENCE"

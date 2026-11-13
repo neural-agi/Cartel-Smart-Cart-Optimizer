@@ -34,7 +34,7 @@ class Settings(BaseSettings):
     docs_enabled: bool = Field(default=True, alias="DOCS_ENABLED")
     cors_allowed_origins: str = Field(default="", alias="CORS_ALLOWED_ORIGINS")
     auth_required: bool = Field(default=False, alias="AUTH_REQUIRED")
-    auth_tokens: str = Field(default="", alias="AUTH_TOKENS")
+    auth_tokens: SecretStr = Field(default=SecretStr(""), alias="AUTH_TOKENS")
     rate_limit_requests: int = Field(default=120, alias="RATE_LIMIT_REQUESTS")
     rate_limit_window_seconds: int = Field(default=60, alias="RATE_LIMIT_WINDOW_SECONDS")
     checkout_observation_provider_mode: Literal["registry", "unavailable"] = Field(
@@ -45,6 +45,13 @@ class Settings(BaseSettings):
         default="unavailable",
         alias="CHECKOUT_CAPTURE_ADAPTER_MODE",
     )
+    retailer_data_provider_mode: Literal["quickcommerce", "blinkit", "unavailable"] = Field(
+        default="unavailable",
+        alias="RETAILER_DATA_PROVIDER_MODE",
+    )
+    quickcommerce_api_base_url: str = Field(default="", alias="QUICKCOMMERCE_API_BASE_URL")
+    quickcommerce_api_key: SecretStr = Field(default=SecretStr(""), alias="QUICKCOMMERCE_API_KEY")
+    quickcommerce_timeout_seconds: float = Field(default=10.0, alias="QUICKCOMMERCE_TIMEOUT_SECONDS")
     planning_max_cart_items: int = Field(default=20, alias="PLANNING_MAX_CART_ITEMS")
     planning_max_candidates_per_item: int = Field(
         default=20,
@@ -69,6 +76,7 @@ class Settings(BaseSettings):
     planning_feasibility: str | None = Field(default=None, alias="PLANNING_FEASIBILITY")
     planning_feasibility_evidence: str = Field(default="", alias="PLANNING_FEASIBILITY_EVIDENCE")
     optimization_policy_version: str = Field(default="policy-v1", alias="OPTIMIZATION_POLICY_VERSION")
+    demo_fixtures_enabled: bool = Field(default=False, alias="DEMO_FIXTURES_ENABLED")
     scraper_timeout_seconds: float = Field(
         default=15.0,
         alias="SCRAPER_TIMEOUT_SECONDS",
@@ -116,7 +124,7 @@ class Settings(BaseSettings):
     postgres_port: int = Field(default=5432, alias="POSTGRES_PORT")
     postgres_db: str = Field(default="cartel", alias="POSTGRES_DB")
     postgres_user: str = Field(default="cartel", alias="POSTGRES_USER")
-    postgres_password: str = Field(default="cartel", alias="POSTGRES_PASSWORD")
+    postgres_password: SecretStr = Field(default=SecretStr(""), alias="POSTGRES_PASSWORD")
     database_required: bool = Field(default=False, alias="DATABASE_REQUIRED")
     database_url_override: SecretStr | None = Field(default=None, alias="DATABASE_URL")
     db_pool_size: int = Field(default=5, alias="DB_POOL_SIZE")
@@ -126,18 +134,20 @@ class Settings(BaseSettings):
     auth_session_days: int = Field(default=14, alias="AUTH_SESSION_DAYS")
     auth_idle_days: int = Field(default=7, alias="AUTH_IDLE_DAYS")
     auth_challenge_minutes: int = Field(default=30, alias="AUTH_CHALLENGE_MINUTES")
+    auth_rate_limit_requests: int = Field(default=8, alias="AUTH_RATE_LIMIT_REQUESTS")
     idempotency_ttl_seconds: int = Field(default=86400, alias="IDEMPOTENCY_TTL_SECONDS")
-    auth_rate_limit_requests: int = Field(default=10, alias="AUTH_RATE_LIMIT_REQUESTS")
-    auth_cookie_secure: bool = Field(default=False, alias="AUTH_COOKIE_SECURE")
-    public_origin: str = Field(default="http://localhost:3000", alias="PUBLIC_ORIGIN")
+    auth_cookie_secure: bool | None = Field(default=None, alias="AUTH_COOKIE_SECURE")
     smtp_host: str = Field(default="", alias="SMTP_HOST")
     smtp_port: int = Field(default=587, alias="SMTP_PORT")
     smtp_username: str = Field(default="", alias="SMTP_USERNAME")
     smtp_password: SecretStr = Field(default=SecretStr(""), alias="SMTP_PASSWORD")
     smtp_from: str = Field(default="", alias="SMTP_FROM")
     smtp_starttls: bool = Field(default=True, alias="SMTP_STARTTLS")
-    email_delivery_mode: Literal["smtp", "file"] = Field(default="file", alias="EMAIL_DELIVERY_MODE")
-    local_email_dir: Path = Field(default=Path("../data/emails"), alias="LOCAL_EMAIL_DIR")
+    email_delivery_mode: Literal["smtp", "file"] = Field(
+        default="smtp",
+        alias="EMAIL_DELIVERY_MODE",
+    )
+    local_email_dir: Path = Field(default=Path("/tmp/cartel-email"), alias="LOCAL_EMAIL_DIR")
     google_client_id: str = Field(default="", alias="GOOGLE_CLIENT_ID")
     google_client_secret: SecretStr = Field(default=SecretStr(""), alias="GOOGLE_CLIENT_SECRET")
     google_redirect_uri: str = Field(default="", alias="GOOGLE_REDIRECT_URI")
@@ -149,6 +159,7 @@ class Settings(BaseSettings):
     apple_key_id: str = Field(default="", alias="APPLE_KEY_ID")
     apple_private_key: SecretStr = Field(default=SecretStr(""), alias="APPLE_PRIVATE_KEY")
     apple_redirect_uri: str = Field(default="", alias="APPLE_REDIRECT_URI")
+    public_origin: str = Field(default="http://localhost:3000", alias="PUBLIC_ORIGIN")
     redis_url: str = Field(default="redis://localhost:6379/0", alias="REDIS_URL")
     redis_connect_timeout_seconds: float = Field(default=1.0, alias="REDIS_CONNECT_TIMEOUT_SECONDS")
     redis_operation_timeout_seconds: float = Field(default=1.0, alias="REDIS_OPERATION_TIMEOUT_SECONDS")
@@ -164,6 +175,18 @@ class Settings(BaseSettings):
     outbox_retry_max_seconds: float = Field(default=300.0, alias="OUTBOX_RETRY_MAX_SECONDS")
     outbox_lease_seconds: int = Field(default=300, alias="OUTBOX_LEASE_SECONDS")
     outbox_poll_interval_seconds: float = Field(default=1.0, alias="OUTBOX_POLL_INTERVAL_SECONDS")
+    # Credential vault key management. The default provider is fail-closed.
+    # ``development_env`` is explicitly development-only and is rejected
+    # outside development. No cloud KMS/HSM integration exists in this repo.
+    vault_key_provider: Literal["unavailable", "development_env"] = Field(
+        default="unavailable",
+        alias="VAULT_KEY_PROVIDER",
+    )
+    vault_dev_keys: SecretStr = Field(default=SecretStr(""), alias="VAULT_DEV_KEYS")
+    vault_active_key_version: str = Field(
+        default="",
+        alias="VAULT_ACTIVE_KEY_VERSION",
+    )
 
     @field_validator(
         "app_name",
@@ -175,7 +198,7 @@ class Settings(BaseSettings):
         "postgres_host",
         "postgres_db",
         "postgres_user",
-        "postgres_password",
+        "public_origin",
         "redis_url",
         "optimization_policy_version",
         mode="before",
@@ -229,10 +252,73 @@ class Settings(BaseSettings):
             raise ValueError("rate limit values must be positive")
         return value
 
+    @field_validator("db_pool_size", "db_pool_recycle_seconds")
+    @classmethod
+    def validate_database_pool_positive(cls, value: int) -> int:
+        if value < 1:
+            raise ValueError("database pool values must be positive")
+        return value
+
+    @field_validator("db_max_overflow")
+    @classmethod
+    def validate_database_overflow(cls, value: int) -> int:
+        if value < 0:
+            raise ValueError("DB_MAX_OVERFLOW must not be negative")
+        return value
+
+    @field_validator("db_pool_timeout_seconds")
+    @classmethod
+    def validate_database_timeout(cls, value: float) -> float:
+        if value <= 0:
+            raise ValueError("DB_POOL_TIMEOUT_SECONDS must be positive")
+        return value
+
+    @field_validator("redis_connect_timeout_seconds", "redis_operation_timeout_seconds")
+    @classmethod
+    def validate_redis_timeouts(cls, value: float) -> float:
+        if value <= 0 or value > 30:
+            raise ValueError("Redis timeouts must be greater than 0 and at most 30 seconds")
+        return value
+
+    @field_validator("redis_max_connections")
+    @classmethod
+    def validate_redis_connections(cls, value: int) -> int:
+        if value < 1 or value > 1000:
+            raise ValueError("REDIS_MAX_CONNECTIONS must be between 1 and 1000")
+        return value
+
+    @field_validator("worker_concurrency", "job_max_attempts", "job_lease_seconds", "outbox_max_attempts", "outbox_lease_seconds")
+    @classmethod
+    def validate_job_integers(cls, value: int) -> int:
+        if value < 1:
+            raise ValueError("background job integer settings must be positive")
+        return value
+
+    @field_validator("job_poll_interval_seconds", "job_retry_base_seconds", "job_retry_max_seconds", "outbox_retry_base_seconds", "outbox_retry_max_seconds", "outbox_poll_interval_seconds")
+    @classmethod
+    def validate_job_timings(cls, value: float) -> float:
+        if value <= 0:
+            raise ValueError("background job timing settings must be positive")
+        return value
+
+    @field_validator("auth_session_days", "auth_idle_days", "auth_challenge_minutes", "auth_rate_limit_requests", "smtp_port")
+    @classmethod
+    def validate_auth_lifetimes(cls, value: int) -> int:
+        if value < 1 or value > 65535:
+            raise ValueError("authentication lifetime or SMTP port is invalid")
+        return value
+
+    @field_validator("idempotency_ttl_seconds")
+    @classmethod
+    def validate_idempotency_ttl(cls, value: int) -> int:
+        if value < 60 or value > 2_592_000:
+            raise ValueError("IDEMPOTENCY_TTL_SECONDS must be between 60 and 2592000")
+        return value
+
     @property
     def configured_auth_tokens(self) -> dict[str, str]:
         tokens: dict[str, str] = {}
-        for entry in self.auth_tokens.split(","):
+        for entry in self.auth_tokens.get_secret_value().split(","):
             if not entry.strip():
                 continue
             if "=" not in entry:
@@ -242,6 +328,41 @@ class Settings(BaseSettings):
                 raise ValueError("AUTH_TOKENS entries must contain user_id and token")
             tokens[token] = user_id
         return tokens
+
+    @property
+    def database_url(self) -> str:
+        if self.database_url_override and self.database_url_override.get_secret_value():
+            return self.database_url_override.get_secret_value()
+        from urllib.parse import quote_plus
+
+        credentials = quote_plus(self.postgres_user)
+        password = self.postgres_password.get_secret_value()
+        auth = f"{credentials}:{quote_plus(password)}" if password else credentials
+        return f"postgresql+psycopg://{auth}@{self.postgres_host}:{self.postgres_port}/{quote_plus(self.postgres_db)}"
+
+    @property
+    def secure_auth_cookie(self) -> bool:
+        return self.app_env == "production" if self.auth_cookie_secure is None else self.auth_cookie_secure
+
+    @property
+    def email_delivery_configured(self) -> bool:
+        if self.email_delivery_mode == "file":
+            return self.app_env != "production" and bool(str(self.local_email_dir).strip())
+        return bool(self.smtp_host.strip() and self.smtp_from.strip())
+
+    @property
+    def google_oauth_configured(self) -> bool:
+        return bool(self.google_client_id.strip() and self.google_client_secret.get_secret_value().strip() and self.google_redirect_uri.strip())
+
+    @property
+    def github_oauth_configured(self) -> bool:
+        return bool(self.github_client_id.strip() and self.github_client_secret.get_secret_value().strip() and self.github_redirect_uri.strip())
+
+    @property
+    def apple_oauth_configured(self) -> bool:
+        # Apple fields are retained for readiness, but no Apple verifier is
+        # enabled until its server-side adapter is implemented.
+        return False
 
     @field_validator(
         "planning_max_cart_items",
@@ -265,39 +386,6 @@ class Settings(BaseSettings):
     @property
     def configured_planning_feasibility_evidence(self) -> tuple[str, ...]:
         return tuple(item.strip() for item in self.planning_feasibility_evidence.split(",") if item.strip())
-
-    @property
-    def database_url(self) -> str:
-        if self.database_url_override and self.database_url_override.get_secret_value():
-            return self.database_url_override.get_secret_value()
-        return (
-            f"postgresql+psycopg://{self.postgres_user}:{self.postgres_password}"
-            f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
-        )
-
-    @property
-    def email_delivery_configured(self) -> bool:
-        if self.email_delivery_mode == "file":
-            return True
-        return bool(self.smtp_host.strip() and self.smtp_from.strip())
-
-    @property
-    def google_oauth_configured(self) -> bool:
-        return bool(self.google_client_id.strip() and self.google_client_secret.get_secret_value() and self.google_redirect_uri.strip())
-
-    @property
-    def github_oauth_configured(self) -> bool:
-        return bool(self.github_client_id.strip() and self.github_client_secret.get_secret_value() and self.github_redirect_uri.strip())
-
-    @property
-    def apple_oauth_configured(self) -> bool:
-        return bool(
-            self.apple_client_id.strip()
-            and self.apple_team_id.strip()
-            and self.apple_key_id.strip()
-            and self.apple_private_key.get_secret_value()
-            and self.apple_redirect_uri.strip()
-        )
 
     @field_validator("blinkit_delivery_latitude")
     @classmethod
@@ -323,17 +411,54 @@ class Settings(BaseSettings):
             raise ValueError("REDIS_URL port must be between 1 and 65535")
         return value
 
+    @field_validator("database_url_override")
+    @classmethod
+    def validate_database_url(cls, value: SecretStr | None) -> SecretStr | None:
+        if value is not None:
+            parsed = urlsplit(value.get_secret_value())
+            if parsed.scheme != "postgresql+psycopg" or not parsed.hostname:
+                raise ValueError(
+                    "DATABASE_URL must use the postgresql+psycopg:// scheme "
+                    "(the psycopg2 driver is not installed)"
+                )
+        return value
+
+    @field_validator("public_origin")
+    @classmethod
+    def validate_public_origin(cls, value: str) -> str:
+        parsed = urlsplit(value)
+        if parsed.scheme not in {"http", "https"} or not parsed.hostname or parsed.path not in {"", "/"} or parsed.query or parsed.fragment:
+            raise ValueError("PUBLIC_ORIGIN must be an origin without path, query, or fragment")
+        return f"{parsed.scheme}://{parsed.netloc}"
+
     @model_validator(mode="after")
     def validate_runtime_configuration(self) -> "Settings":
         if self.auth_required and not self.configured_auth_tokens:
             raise ValueError("AUTH_TOKENS must be configured when AUTH_REQUIRED is true")
+        if self.app_env == "production" and self.demo_fixtures_enabled:
+            raise ValueError("DEMO_FIXTURES_ENABLED must be false in production")
         if self.app_env == "production":
-            if "postgres_password" not in self.model_fields_set or self.postgres_password == "cartel":
-                raise ValueError("POSTGRES_PASSWORD must be explicitly configured in production")
+            if not self.auth_required:
+                raise ValueError("AUTH_REQUIRED must be true in production")
             if self.app_debug:
                 raise ValueError("APP_DEBUG must be false in production")
             if self.docs_enabled:
                 raise ValueError("DOCS_ENABLED must be false in production")
+            if urlsplit(self.public_origin).scheme != "https":
+                raise ValueError("PUBLIC_ORIGIN must use HTTPS in production")
+            if self.database_required and not (
+                self.postgres_password.get_secret_value()
+                or (self.database_url_override and self.database_url_override.get_secret_value())
+            ):
+                raise ValueError("PostgreSQL credentials are required when DATABASE_REQUIRED is true")
+        if self.retailer_data_provider_mode == "quickcommerce":
+            parsed = urlsplit(self.quickcommerce_api_base_url)
+            if parsed.scheme != "https" or not parsed.hostname:
+                raise ValueError("QUICKCOMMERCE_API_BASE_URL must be an HTTPS origin when enabled")
+            if not self.quickcommerce_api_key.get_secret_value().strip():
+                raise ValueError("QUICKCOMMERCE_API_KEY is required when QuickCommerce is enabled")
+        if self.quickcommerce_timeout_seconds <= 0:
+            raise ValueError("QUICKCOMMERCE_TIMEOUT_SECONDS must be positive")
         return self
 
     @property

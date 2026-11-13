@@ -9,6 +9,12 @@ from sqlalchemy.orm import Session, selectinload
 from app.api.dependencies.consumer import ConsumerPrincipal, current_consumer, csrf_protected
 from app.db.models import AuditEvent, ShoppingList, ShoppingListItem
 from app.db.session import get_db
+from app.product_intelligence.models import (
+    IdentityStatus,
+    ProductLifecycleStatus,
+    VariantLifecycleStatus,
+)
+from app.retailer_policy import is_blinkit
 from app.schemas.shopping_lists import (
     ShoppingListCreate,
     ShoppingListItemCreate,
@@ -18,12 +24,29 @@ from app.schemas.shopping_lists import (
     ShoppingListUpdate,
 )
 from app.services.idempotency import claim, complete, idempotency_key
+from app.services.product_search import (
+    has_supported_retailer_evidence,
+    is_explicit_fixture,
+    is_synthetic_demo_observation,
+    latest_governed_observation_ids,
+)
 
 
 router = APIRouter(prefix="/lists", tags=["shopping-lists"])
 
 
-def _response(shopping_list: ShoppingList) -> ShoppingListResponse:
+def _evidence_class(runtime, item: ShoppingListItem) -> str:
+    if runtime is None or not item.source_observation_id:
+        return "live"
+    observation = runtime.observation_registry.get(item.source_observation_id)
+    if observation is None:
+        return "live"
+    if is_synthetic_demo_observation(observation):
+        return "synthetic_demo"
+    return "demo_fixture" if is_explicit_fixture(observation) else "live"
+
+
+def _response(shopping_list: ShoppingList, runtime=None) -> ShoppingListResponse:
     return ShoppingListResponse(
         id=shopping_list.id,
         name=shopping_list.name,
@@ -44,10 +67,12 @@ def _response(shopping_list: ShoppingList) -> ShoppingListResponse:
                 source_platform=item.source_platform,
                 source_listing_id=item.source_listing_id,
                 source_observation_id=item.source_observation_id,
+                evidence_class=_evidence_class(runtime, item),
                 created_at=item.created_at,
                 updated_at=item.updated_at,
             )
             for item in shopping_list.items
+            if not is_blinkit(item.source_platform)
         ),
     )
 
@@ -102,14 +127,19 @@ def _replay(claim_result):
 
 
 @router.get("", response_model=tuple[ShoppingListResponse, ...])
-def get_lists(principal: ConsumerPrincipal = Depends(current_consumer), db: Session = Depends(get_db)):
+def get_lists(
+    request: Request,
+    principal: ConsumerPrincipal = Depends(current_consumer),
+    db: Session = Depends(get_db),
+):
     lists = db.scalars(
         select(ShoppingList)
         .where(ShoppingList.user_id == principal.user.id)
         .options(selectinload(ShoppingList.items))
         .order_by(ShoppingList.updated_at.desc(), ShoppingList.id)
     ).all()
-    return tuple(_response(item) for item in lists)
+    runtime = request.app.state.product_intelligence_runtime
+    return tuple(_response(item, runtime) for item in lists)
 
 
 @router.post("", response_model=ShoppingListResponse, status_code=status.HTTP_201_CREATED)
@@ -129,15 +159,23 @@ def create_list(
     db.flush()
     _audit(db, principal.user.id, "shopping_list_created", shopping_list.id, request.state.request_id)
     db.refresh(shopping_list)
-    result = _response(shopping_list)
+    result = _response(shopping_list, request.app.state.product_intelligence_runtime)
     complete(claimed, status_code=status.HTTP_201_CREATED, response_body=result.model_dump(mode="json"))
     db.commit()
     return result
 
 
 @router.get("/{list_id}", response_model=ShoppingListResponse)
-def get_list(list_id: UUID, principal: ConsumerPrincipal = Depends(current_consumer), db: Session = Depends(get_db)):
-    return _response(_owned_list(db, principal.user.id, list_id))
+def get_list(
+    list_id: UUID,
+    request: Request,
+    principal: ConsumerPrincipal = Depends(current_consumer),
+    db: Session = Depends(get_db),
+):
+    return _response(
+        _owned_list(db, principal.user.id, list_id),
+        request.app.state.product_intelligence_runtime,
+    )
 
 
 @router.patch("/{list_id}", response_model=ShoppingListResponse)
@@ -163,7 +201,7 @@ def update_list(
         shopping_list.archived_at = datetime.now(timezone.utc) if payload.archived else None
     shopping_list.revision += 1
     _audit(db, principal.user.id, "shopping_list_updated", shopping_list.id, request.state.request_id)
-    result = _response(shopping_list)
+    result = _response(shopping_list, request.app.state.product_intelligence_runtime)
     complete(claimed, status_code=status.HTTP_200_OK, response_body=result.model_dump(mode="json"))
     db.commit()
     return result
@@ -199,33 +237,35 @@ def add_item(
             and candidate.observation_id == payload.source_observation_id
         ), None)
         observation = runtime.observation_registry.get(payload.source_observation_id)
-        observations = [
-            runtime.observation_registry.get(candidate.observation_id)
-            for candidate in runtime.association_registry.all()
-            if candidate.platform == payload.source_platform
-            and candidate.platform_listing_id == payload.source_listing_id
-        ]
-        observations = [candidate for candidate in observations if candidate is not None]
-        newest_timestamp = max(
-            (candidate.raw_artifact_reference.capture_timestamp for candidate in observations),
-            default=None,
+        demo_selected = (
+            observation is not None
+            and request.app.state.settings.demo_fixtures_enabled
+            and is_explicit_fixture(observation)
+        )
+        current_observations = latest_governed_observation_ids(
+            runtime.association_registry.all(), runtime.observation_registry
         )
         if (
-            product is None or variant is None
+            product is None
+            or variant is None
             or variant.canonical_product_id != product.canonical_product_id
-            or product.product_identity_status.value != "established"
-            or product.lifecycle_status.value != "active"
-            or variant.variant_identity_status.value != "established"
-            or variant.lifecycle_status.value != "active"
+            or product.product_identity_status is not IdentityStatus.established
+            or product.lifecycle_status is not ProductLifecycleStatus.active
+            or variant.variant_identity_status is not IdentityStatus.established
+            or variant.lifecycle_status is not VariantLifecycleStatus.active
             or variant.pack_configuration.pack_configuration_status != "complete"
             or association is None
             or association.canonical_product_id != product.canonical_product_id
             or association.canonical_variant_id != variant.canonical_variant_id
+            or association.observation_id != payload.source_observation_id
             or observation is None
-            or observation.observation_id != payload.source_observation_id
-            or newest_timestamp is None
-            or observation.raw_artifact_reference.capture_timestamp != newest_timestamp
-            or observation.observed_selling_price is None
+            or is_blinkit(association.platform)
+            or is_blinkit(payload.source_platform)
+            or not (
+                has_supported_retailer_evidence(association.platform, observation)
+                or demo_selected
+            )
+            or (observation.observation_id not in current_observations and not demo_selected)
         ):
             raise HTTPException(status_code=409, detail={"code": "selected_product_evidence_stale"})
         display_name = product.canonical_display_name
@@ -248,7 +288,7 @@ def add_item(
     shopping_list.revision += 1
     _audit(db, principal.user.id, "shopping_list_item_added", shopping_list.id, request.state.request_id)
     db.flush()
-    result = _response(shopping_list)
+    result = _response(shopping_list, request.app.state.product_intelligence_runtime)
     complete(claimed, status_code=status.HTTP_201_CREATED, response_body=result.model_dump(mode="json"))
     db.commit()
     return result
@@ -278,7 +318,7 @@ def update_item(
     item.quantity = payload.quantity
     shopping_list.revision += 1
     _audit(db, principal.user.id, "shopping_list_item_updated", shopping_list.id, request.state.request_id)
-    result = _response(shopping_list)
+    result = _response(shopping_list, request.app.state.product_intelligence_runtime)
     complete(claimed, status_code=status.HTTP_200_OK, response_body=result.model_dump(mode="json"))
     db.commit()
     return result

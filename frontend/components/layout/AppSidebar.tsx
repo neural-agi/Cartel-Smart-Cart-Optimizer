@@ -2,12 +2,14 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   BarChart3,
   Calculator,
   CircleUserRound,
   LayoutDashboard,
+  ListChecks,
   LogOut,
   Search,
   Settings,
@@ -16,13 +18,16 @@ import {
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { clearBearerToken } from "@/lib/authSession";
+import { apiFetch } from "@/lib/apiClient";
+import { clearAuthState } from "@/lib/authSession";
 import { useCartStore } from "@/store/cartStore";
 import { Button } from "@/components/ui/button";
+import CartelMark from "@/components/brand/CartelMark";
 
 export const appNavigation = [
   { label: "Home", href: "/home", icon: LayoutDashboard },
   { label: "Search", href: "/search", icon: Search },
+  { label: "Lists", href: "/lists", icon: ListChecks },
   { label: "Cart", href: "/cart", icon: ShoppingCart },
   { label: "Optimize", href: "/optimize", icon: Sparkles },
   { label: "Results", href: "/results", icon: BarChart3 },
@@ -40,8 +45,17 @@ export default function AppSidebar({ onNavigate }: AppSidebarProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
 
-  const signOut = () => {
-    clearBearerToken();
+  const [signOutError, setSignOutError] = useState<string | null>(null);
+  const signOut = async () => {
+    setSignOutError(null);
+    try {
+      const response = await apiFetch("/api/v2/auth/logout", { method: "POST" });
+      if (!response.ok) throw new Error("Cartel could not end this session. Try again.");
+    } catch (error) {
+      setSignOutError(error instanceof Error ? error.message : "Cartel could not end this session.");
+      return;
+    }
+    clearAuthState();
     queryClient.clear();
     useCartStore.getState().clearCart();
     onNavigate?.();
@@ -51,9 +65,7 @@ export default function AppSidebar({ onNavigate }: AppSidebarProps) {
   return (
     <aside className="flex h-full w-64 flex-col border-r border-border bg-background">
       <div className="flex h-16 shrink-0 items-center border-b border-border px-6">
-        <Link href="/home" className="text-xl font-bold tracking-tight" onClick={onNavigate}>
-          Cartel
-        </Link>
+        <CartelMark onNavigate={onNavigate} />
       </div>
 
       <nav aria-label="Application navigation" className="flex-1 space-y-1 overflow-y-auto p-4">
@@ -83,6 +95,7 @@ export default function AppSidebar({ onNavigate }: AppSidebarProps) {
 
       <div className="border-t border-border p-4">
         <p className="px-3 text-xs text-muted-foreground">Your grocery command center</p>
+        {signOutError && <p className="mt-2 px-3 text-xs text-destructive" role="alert">{signOutError}</p>}
         <Button className="mt-3 w-full justify-start" variant="ghost" onClick={signOut}>
           <LogOut aria-hidden="true" />
           Sign out

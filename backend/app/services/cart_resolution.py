@@ -10,6 +10,8 @@ from app.product_intelligence.catalog.association_storage import (
     FilesystemCanonicalListingAssociationRegistry,
 )
 from app.product_intelligence.catalog.service import FilesystemAuthoritativeCatalog
+from app.retailer_policy import is_blinkit
+from app.services.product_search import is_explicit_fixture
 
 
 class CartItemResolutionStatus(StrEnum):
@@ -117,6 +119,8 @@ class CartResolutionService:
                 return self._unresolved(item, "associated canonical Variant was not found")
 
         observation = self.observation_registry.get(association.observation_id) if association else None
+        if association is not None and is_blinkit(association.platform) and observation is not None and not is_explicit_fixture(observation):
+            return self._unresolved(item, "retailer is unavailable pending authorization")
         if association is not None and observation is None:
             return self._unresolved(item, "listing association references a missing observation")
         return CartItemResolution(

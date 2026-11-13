@@ -1,2 +1,1 @@
 """Consumer identity services."""
-

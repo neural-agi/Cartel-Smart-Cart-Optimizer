@@ -3,4 +3,3 @@ node_modules
 out
 .git
 .env*
-!.env.example

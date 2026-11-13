@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.cost_intelligence.shared.money import Money
 from app.data_ingestion.enums import TaxStatus
 from app.data_ingestion.observation_registry.query import RetailObservationQueryService
+from app.retailer_policy import is_blinkit
 
 
 class RetailPriceComparisonStatus(StrEnum):
@@ -61,6 +62,8 @@ class RetailPriceComparisonQueryService:
             association = record.association
             price = record.observation.observed_selling_price
             if association is None or price is None:
+                continue
+            if is_blinkit(association.platform):
                 continue
             if price.currency not in self.supported_currencies:
                 continue

@@ -5,6 +5,8 @@ from uuid import UUID, uuid4
 
 from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint, Uuid, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy import JSON
+from sqlalchemy.dialects.postgresql import JSONB
 
 from app.db.base import Base
 
@@ -82,7 +84,10 @@ class VerificationChallenge(Base):
 
 class OAuthChallenge(Base):
     __tablename__ = "oauth_challenges"
-    __table_args__ = (UniqueConstraint("state_hash", name="uq_oauth_challenges_state_hash"), Index("ix_oauth_challenges_expires", "expires_at"))
+    __table_args__ = (
+        UniqueConstraint("state_hash", name="uq_oauth_challenges_state_hash"),
+        Index("ix_oauth_challenges_expires", "expires_at"),
+    )
 
     id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
     provider: Mapped[str] = mapped_column(String(32), nullable=False)
@@ -107,15 +112,20 @@ class AuditEvent(Base):
     object_type: Mapped[str | None] = mapped_column(String(64))
     object_id: Mapped[str | None] = mapped_column(String(64))
     request_id: Mapped[str | None] = mapped_column(String(128))
+    payload: Mapped[dict | None] = mapped_column(JSON().with_variant(JSONB(), "postgresql"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
 
 from app.db.models.shopping import ShoppingList, ShoppingListItem  # noqa: E402,F401
-from app.db.models.background_jobs import BackgroundJob
-from app.db.models.email_outbox import EmailOutboxEvent
-from app.db.models.idempotency import IdempotencyRecord
-from app.db.models.optimization_records import (
+from app.db.models.background_jobs import BackgroundJob  # noqa: E402,F401
+from app.db.models.email_outbox import EmailOutboxEvent  # noqa: E402,F401
+from app.db.models.idempotency import IdempotencyRecord  # noqa: E402,F401
+from app.db.models.optimization_records import (  # noqa: E402,F401
     OptimizationAllocationRecord,
     OptimizationPlanRecord,
     OptimizationRequestRecord,
 )
+
+
+from app.db.models.retailer_connections import RetailerConnection  # noqa: E402,F401
+from app.db.models.credential_secrets import CredentialSecret  # noqa: E402,F401

@@ -7,6 +7,7 @@ from playwright.async_api import Error as PlaywrightError
 from playwright.async_api import TimeoutError as PlaywrightTimeoutError
 
 from app.core.config import Settings
+from app.retailer_policy import ensure_retailer_allowed
 from app.scrapers.base.exceptions import ScraperAccessDeniedError, ScraperRequestError, ScraperUnavailableError
 from app.scrapers.base.scraper import BaseScraper
 from app.scrapers.base.types import RawHttpResponse
@@ -43,6 +44,7 @@ class BlinkitScraper(BaseScraper):
         )
 
     async def acquire_search(self, query: str) -> RawHttpResponse:
+        ensure_retailer_allowed(self.platform, "product discovery")
         if not query.strip():
             raise ValueError("Blinkit search query must be non-empty")
         try:
@@ -52,6 +54,11 @@ class BlinkitScraper(BaseScraper):
                 params={"q": query},
             )
         except ScraperRequestError as exc:
+            if exc.status_code in {401, 403, 406, 429}:
+                raise ScraperAccessDeniedError(
+                    "Blinkit denied acquisition; browser fallback is not attempted",
+                    status_code=exc.status_code,
+                ) from exc
             self.logger.warning(
                 "blinkit_http_blocked query=%s status_code=%s falling_back=playwright",
                 query,
@@ -95,6 +102,7 @@ class BlinkitScraper(BaseScraper):
         expected_retailer_product_id: str,
     ) -> RawHttpResponse:
         """Acquire one explicitly supplied Blinkit product reference."""
+        ensure_retailer_allowed(self.platform, "product detail acquisition")
         parsed = urlsplit(product_url)
         if parsed.scheme != "https" or parsed.netloc not in {"blinkit.com", "www.blinkit.com"}:
             raise ValueError("Blinkit product URL must use the https Blinkit host")
@@ -126,6 +134,7 @@ class BlinkitScraper(BaseScraper):
         headless: bool = True,
         target_url: str | None = None,
     ) -> RawHttpResponse:
+        ensure_retailer_allowed(self.platform, "browser acquisition")
         from playwright.async_api import async_playwright
 
         search_url = target_url or f"{self.base_url}{self.search_path}?{urlencode({'q': query})}"

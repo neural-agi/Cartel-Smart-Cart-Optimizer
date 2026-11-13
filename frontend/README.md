@@ -1,36 +1,27 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Cartel Frontend
 
-## Getting Started
+The frontend is a Next.js application. In production Compose, it is the only service published to the host and proxies same-origin `/api/*` requests to the private backend service using `BACKEND_INTERNAL_URL` (default `http://api:8000`). The browser must not be configured to call the private backend hostname directly.
 
-First, run the development server:
+Run the production browser flow through Compose (`docker compose up --build`) so the frontend container can resolve the private `api` service name. A host-side `npm run dev` process is not a supported deployment path when `BACKEND_INTERNAL_URL=http://api:8000`; that hostname exists only on the Compose network. Do not point the browser at `api:8000` or expose the backend port merely to make host development appear healthy.
+
+## Local Development
+
+From this directory, install the exact dependency graph in `package-lock.json` and run:
 
 ```bash
+npm ci
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Consumer sign-in uses `/api/v2/auth/*`, verified email/password, and a server-managed `HttpOnly` session cookie. The frontend keeps only the CSRF token in memory; it does not persist consumer credentials or session tokens in browser storage. Same-origin mutations send a CSRF header. Operator/service bearer credentials are separate from the consumer login flow. In Compose, leave `NEXT_PUBLIC_API_BASE_URL` unset so the browser uses the same-origin proxy; point `BACKEND_INTERNAL_URL` at the private API service.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Validation
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm ci
+npm run lint
+npm run typecheck
+npm run build
+```
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+The production container uses the lockfile, Next.js standalone output, and the Compose proxy configuration. Public TLS, DNS, and secret provisioning are deployment-platform responsibilities; see the repository root README for the single-host Compose instructions.

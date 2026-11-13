@@ -11,6 +11,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app.auth.service import csrf_token_for_session
 from app.core.config import Settings
+from app.core.rate_limit import RateLimitDecision
 from app.db.base import Base
 from app.db.models import (
     AuthSession,
@@ -33,6 +34,19 @@ if "app" not in __import__("inspect").signature(httpx.Client.__init__).parameter
         _httpx_init(self, *args, **kwargs)
 
     httpx.Client.__init__ = _httpx_compatible_init
+
+
+class _AlwaysAllowLimiter:
+    """Deterministic limiter for tests that do not exercise Redis behaviour."""
+
+    async def allow(self, *, category, identity, path, limit, window_seconds):
+        return RateLimitDecision(allowed=True, remaining=limit)
+
+    async def ping(self) -> None:
+        return None
+
+    async def close(self) -> None:
+        return None
 
 
 MUTATING_ROUTES = (
@@ -61,7 +75,10 @@ def app_db(tmp_path):
             "CASCADE"
         ))
     factory = sessionmaker(bind=engine, expire_on_commit=False)
-    app = create_application(Settings(_env_file=None, data_dir=tmp_path, auth_required=False, database_url_override=database_url))
+    app = create_application(
+        Settings(_env_file=None, data_dir=tmp_path, auth_required=False, database_url_override=database_url),
+        rate_limiter=_AlwaysAllowLimiter(),
+    )
     app.state.db_session_factory = factory
     user_id = uuid4()
     token = f"consumer-session-{user_id}"
@@ -116,12 +133,15 @@ def test_operator_bearer_and_consumer_cookie_are_separate(app_db):
     client, _, _, _, _, _ = app_db
     consumer = client.get("/api/v1/lists")
     assert consumer.status_code == 200
-    operator_app = create_application(Settings(
-        _env_file=None,
-        data_dir=app_db[3].state.settings.data_dir,
-        auth_required=True,
-        auth_tokens="operator=operator-token",
-    ))
+    operator_app = create_application(
+        Settings(
+            _env_file=None,
+            data_dir=app_db[3].state.settings.data_dir,
+            auth_required=True,
+            auth_tokens="operator=operator-token",
+        ),
+        rate_limiter=_AlwaysAllowLimiter(),
+    )
     operator_client = TestClient(operator_app)
     assert operator_client.get("/api/v1/products/search", params={"query": "milk"}).status_code == 401
     assert operator_client.get(

@@ -4,8 +4,8 @@ from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.data_ingestion.observation_registry.interface import ObservationRegistry
 from app.data_ingestion.enums import JobState
+from app.data_ingestion.observation_registry.interface import ObservationRegistry
 from app.data_ingestion.types import NormalizedObservation, ScrapeJob
 from app.normalization.ingestion import DeterministicIngestionNormalizer
 from app.product_intelligence.catalog import (
@@ -21,6 +21,8 @@ from app.product_intelligence.execution import (
     ProductIntelligenceExecutionStatus,
     ProductIntelligenceExecutionTrigger,
 )
+from app.retailer_policy import is_blinkit
+from app.demo_catalog import is_synthetic_demo_platform
 from app.workers.local_ingestion import LocalIngestionWorker
 
 
@@ -83,6 +85,20 @@ class ProductIntelligenceRuntime:
         return await self.execute_worker_result(job, worker_result)
 
     async def execute_worker_result(self, job: ScrapeJob, worker_result, lifecycle_reporter=None) -> ProductIntelligenceRuntimeResult:
+        if is_blinkit(job.platform):
+            return ProductIntelligenceRuntimeResult(
+                job_id=worker_result.job_id,
+                status="policy_blocked",
+                worker_result=worker_result,
+                rationale=("blinkit_commercial_authorization_required",),
+            )
+        if is_synthetic_demo_platform(job.platform):
+            return ProductIntelligenceRuntimeResult(
+                job_id=worker_result.job_id,
+                status="policy_blocked",
+                worker_result=worker_result,
+                rationale=("synthetic_catalog_has_no_acquisition_capability",),
+            )
         if worker_result.parsed_batch is None:
             return ProductIntelligenceRuntimeResult(
                 job_id=worker_result.job_id,

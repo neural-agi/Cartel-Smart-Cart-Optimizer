@@ -118,4 +118,3 @@ def configured_verifier(settings: Settings, provider: str):
 
 def provider_configuration(settings: Settings) -> dict[str, bool]:
     return {"google": settings.google_oauth_configured, "github": settings.github_oauth_configured, "apple": settings.apple_oauth_configured}
-
